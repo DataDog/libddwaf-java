@@ -9,14 +9,14 @@ node 'docker_build', {
     }
 
     stage 'Build Image', {
-        sh 'build/jenkins_run.sh build_docker_image'
+        sh 'ci/jenkins_run.sh build_docker_image'
     }
 
     stage 'Build PowerWAF', {
-        sh 'build/jenkins_run.sh build_powerwaf'
+        sh 'ci/jenkins_run.sh build_powerwaf'
     }
 
     stage 'Build and test Java wrapper', {
-        sh 'build/jenkins_run.sh test_java'
+        sh 'ci/jenkins_run.sh test_java'
     }
 }
