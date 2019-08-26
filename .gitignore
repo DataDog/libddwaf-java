@@ -1,0 +1,11 @@
+/.gradle/
+/CMakeLists.txt.user
+/Debug/
+/Release/
+/release/
+/out/
+/build/
+/native_libs/**/*.so
+/native_libs/**/*.dll
+/native_libs/**/*.dylib
+

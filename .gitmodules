@@ -1,0 +1,3 @@
+[submodule "PowerWAF"]
+	path = PowerWAF
+	url = git@github.com:sqreen/PowerWAF.git

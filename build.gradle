@@ -1,0 +1,126 @@
+plugins {
+    id 'java'
+    id 'groovy'
+}
+
+repositories {
+    jcenter()
+    ivy {
+        artifactPattern 'http://sqreen-ci-java.s3-website-us-east-1.amazonaws.com/jars/[organisation]/[artifact]-[revision](-[classifier]).[ext]'
+        ivyPattern 'http://sqreen-ci-java.s3-website-us-east-1.amazonaws.com/jars/[organisation]/[module]-[revision].xml'
+    }
+}
+
+group 'io.sqreen'
+version '0.1.0-SNAPSHOT'
+
+sourceCompatibility = 1.6
+targetCompatibility = 1.6
+
+task cmakeNativeLibDebug(type: Exec) {
+    description = 'Runs cmake in a debug configuration'
+
+    def pwafConfDir = project.hasProperty('powerwafConfig') ?
+            project.powerwafInstall :
+            "$projectDir/PowerWAF/Debug/out/usr/local/share/cmake/powerwaf"
+
+    doFirst {
+        def f = file("$pwafConfDir/powerwafConfig.cmake")
+        if (!f.exists()) {
+            logger.warn("The file $f does not exist. PowerWAF debug must be installed globally. " +
+                    "Run with -PpowerwafConfig=/path/to/dir/of/powerwafConfig-debug.cmake to override")
+        }
+
+        file("$buildDir/Debug").mkdirs()
+    }
+
+    inputs.file 'CMakeLists.txt'
+    outputs.dir "$buildDir/Debug/"
+
+    logging.captureStandardError  LogLevel.ERROR
+    logging.captureStandardOutput LogLevel.INFO
+
+    commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
+                         '-DCMAKE_C_FLAGS=--coverage', '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
+                         projectDir
+
+    workingDir "$buildDir/Debug"
+}
+
+task buildNativeLibDebug(type: Exec) {
+    description = 'Builds the native JNI lib in a debug configuration'
+    group = 'test'
+
+    inputs.dir 'src/main/c'
+    outputs.file "$buildDir/Debug/libpowerwaf_jni.so"
+
+    logging.captureStandardError  LogLevel.ERROR
+    logging.captureStandardOutput LogLevel.INFO
+
+    commandLine 'make', '-j', 'powerwaf_jni', 'VERBOSE=1'
+    workingDir "$buildDir/Debug"
+
+    dependsOn cmakeNativeLibDebug
+}
+
+test {
+    jvmArgs(["-Djava.library.path=$buildDir/Debug"])
+    dependsOn buildNativeLibDebug
+}
+
+dependencies {
+    compile group: 'io.sqreen', name: 'logging', version: '1.0'
+    compile group: 'com.google.guava', name: 'guava', version: '20.0', { // last version for java6
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+        exclude group: 'com.google.errorprone',    module: 'error_prone_annotations'
+        exclude group: 'com.google.j2objc',        module: 'j2objc-annotations'
+        exclude group: 'org.codehaus.mojo',        module: 'animal-sniffer-annotations'
+    }
+
+    testCompile group: 'org.hamcrest', name: 'hamcrest-library', version: '1.3'
+    testCompile group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.4.17'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+def nativeLibsDir = "$projectDir/native_libs"
+task checkForNativeLibs {
+    doLast {
+        def tree = fileTree(dir: nativeLibsDir, include: ['**/*.so', '**/*.dylib', '**/*.dll'])
+        if (tree.empty) {
+            throw new GradleException("Could find no libraries in $tree")
+        }
+    }
+}
+task copyNativeLibs(type: Copy) {
+    def existsLib = { filename ->
+        def fileObj = file("$nativeLibsDir/${filename}")
+        if (!fileObj.exists()) {
+            logger.warn("Could not find ${fileObj.absolutePath}")
+            false
+        } else {
+            true
+        }
+    }
+    def directories = [['linux_64/libpowerwaf_jni.so', 'linux_64/libSqreen.so'],
+                       ['solaris_64/libpowerwaf_jni.so', 'solaris_64/libSqreen.so'],
+                       ['osx_64/libpowerwaf_jni.so', 'osx_64/libSqreen.so'],
+                       ['windows_64/powerwaff_jni.dll', 'windows_64/Sqreen.dll']]
+
+
+    doFirst {
+        if (!directories.any { jni, pwaf -> existsLib(jni) && existsLib(pwaf) }) {
+            throw new GradleException("Could not find any native lib")
+        }
+    }
+
+    from nativeLibsDir, {
+        include '**/*.so'
+        include '**/*.dylib'
+        include '**/*.dll'
+    }
+    into "${sourceSets.main.output.resourcesDir}/native_libs/"
+
+    dependsOn checkForNativeLibs
+}
+
+jar.dependsOn(copyNativeLibs)
