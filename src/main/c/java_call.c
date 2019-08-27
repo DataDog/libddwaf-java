@@ -100,3 +100,40 @@ void java_meth_destroy(JNIEnv *env, struct j_method *jmeth)
         JNI(DeleteGlobalRef, jmeth->class_glob);
     }
 }
+
+// returns a global reference
+jobject java_static_field_checked(JNIEnv *env, jclass clazz,
+                                  const char *name, const char *sig)
+{
+    jobject local_obj  = NULL,
+            global_obj = NULL;
+
+    jfieldID id = JNI(GetStaticFieldID, clazz, name, sig);
+    if (!id) {
+        goto error;
+    }
+
+    local_obj = JNI(GetStaticObjectField, clazz, id);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+
+    global_obj = JNI(NewGlobalRef, local_obj);
+    if (!global_obj) {
+        // out of memory
+        goto error;
+    }
+
+error:
+    if (local_obj) {
+        JNI(DeleteLocalRef, local_obj);
+    }
+    if (!global_obj) {
+        if (JNI(ExceptionCheck)) {
+            java_wrap_exc("Error fetching static field %s%s", name, sig);
+        } else {
+            JNI(ThrowNew, jcls_rte, "Could not fetch field");
+        }
+    }
+    return global_obj;
+}

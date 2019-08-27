@@ -35,4 +35,6 @@ jobject java_meth_call(JNIEnv *env,
                        jobject receiver,
                        ...);
 
+jobject java_static_field_checked(JNIEnv *env, jclass clazz,
+                                  const char *name, const char *sig);
 #endif

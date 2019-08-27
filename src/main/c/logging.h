@@ -4,6 +4,8 @@
 #include <jni.h>
 #include "common.h"
 
+bool java_log_init(JavaVM *vm, JNIEnv *env);
+void java_log_shutdown(JNIEnv *env);
 void _java_wrap_exc_relay(JNIEnv *env,
         const char *format,
         const char *file, const char *function, int line, ...)

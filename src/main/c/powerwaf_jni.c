@@ -51,11 +51,26 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
 
     JNIEnv *env;
     (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6);
-    _init_ok = _cache_references(env);
-    if (!_init_ok && !JNI(ExceptionCheck)) {
-        JNI(ThrowNew, jcls_rte, "Library initialization failed");
+    bool cache_ref_ok = _cache_references(env);
+    if (!cache_ref_ok) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_rte, "Library initialization failed "
+                                    "(_cache_references)");
+        }
+        goto error;
+    }
+    bool log_ok = java_log_init(vm, env);
+    if (!log_ok) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_rte, "Library initialization failed"
+                                    "(java_log_init)");
+        }
+        goto error;
     }
 
+    _init_ok = true;
+
+error:
     return JNI_VERSION_1_6;
 }
 
@@ -71,9 +86,11 @@ JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved)
     if (jcls_rte) {
         JNI(DeleteGlobalRef, jcls_rte);
     }
+    java_log_shutdown(env);
 
     _init_ok = false;
     powerwaf_clearAll();
+    powerwaf_setup_logging(NULL, PWL_ERROR);
 }
 
 /*
@@ -277,56 +294,25 @@ static bool _cache_create_exception(JNIEnv *env)
     return !!_create_exception_mid;
 }
 
-// returns a global reference
-static jobject _get_static_field(JNIEnv *env, jclass clazz,
-                                 const char *name, const char *sig)
-{
-    jobject local_obj  = NULL,
-            global_obj = NULL;
-
-    jfieldID id = JNI(GetStaticFieldID, clazz, name, sig);
-    if (!id) {
-        goto error;
-    }
-
-    local_obj = JNI(GetStaticObjectField, clazz, id);
-    if (JNI(ExceptionCheck)) {
-        goto error;
-    }
-
-    global_obj = JNI(NewGlobalRef, local_obj);
-    if (!global_obj) {
-        // out of memory
-        goto error;
-    }
-
-error:
-    if (local_obj) {
-        JNI(DeleteLocalRef, local_obj);
-    }
-    return global_obj;
-}
-
 #define ACTION_ENUM_DESCR "Lio/sqreen/powerwaf/Powerwaf$Action;"
 static bool _fetch_action_enums(JNIEnv *env)
 {
-
     jclass action_jclass = JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$Action");
     if (!action_jclass) {
         goto error;
     }
 
-    _action_ok = _get_static_field(env, action_jclass,
+    _action_ok = java_static_field_checked(env, action_jclass,
                                    "OK", ACTION_ENUM_DESCR);
     if (!_action_ok) {
         goto error;
     }
-    _action_monitor = _get_static_field(env, action_jclass,
+    _action_monitor = java_static_field_checked(env, action_jclass,
                                         "MONITOR", ACTION_ENUM_DESCR);
     if (!_action_monitor) {
         goto error;
     }
-    _action_block = _get_static_field(env, action_jclass,
+    _action_block = java_static_field_checked(env, action_jclass,
                                       "BLOCK", ACTION_ENUM_DESCR);
     if (!_action_block) {
         goto error;
