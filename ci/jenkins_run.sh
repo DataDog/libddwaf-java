@@ -89,8 +89,9 @@ function test_java {
 }
 function test_java_docker {
   cd "/tmp/AgentJavaNative"
-  ./gradlew --info check
-  CODECOV_TOKEN='19632923-518b-4125-8b3a-d400365a1d83' bash <(curl -fsL https://codecov.io/bash)
+  ./gradlew --info check jacocoTestReport
+  CODECOV_TOKEN='19632923-518b-4125-8b3a-d400365a1d83' bash \
+    <(curl -fL --connect-timeout 10 -m 20 --retry 3 https://codecov.io/bash)
 }
 
 main "$@"
