@@ -98,6 +98,7 @@ void java_meth_destroy(JNIEnv *env, struct j_method *jmeth)
 {
     if (jmeth->class_glob) {
         JNI(DeleteGlobalRef, jmeth->class_glob);
+        jmeth->class_glob = NULL;
     }
 }
 

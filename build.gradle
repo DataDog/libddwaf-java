@@ -64,11 +64,6 @@ task buildNativeLibDebug(type: Exec) {
     dependsOn cmakeNativeLibDebug
 }
 
-test {
-    jvmArgs(["-Djava.library.path=$buildDir/Debug"])
-    dependsOn buildNativeLibDebug
-}
-
 jacocoTestReport {
     reports {
         html.enabled true
@@ -133,3 +128,38 @@ task copyNativeLibs(type: Copy) {
 }
 
 jar.dependsOn(copyNativeLibs)
+
+sourceSets {
+    testGC {
+        java.srcDir "src/test_gc/java"
+        groovy.srcDir "src/test_gc/groovy"
+        resources.srcDir "src/test_gc/resources"
+
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+    }
+}
+configurations {
+    testGCCompile.extendsFrom(testCompile)
+    testGCRuntime.extendsFrom(testRuntime)
+}
+
+task testgc(type: Test) {
+    description = 'Tests that the library can be unloaded'
+    group = 'verification'
+    useJUnit()
+
+    testClassesDirs = sourceSets.testGC.output.classesDirs
+    classpath = sourceSets.testGC.runtimeClasspath
+
+    outputs.upToDateWhen { false }
+}
+check.dependsOn testgc
+
+tasks.withType(Test).each {
+    it.with {
+        jvmArgs(["-Djava.library.path=$buildDir/Debug"])
+        dependsOn buildNativeLibDebug
+        outputs.upToDateWhen { false }
+    }
+}

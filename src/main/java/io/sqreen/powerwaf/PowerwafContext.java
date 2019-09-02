@@ -76,7 +76,8 @@ public class PowerwafContext implements Closeable {
             return res;
         } catch (RuntimeException rte) {
             throw new UnclassifiedPowerwafException(
-                    "Error calling PowerWAF's runRule for rule " + fullRuleName, rte);
+                    "Error calling PowerWAF's runRule for rule " + fullRuleName +
+                    ": " + rte.getMessage(), rte);
         } finally {
             this.readLock.unlock();
         }

@@ -8,6 +8,13 @@
 #include "logging.h"
 #include "common.h"
 #include "java_call.h"
+#include "utf16_utf8.h"
+
+#ifdef _WIN32
+# define DIR_SEP '\\'
+#else
+# define DIR_SEP '/'
+#endif
 
 #define LOGGER_NAME "powerwaf_native"
 #define LOGGING_PATTERN "%s (%s on %s:%s)"
@@ -18,6 +25,8 @@ static struct j_method _log_meth;
 static struct j_method _is_loggable;
 static jclass _object_jcls;
 static JavaVM *_vm;
+
+static int file_strip_idx;
 
 static bool _get_min_log_level(JNIEnv *env, PW_LOG_LEVEL *level);
 static void _powerwaf_logging_c(
@@ -30,6 +39,9 @@ static void _detach_vm(void);
 #define LOGGING_LEVEL_DESCR "Lio/sqreen/logging/Level;"
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
+    char *loc = memrchr(__FILE__, DIR_SEP, strlen(__FILE__));
+    file_strip_idx = loc ? (int)(loc - __FILE__ + 1) : 0;
+
     bool retval = false;
     struct j_method fact_get = {0};
     jstring logger_name = NULL;
@@ -108,7 +120,8 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         java_wrap_exc("Could not determine minimum log level");
         goto error;
     }
-    powerwaf_setup_logging(_powerwaf_logging_c, min_level);
+
+    powerwaf_setupLogging(_powerwaf_logging_c, min_level);
 
     retval = true;
 
@@ -167,6 +180,23 @@ void java_log_shutdown(JNIEnv *env)
     java_meth_destroy(env, &_is_loggable);
 }
 
+void java_log(PW_LOG_LEVEL level, const char *function, const char *file,
+              int line, const char *fmt, ...)
+{
+    char *message = NULL;
+    va_list ap;
+    va_start(ap, fmt);
+    int message_len = vasprintf(&message, fmt, ap);
+    va_end(ap);
+
+    if (!message) {
+        return;
+    }
+    _powerwaf_logging_c(level, function, file + file_strip_idx, line,
+                        message, (size_t)message_len);
+    free(message);
+}
+
 static bool _get_min_log_level(JNIEnv *env, PW_LOG_LEVEL *level)
 {
 #define TEST_LEVEL(jobj, pwl_level) do { \
@@ -222,7 +252,7 @@ static void _powerwaf_logging_c(
     jstring line_jstr = NULL;
     jobjectArray args_arr = NULL;
 
-    message_jstr = JNI(NewStringUTF, message);
+    message_jstr = java_utf8_to_jstring_checked(env, message, strlen(message));
     if (!message_jstr) {
         goto error;
     }
@@ -363,7 +393,8 @@ void _java_wrap_exc_relay(JNIEnv *env,
 
     JNI(ExceptionClear);
 
-    message_obj = JNI(NewStringUTF, final_msg);
+    message_obj = java_utf8_to_jstring_checked(
+                env, final_msg, (size_t) (msg_write - final_msg));
     if (JNI(ExceptionOccurred)) {
         JNI(ExceptionClear);
         JNI(Throw, prev_throwable);

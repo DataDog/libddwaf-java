@@ -5,11 +5,13 @@
 #include "logging.h"
 #include <PowerWAF.h>
 #include <assert.h>
+#include <string.h>
 
 #define MAX_CONVERT_REC_LEVEL 10
 
 // suffix _checked means if a function fails it leaves a pending exception
 static bool _check_init(JNIEnv *env);
+static void _deinitialize(JNIEnv *env);
 static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *len);
 static bool _cache_references(JNIEnv *env);
 static void _dispose_of_action_enums(JNIEnv *env);
@@ -51,6 +53,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
 
     JNIEnv *env;
     (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6);
+
     bool cache_ref_ok = _cache_references(env);
     if (!cache_ref_ok) {
         if (!JNI(ExceptionCheck)) {
@@ -80,17 +83,20 @@ JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved)
 
     JNIEnv *env;
     (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6);
-    if (_init_ok) {
-        _dispose_of_cache_references(env);
-    }
-    if (jcls_rte) {
-        JNI(DeleteGlobalRef, jcls_rte);
-    }
-    java_log_shutdown(env);
+    _deinitialize(env);
+}
 
-    _init_ok = false;
-    powerwaf_clearAll();
-    powerwaf_setup_logging(NULL, PWL_ERROR);
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    deinitialize
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_deinitialize(
+        JNIEnv *env, jclass clazz)
+{
+    UNUSED(clazz);
+
+    _deinitialize(env);
 }
 
 /*
@@ -205,7 +211,8 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
     jstring data_obj = NULL;
     if (ret->data) {
         // no length, so the string must be NUL-terminated
-        data_obj = JNI(NewStringUTF, ret->data);
+        data_obj = java_utf8_to_jstring_checked(
+                    env, ret->data, strlen(ret->data));
         if (!data_obj) {
             if (!JNI(ExceptionCheck)) {
                 JNI(ThrowNew, jcls_rte, "Could not create result data string");
@@ -249,6 +256,26 @@ static bool _check_init(JNIEnv *env)
         return false;
     }
     return true;
+}
+
+static void _deinitialize(JNIEnv *env)
+{
+    if (_init_ok) {
+        JAVA_LOG(PWL_DEBUG, "Deinitializing JNI library");
+        _dispose_of_cache_references(env);
+    }
+
+    // do not delete reference to jcls_rte, as _check_init uses it
+//    if (jcls_rte) {
+//        JNI(DeleteGlobalRef, jcls_rte);
+//        jcls_rte = NULL;
+//    }
+
+    java_log_shutdown(env);
+
+    _init_ok = false;
+    powerwaf_clearAll();
+    powerwaf_setupLogging(NULL, PWL_ERROR);
 }
 
 // sets a pending exception in case of failure

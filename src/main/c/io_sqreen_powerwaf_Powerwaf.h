@@ -9,6 +9,14 @@ extern "C" {
 #endif
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    deinitialize
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_deinitialize
+  (JNIEnv *, jclass);
+
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    addRule
  * Signature: (Ljava/lang/String;Ljava/lang/String;)Z
  */

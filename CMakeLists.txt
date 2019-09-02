@@ -25,19 +25,21 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -Werror
         -Weverything -Wno-unused-macros  -Wno-gnu-zero-variadic-macro-arguments
         -Wno-documentation -Wno-nullability-extension -Wno-zero-length-array
-        -Wno-gnu-anonymous-struct -Wno-nested-anon-types
+        -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-switch
         -Wno-gnu-statement-expression -Wno-reserved-id-macro)
 endif()
 
 set_target_properties(powerwaf_jni PROPERTIES
-	C_VISIBILITY_PRESET hidden)
+    C_VISIBILITY_PRESET hidden)
 
 target_include_directories(powerwaf_jni PRIVATE ${JNI_INCLUDE_DIRS})
 target_link_libraries(powerwaf_jni Sqreen ${JAVA_JVM_LIBRARY})
 
 if(CMAKE_BUILD_TYPE MATCHES Release)
-	set_target_properties(powerwaf_jni PROPERTIES
-		INSTALL_RPATH_USE_LINK_PATH false
-		BUILD_WITH_INSTALL_RPATH true
-		INSTALL_RPATH "$ORIGIN")
+    set_target_properties(powerwaf_jni PROPERTIES
+        INSTALL_RPATH_USE_LINK_PATH false
+        BUILD_WITH_INSTALL_RPATH true
+        INSTALL_RPATH "$ORIGIN")
 endif()
+
+# vim: set et:

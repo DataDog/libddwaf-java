@@ -63,6 +63,12 @@ public final class Powerwaf {
 
     public static native int getVersion();
 
+    /**
+     * Releases all JNI references, allowing the classloader that loaded the
+     * native library to be garbage collected.
+     */
+    public static native void deinitialize();
+
     private static AbstractPowerwafException createException(int retCode) {
         return AbstractPowerwafException.createFromErrorCode(retCode);
     }
