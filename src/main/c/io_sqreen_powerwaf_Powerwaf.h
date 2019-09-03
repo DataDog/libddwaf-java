@@ -42,9 +42,9 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    getVersion
- * Signature: ()I
+ * Signature: ()Ljava/lang/String;Y
  */
-JNIEXPORT jint JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion
+JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion
   (JNIEnv *, jclass);
 
 #ifdef __cplusplus

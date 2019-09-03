@@ -8,4 +8,4 @@
 /native_libs/**/*.so
 /native_libs/**/*.dll
 /native_libs/**/*.dylib
-
+/.idea/

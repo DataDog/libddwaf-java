@@ -16,9 +16,9 @@ static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *len);
 static bool _cache_references(JNIEnv *env);
 static void _dispose_of_action_enums(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
-static PWInput _convert_checked(JNIEnv *env, jobject obj, int rec_level);
+static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level);
 
-static const PWInput _pwinput_invalid = { .type = PWI_INVALID };
+static const PWArgs _pwinput_invalid = { .type = PWI_INVALID };
 
 jclass jcls_rte;
 jmethodID rte_constr_cause;
@@ -170,8 +170,8 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
 {
     jobject result = NULL;
     char *rule_name_c = NULL;
-    PWInput input = { .type = PWI_INVALID };
-    PW_RET *ret = NULL;
+    PWArgs input = { .type = PWI_INVALID };
+    PWRet *ret = NULL;
 
     if (!_check_init(env)) {
         return NULL;
@@ -238,15 +238,27 @@ end:
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
  * Method:    getVersion
- * Signature: ()I
+ * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jint JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion(
+JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion(
         JNIEnv *env, jclass clazz)
 {
     UNUSED(env);
     UNUSED(clazz);
 
-    return (jint) powerwaf_getVersion();
+    PWVersion iversion = powerwaf_getVersion();
+    char *version;
+    int size_version = asprintf(&version, "%d.%d.%d",
+                                iversion.major, iversion.minor, iversion.patch);
+    if (size_version < 0) {
+        JNI(ThrowNew, jcls_rte, "Could not allocate memory for the version");
+        return NULL;
+    }
+
+    jstring ret = java_utf8_to_jstring_checked(
+                env, version, (size_t)size_version);
+    free(version);
+    return ret;
 }
 
 static bool _check_init(JNIEnv *env)
@@ -540,7 +552,7 @@ static void _dispose_of_cache_references(JNIEnv * env)
     _dispose_of_cached_methods(env);
 }
 
-static PWInput _convert_checked(JNIEnv *env, jobject obj, int rec_level)
+static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
 {
 #define RET_IF_EXC() do { if (JNI(ExceptionCheck)) { goto error; } } while (0)
 #define JAVA_CALL(meth, recv) \
@@ -574,7 +586,7 @@ static PWInput _convert_checked(JNIEnv *env, jobject obj, int rec_level)
         goto error;
     }
 
-    PWInput result = _pwinput_invalid;
+    PWArgs result = _pwinput_invalid;
 
     if (JNI(IsInstanceOf, obj, *_map_cls)) {
         result = powerwaf_createMap();
@@ -595,17 +607,18 @@ static PWInput _convert_checked(JNIEnv *env, jobject obj, int rec_level)
                         "Error calling toString() on map key");
             jobject value_obj = JAVA_CALL(_entry_value, entry);
 
-            PWInput value = _convert_checked(env, value_obj, rec_level + 1);
+            PWArgs value = _convert_checked(env, value_obj, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
-            char *key_cstr = _to_utf8_checked(env, key_jstr, NULL);
+            size_t key_len;
+            char *key_cstr = _to_utf8_checked(env, key_jstr, &key_len);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
-            powerwaf_addToPWInputMap(&result, key_cstr, value);
+            powerwaf_addToPWArgsMap(&result, key_cstr, key_len, value);
 
             free(key_cstr);
 
@@ -631,12 +644,12 @@ static PWInput _convert_checked(JNIEnv *env, jobject obj, int rec_level)
             }
             jobject element = JAVA_CALL(_iterator_next, it);
 
-            PWInput value = _convert_checked(env, element, rec_level + 1);
+            PWArgs value = _convert_checked(env, element, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
-            powerwaf_addToPWInputArray(&result, value);
+            powerwaf_addToPWArgsArray(&result, value);
 
             JNI(DeleteLocalRef, element);
         }

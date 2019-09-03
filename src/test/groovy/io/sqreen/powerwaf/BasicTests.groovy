@@ -10,7 +10,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'we can check the version'() {
-        assertThat Powerwaf.version, is(0)
+        assert Powerwaf.version =~ /\A\d+\.\d+\.\d+\z/
     }
 
     @Test

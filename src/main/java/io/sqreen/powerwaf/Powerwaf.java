@@ -61,7 +61,7 @@ public final class Powerwaf {
                                          Map<String, Object> parameters,
                                          long timeLeftInUs) throws AbstractPowerwafException;
 
-    public static native int getVersion();
+    public static native String getVersion();
 
     /**
      * Releases all JNI references, allowing the classloader that loaded the
