@@ -33,13 +33,33 @@ set_target_properties(powerwaf_jni PROPERTIES
     C_VISIBILITY_PRESET hidden)
 
 target_include_directories(powerwaf_jni PRIVATE ${JNI_INCLUDE_DIRS})
-target_link_libraries(powerwaf_jni Sqreen ${JAVA_JVM_LIBRARY})
+target_link_libraries(powerwaf_jni PRIVATE Sqreen ${JAVA_JVM_LIBRARY})
 
-if(CMAKE_BUILD_TYPE MATCHES Release)
+if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
     set_target_properties(powerwaf_jni PROPERTIES
         INSTALL_RPATH_USE_LINK_PATH false
         BUILD_WITH_INSTALL_RPATH true
         INSTALL_RPATH "$ORIGIN")
+
+    if(NOT WIN32)
+        execute_process(COMMAND "bash" "-c" "cd '${powerwaf_jni_SOURCE_DIR}' && git rev-parse HEAD" OUTPUT_VARIABLE BUILD_ID)
+        string(STRIP "${BUILD_ID}" BUILD_ID)
+        message(STATUS "Build id is ${BUILD_ID}")
+        string(SUBSTRING "${BUILD_ID}" 0 2 BUILD_ID_PREFIX)
+        string(SUBSTRING "${BUILD_ID}" 2 39 BUILD_ID_SUFFIX)
+    endif()
+
+    if(NOT (CMAKE_CXX_COMPILER_ID MATCHES MSVC))
+        target_link_libraries(powerwaf_jni PRIVATE -Wl,--build-id=0x${BUILD_ID})
+    endif()
+
+    if(NOT WIN32)
+        set(SYMBOL_FILE $<TARGET_FILE:powerwaf_jni>.debug)
+        add_custom_command(TARGET powerwaf_jni POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:powerwaf_jni> ${SYMBOL_FILE}
+            COMMAND ${CMAKE_STRIP} --only-keep-debug ${SYMBOL_FILE}
+            COMMAND ${CMAKE_STRIP} $<TARGET_FILE:powerwaf_jni>)
+    endif()
 endif()
 
 # vim: set et:

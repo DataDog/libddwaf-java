@@ -23,7 +23,7 @@ Then the jni lib can be built with:
 
 ```sh
 mkdir Release && cd Release
-cmake .. -DCMAKE_BUILD_TYPE=Release \
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_PREFIX_PATH=$(realpath ../PowerWAF/Release/out/usr/local/share/cmake/powerwaf/)
 make -j
 cp libpowerwaf_jni.so ../native_libs/linux_64/  # example
