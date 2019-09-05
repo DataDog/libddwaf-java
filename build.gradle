@@ -25,7 +25,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '0.1.0-SNAPSHOT'
+version '0.1.0'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
@@ -103,6 +103,28 @@ task sourcesJar(type: Jar, dependsOn: classes) {
     from sourceSets.main.allSource
 }
 
+def nativeLibsDir = "$projectDir/native_libs"
+
+task checkForNativeLibs {
+    doLast {
+        def tree = fileTree(dir: nativeLibsDir, include: ['**/*.so', '**/*.dylib', '**/*.dll'])
+        if (tree.empty) {
+            throw new GradleException("Could find no libraries in $tree")
+        }
+    }
+}
+
+task packageDebugSymbols(type: Zip) {
+    archiveClassifier = 'dbgsym'
+
+    from nativeLibsDir, {
+        include '**/*.pdb'
+        include '**/*.debug'
+    }
+
+    dependsOn checkForNativeLibs
+}
+
 publishing {
     repositories {
         ivy {
@@ -128,6 +150,10 @@ publishing {
                 type = 'sources'
                 conf = 'compile'
             }
+            artifact(packageDebugSymbols) {
+                classifier = 'dbgsym'
+                extension = 'zip'
+            }
             descriptor.description {
                 text = description
             }
@@ -135,15 +161,6 @@ publishing {
     }
 }
 
-def nativeLibsDir = "$projectDir/native_libs"
-task checkForNativeLibs {
-    doLast {
-        def tree = fileTree(dir: nativeLibsDir, include: ['**/*.so', '**/*.dylib', '**/*.dll'])
-        if (tree.empty) {
-            throw new GradleException("Could find no libraries in $tree")
-        }
-    }
-}
 task copyNativeLibs(type: Copy) {
     def existsLib = { filename ->
         def fileObj = file("$nativeLibsDir/${filename}")

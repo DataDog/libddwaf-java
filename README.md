@@ -12,10 +12,10 @@ For each environment, a release build of PowerWAF is needed:
 ```sh
 cd PowerWAF
 mkdir Release && cd Release
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make -j
 DESTDIR=out make install
-cp libSqreen.so ../../native_libs/linux_64/  # example
+cp libSqreen.so{,.debug} ../../native_libs/linux_64/  # example
 cd ../..
 ```
 
@@ -26,6 +26,6 @@ mkdir Release && cd Release
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_PREFIX_PATH=$(realpath ../PowerWAF/Release/out/usr/local/share/cmake/powerwaf/)
 make -j
-cp libpowerwaf_jni.so ../native_libs/linux_64/  # example
+cp libpowerwaf_jni.so{,.debug} ../native_libs/linux_64/  # example
 cd ..
 ```
