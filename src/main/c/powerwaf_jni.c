@@ -588,7 +588,9 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
 
     PWArgs result = _pwinput_invalid;
 
-    if (JNI(IsInstanceOf, obj, *_map_cls)) {
+    if (JNI(IsSameObject, obj, NULL)) {
+        result = powerwaf_createMap(); // replace NULLs with empty maps
+    } else if (JNI(IsInstanceOf, obj, *_map_cls)) {
         result = powerwaf_createMap();
 
         jobject entry_set = JAVA_CALL(_map_entryset, obj);

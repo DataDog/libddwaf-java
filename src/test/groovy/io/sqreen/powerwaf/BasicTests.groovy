@@ -28,4 +28,14 @@ class BasicTests implements PowerwafTrait {
         assert json.step == ['start']
         assert json.rule == ['1']
     }
+
+    @Test
+    void 'test null argument'() {
+        def atom = ARACHNI_ATOM
+
+        ctx = Powerwaf.createContext('test', [test_atom: atom])
+
+        ActionWithData awd = ctx.runRule('test_atom', ["#._server['HTTP_USER_AGENT']": [null, 'Arachni']], timeoutInUs)
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+    }
 }
