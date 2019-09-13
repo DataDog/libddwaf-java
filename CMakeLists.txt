@@ -11,11 +11,23 @@ endif()
 
 find_package(powerwaf REQUIRED)
 
+if(MSVC)
+    foreach(flag_var
+            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+            CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        string(REPLACE "/MD" "-MT" ${flag_var} "${${flag_var}}")
+        string(REPLACE "/W3" "/W4" ${flag_var} "${${flag_var}}")
+    endforeach()
+endif()
+
 add_library(powerwaf_jni SHARED
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c
     src/main/c/utf16_utf8.c
-    src/main/c/logging.c)
+    src/main/c/logging.c
+    $<$<BOOL:MSVC>:src/main/c/windows_compat.c>)
 
 target_compile_definitions(powerwaf_jni PRIVATE _GNU_SOURCE)
 

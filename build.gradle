@@ -30,6 +30,8 @@ version '0.1.2'
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
 
+def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
+
 task cmakeNativeLibDebug(type: Exec) {
     description = 'Runs cmake in a debug configuration'
 
@@ -53,9 +55,13 @@ task cmakeNativeLibDebug(type: Exec) {
     logging.captureStandardError  LogLevel.ERROR
     logging.captureStandardOutput LogLevel.INFO
 
-    commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
-                         '-DCMAKE_C_FLAGS=--coverage', '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
-                         projectDir
+    if (WINDOWS) {
+        commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", projectDir
+    } else {
+        commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
+                             '-DCMAKE_C_FLAGS=--coverage', '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
+                             projectDir
+    }
 
     workingDir "$buildDir/Debug"
 }
@@ -65,12 +71,21 @@ task buildNativeLibDebug(type: Exec) {
     group = 'test'
 
     inputs.dir 'src/main/c'
-    outputs.file "$buildDir/Debug/libpowerwaf_jni.so"
+    if (WINDOWS) {
+        outputs.file "$buildDir/Debug/Debug/powerwaf_jni.dll"
+    } else {
+        outputs.file "$buildDir/Debug/libpowerwaf_jni.so"
+    }
 
     logging.captureStandardError  LogLevel.ERROR
     logging.captureStandardOutput LogLevel.INFO
 
-    commandLine 'make', '-j', 'powerwaf_jni', 'VERBOSE=1'
+    if (WINDOWS) {
+        commandLine 'cmake', '--build', '.', '--target', 'powerwaf_jni',
+                             '-j', '--verbose', '--config', 'Debug'
+    } else {
+        commandLine 'make', '-j', 'powerwaf_jni', 'VERBOSE=1'
+    }
     workingDir "$buildDir/Debug"
 
     dependsOn cmakeNativeLibDebug
@@ -223,9 +238,12 @@ task testgc(type: Test) {
 check.dependsOn testgc
 
 tasks.withType(Test).each {
+    def javaLibPath = WINDOWS ? "$buildDir\\Debug\\Debug" : "$buildDir/Debug"
     it.with {
-        jvmArgs(["-Djava.library.path=$buildDir/Debug"])
+        jvmArgs(["-Djava.library.path=$javaLibPath"])
         dependsOn buildNativeLibDebug
         outputs.upToDateWhen { false }
     }
 }
+
+// vim: set et ts=4 sw=4 list:

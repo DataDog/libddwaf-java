@@ -29,3 +29,16 @@ make -j
 cp libpowerwaf_jni.so{,.debug} ../native_libs/linux_64/  # example
 cd ..
 ```
+
+On Windows:
+
+```sh
+cd PowerWAF
+mkdir Release && cd Release
+cmake .. -DCMAKE_INSTALL_PREFIX=out\usr\local
+cmake --build . --target Sqreen -j --config RelWithDebInfo
+cmake --build . --target install -j --config RelWithDebInfo
+copy RelWithDebInfo\Sqreen.dll ..\..\native_libs\windows_64\
+copy RelWithDebInfo\Sqreen.pdb ..\..\native_libs\windows_64\
+cd ..\..
+```

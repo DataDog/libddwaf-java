@@ -5,6 +5,10 @@
 #include "common.h"
 #include <PowerWAF.h>
 
+#ifdef _MSC_VER
+# define __attribute__(...)
+#endif
+
 bool java_log_init(JavaVM *vm, JNIEnv *env);
 void java_log_shutdown(JNIEnv *env);
 void _java_wrap_exc_relay(JNIEnv *env,
@@ -18,6 +22,9 @@ void java_log(PW_LOG_LEVEL level, const char *function, const char *file,
               int line, const char *fmt, ...)
 __attribute__((format (printf, 5, 6)));
 
+#ifdef _MSC_VER
+# undef __attribute__
+#endif
 
 /* wraps the pending exception in a RuntimeException (as a cause) with
  * a custom message */

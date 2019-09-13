@@ -9,6 +9,7 @@
 #include "common.h"
 #include "java_call.h"
 #include "utf16_utf8.h"
+#include "windows_compat.h"
 
 #ifdef _WIN32
 # define DIR_SEP '\\'
