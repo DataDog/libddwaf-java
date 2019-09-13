@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 2.8.8)
 
 include(FindJNI)
 if (JNI_FOUND)
-    message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
-    message (STATUS "JAVA_JVM_LIBRARY=${JAVA_JVM_LIBRARY}")
+    message(STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
+    message(STATUS "JAVA_JVM_LIBRARY=${JAVA_JVM_LIBRARY}")
 else()
     message(FATAL_ERROR "Found JNI: failed")
 endif()
@@ -22,12 +22,15 @@ if(MSVC)
     endforeach()
 endif()
 
-add_library(powerwaf_jni SHARED
+set(SOURCE_FILES
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c
     src/main/c/utf16_utf8.c
-    src/main/c/logging.c
-    $<$<BOOL:MSVC>:src/main/c/windows_compat.c>)
+    src/main/c/logging.c)
+if(MSVC)
+    set(SOURCE_FILES ${SOURCE_FILES} src/main/c/windows_compat.c)
+endif()
+add_library(powerwaf_jni SHARED ${SOURCE_FILES})
 
 target_compile_definitions(powerwaf_jni PRIVATE _GNU_SOURCE)
 
