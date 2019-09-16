@@ -33,7 +33,8 @@ public class PowerwafGCTests {
 
         Class<?> clazz = cl.loadClass("io.sqreen.powerwaf.Powerwaf");
         Method initialize = clazz.getMethod("initialize", new Class[] { boolean.class });
-        initialize.invoke(null, true);
+        boolean simpleInit = System.getProperty("useReleaseBinaries") == null;
+        initialize.invoke(null, simpleInit);
 
         Method deinitialize = clazz.getMethod("deinitialize", new Class[0]);
         deinitialize.invoke(null);

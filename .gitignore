@@ -6,6 +6,10 @@
 /out/
 /build/
 /native_libs/**/*.so
+/native_libs/**/*.so.debug
 /native_libs/**/*.dll
+/native_libs/**/*.pdb
 /native_libs/**/*.dylib
+/native_libs/**/*.dylib.dwarf
 /.idea/
+/static_analysis/

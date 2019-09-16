@@ -3,7 +3,7 @@
 #include "java_call.h"
 #include "utf16_utf8.h"
 #include "logging.h"
-#include "windows_compat.h"
+#include "compat.h"
 #include <PowerWAF.h>
 #include <assert.h>
 #include <string.h>
@@ -617,7 +617,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
 
             size_t key_len;
             char *key_cstr = _to_utf8_checked(env, key_jstr, &key_len);
-            if (JNI(ExceptionCheck)) {
+            if (!key_cstr) {
                 goto error;
             }
 
@@ -664,7 +664,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
     } else if (JNI(IsInstanceOf, obj, _string_cls)) {
         size_t len;
         char *str_c = _to_utf8_checked(env, obj, &len);
-        if (JNI(ExceptionCheck)) {
+        if (!str_c) {
             goto error;
         }
 

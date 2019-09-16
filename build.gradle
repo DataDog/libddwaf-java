@@ -55,12 +55,27 @@ task cmakeNativeLibDebug(type: Exec) {
     logging.captureStandardError  LogLevel.ERROR
     logging.captureStandardOutput LogLevel.INFO
 
+    def cmakeOpts
+    if (project.hasProperty('withASAN')) {
+        cmakeOpts = [
+            '-DCMAKE_C_FLAGS=-fsanitize=address -fsanitize=leak --coverage',
+            '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address -fsanitize=leak --coverage',
+        ]
+        if (WINDOWS) {
+            logger.warn('Address sanitizer not supported on Windows')
+        }
+    } else {
+        cmakeOpts = [
+            '-DCMAKE_C_FLAGS=--coverage',
+            '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
+        ]
+    }
+
     if (WINDOWS) {
         commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", projectDir
     } else {
-        commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
-                             '-DCMAKE_C_FLAGS=--coverage', '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
-                             projectDir
+        commandLine('cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
+                             *cmakeOpts, projectDir)
     }
 
     workingDir "$buildDir/Debug"
@@ -135,6 +150,7 @@ task packageDebugSymbols(type: Zip) {
     from nativeLibsDir, {
         include '**/*.pdb'
         include '**/*.debug'
+        include '**/*.dwarf'
     }
 
     dependsOn checkForNativeLibs
@@ -188,12 +204,12 @@ task copyNativeLibs(type: Copy) {
     }
     def directories = [['linux_64/libpowerwaf_jni.so', 'linux_64/libSqreen.so'],
                        ['solaris_64/libpowerwaf_jni.so', 'solaris_64/libSqreen.so'],
-                       ['osx_64/libpowerwaf_jni.so', 'osx_64/libSqreen.so'],
-                       ['windows_64/powerwaff_jni.dll', 'windows_64/Sqreen.dll']]
+                       ['osx_64/libpowerwaf_jni.dylib', 'osx_64/libSqreen.dylib.dwarf'],
+                       ['windows_64/powerwaf_jni.dll']]
 
 
     doFirst {
-        if (!directories.any { jni, pwaf -> existsLib(jni) && existsLib(pwaf) }) {
+        if (!directories.any { files -> println files;files.every(existsLib) }) {
             throw new GradleException("Could not find any native lib")
         }
     }
@@ -238,12 +254,16 @@ task testgc(type: Test) {
 check.dependsOn testgc
 
 tasks.withType(Test).each {
-    def javaLibPath = WINDOWS ? "$buildDir\\Debug\\Debug" : "$buildDir/Debug"
-    it.with {
-        jvmArgs(["-Djava.library.path=$javaLibPath"])
-        dependsOn buildNativeLibDebug
-        outputs.upToDateWhen { false }
+    if (project.hasProperty('useReleaseBinaries')) {
+        it.jvmArgs(['-DuseReleaseBinaries=true'])
+        it.dependsOn copyNativeLibs
+    } else {
+        def javaLibPath = WINDOWS ? "$buildDir\\Debug\\Debug" : "$buildDir/Debug"
+        it.jvmArgs(["-Djava.library.path=$javaLibPath"])
+        it.dependsOn buildNativeLibDebug
     }
+
+    it.outputs.upToDateWhen { false }
 }
 
 // vim: set et ts=4 sw=4 list:

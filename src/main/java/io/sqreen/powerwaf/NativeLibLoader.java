@@ -1,10 +1,13 @@
 package io.sqreen.powerwaf;
 
+import com.google.common.base.Joiner;
 import io.sqreen.logging.Logger;
 import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import static com.google.common.io.ByteStreams.copy;
@@ -23,8 +26,8 @@ public class NativeLibLoader {
 
     private static File extractLib() throws UnsupportedVMException, IOException {
         ClassLoader cl = NativeLibLoader.class.getClassLoader();
-        String[] nativeLibs = getNativeLibs();
-        LOGGER.debug("Native libs to copy: %s and %s", nativeLibs[0], nativeLibs[1]);
+        List<String> nativeLibs = getNativeLibs();
+        LOGGER.debug("Native libs to copy: %s", Joiner.on(", ").join(nativeLibs));
 
         File tempDir = createTempDir();
         LOGGER.debug("Created temporary directory %s", tempDir);
@@ -58,7 +61,7 @@ public class NativeLibLoader {
         return jniLib;
     }
 
-    private static String[] getNativeLibs() throws UnsupportedVMException {
+    private static List<String> getNativeLibs() throws UnsupportedVMException {
         String os = System.getProperty("os.name");
 
         String osPart;
@@ -79,18 +82,24 @@ public class NativeLibLoader {
         } else if (os != null && os.toLowerCase(Locale.ENGLISH).contains("windows")) {
             osPart = "windows";
             jniLibName = "powerwaf_jni.dll";
-            powerwafName = "Sqreen.dll";
+            powerwafName = null;
         } else {
             throw new UnsupportedVMException("Unsupported OS: " + os);
         }
 
         String arch = System.getProperty("os.arch");
-        if (!"amd64".equals(arch)) {
+        if (!"amd64".equals(arch) && !"x86_64".equals(arch)) {
             throw new UnsupportedVMException("Unsupported architecture: " + arch);
         }
 
         String parent = osPart + "_64";
-        return new String[] { parent + "/" + jniLibName, parent + "/" + powerwafName };
+
+        List<String> ret = new ArrayList<String>();
+        ret.add(parent + "/" + jniLibName);
+        if (powerwafName != null) {
+            ret.add(parent + "/" + powerwafName);
+        }
+        return ret;
     }
 
     private static void copyToFile(InputStream input, File dest) throws IOException {

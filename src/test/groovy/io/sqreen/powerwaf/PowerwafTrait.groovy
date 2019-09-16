@@ -45,7 +45,8 @@ trait PowerwafTrait {
 
     @BeforeClass
     static void beforeClass() {
-        Powerwaf.initialize(true)
+        boolean simpleInit = System.getProperty("useReleaseBinaries") == null
+        Powerwaf.initialize(simpleInit)
     }
 
     // do not deinitialize. Even when running the tests in a separate classloader,
