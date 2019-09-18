@@ -3,6 +3,7 @@
 #include "java_call.h"
 #include "utf16_utf8.h"
 #include "logging.h"
+#include "compat.h"
 #include <PowerWAF.h>
 #include <assert.h>
 #include <string.h>
@@ -555,21 +556,19 @@ static void _dispose_of_cache_references(JNIEnv * env)
 static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
 {
 #define RET_IF_EXC() do { if (JNI(ExceptionCheck)) { goto error; } } while (0)
-#define JAVA_CALL(meth, recv) \
-    ({ \
-        jobject _retval = java_meth_call(env, &(meth), (recv)); \
+#define JAVA_CALL(var, meth, recv) \
+    do { \
+        var = java_meth_call(env, &(meth), (recv)); \
         RET_IF_EXC(); \
-        _retval; \
-    })
-#define JAVA_CALL_ERR_MSG(meth, recv, err_msg, ...) \
-    ({ \
-        jobject _retval = java_meth_call(env, &(meth), (recv)); \
+    } while (0)
+#define JAVA_CALL_ERR_MSG(var, meth, recv, err_msg, ...) \
+    do { \
+        var = java_meth_call(env, &(meth), (recv)); \
         if (JNI(ExceptionCheck)) { \
             java_wrap_exc(err_msg, ##__VA_ARGS__); \
             goto error; \
         } \
-        _retval; \
-    })
+    } while (0)
 
     /* this function can only fail in two situations:
      * 1) maximum depth exceeded or
@@ -593,21 +592,23 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
     } else if (JNI(IsInstanceOf, obj, *_map_cls)) {
         result = powerwaf_createMap();
 
-        jobject entry_set = JAVA_CALL(_map_entryset, obj);
-        jobject entry_set_it = JAVA_CALL(_iterable_iterator, entry_set);
+        jobject entry_set, entry_set_it;
+        JAVA_CALL(entry_set,    _map_entryset, obj);
+        JAVA_CALL(entry_set_it, _iterable_iterator, entry_set);
 
         while (JNI(CallBooleanMethod, entry_set_it,
                    _iterator_hasNext.meth_id)) {
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
-            jobject entry = JAVA_CALL(_iterator_next, entry_set_it);
+            jobject entry, key_obj, value_obj;
+            jstring key_jstr;
 
-            jobject key_obj = JAVA_CALL(_entry_key, entry);
-            jstring key_jstr = JAVA_CALL_ERR_MSG(
-                        _to_string, key_obj,
+            JAVA_CALL(entry, _iterator_next, entry_set_it);
+            JAVA_CALL(key_obj, _entry_key, entry);
+            JAVA_CALL_ERR_MSG(key_jstr, _to_string, key_obj,
                         "Error calling toString() on map key");
-            jobject value_obj = JAVA_CALL(_entry_value, entry);
+            JAVA_CALL(value_obj, _entry_value, entry);
 
             PWArgs value = _convert_checked(env, value_obj, rec_level + 1);
             if (JNI(ExceptionCheck)) {
@@ -616,7 +617,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
 
             size_t key_len;
             char *key_cstr = _to_utf8_checked(env, key_jstr, &key_len);
-            if (JNI(ExceptionCheck)) {
+            if (!key_cstr) {
                 goto error;
             }
 
@@ -639,12 +640,14 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
     } else if (JNI(IsInstanceOf, obj, *_iterable_cls)) {
         result = powerwaf_createArray();
 
-        jobject it = JAVA_CALL(_iterable_iterator, obj);
+        jobject it;
+        JAVA_CALL(it, _iterable_iterator, obj);
         while (JNI(CallBooleanMethod, it, _iterator_hasNext.meth_id)) {
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
-            jobject element = JAVA_CALL(_iterator_next, it);
+            jobject element;
+            JAVA_CALL(element, _iterator_next, it);
 
             PWArgs value = _convert_checked(env, element, rec_level + 1);
             if (JNI(ExceptionCheck)) {
@@ -661,7 +664,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
     } else if (JNI(IsInstanceOf, obj, _string_cls)) {
         size_t len;
         char *str_c = _to_utf8_checked(env, obj, &len);
-        if (JNI(ExceptionCheck)) {
+        if (!str_c) {
             goto error;
         }
 
