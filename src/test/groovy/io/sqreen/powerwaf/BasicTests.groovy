@@ -9,8 +9,8 @@ import static org.hamcrest.Matchers.is
 class BasicTests implements PowerwafTrait {
 
     @Test
-    void 'we can check the version'() {
-        assert Powerwaf.version =~ /\A\d+\.\d+\.\d+\z/
+    void 'the version is correct'() {
+        assert Powerwaf.version =~ Powerwaf.LIB_VERSION
     }
 
     @Test
