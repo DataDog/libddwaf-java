@@ -41,7 +41,7 @@ trait PowerwafTrait {
           ]
         }'''
 
-    long timeoutInUs = 10000
+    long timeoutInUs = 100000 // 100 ms
 
     @BeforeClass
     static void beforeClass() {
