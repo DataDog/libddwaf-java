@@ -25,7 +25,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '0.1.2'
+version '0.2.0.BETA1'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
