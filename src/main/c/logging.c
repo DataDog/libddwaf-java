@@ -38,6 +38,12 @@ static JNIEnv *_attach_vm_checked(bool *attached);
 static void _detach_vm(void);
 
 #define LOGGING_LEVEL_DESCR "Lio/sqreen/logging/Level;"
+
+/* this holds a strong reference to the Logger class, which is generally
+ * loaded by the same classloader that loads the JNI library. As such
+ * this is the remaining circular reference that prevents the library
+ * from being garbage collected without calling the deinitialize() method
+ */
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
     char *loc = memrchr(__FILE__, DIR_SEP, strlen(__FILE__));

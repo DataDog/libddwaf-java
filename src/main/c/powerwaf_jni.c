@@ -25,6 +25,9 @@ jclass jcls_rte;
 jmethodID rte_constr_cause;
 
 static jmethodID _create_exception_mid;
+/* these three are weak global references
+ * we don't need strong ones because they are static fields of a class that
+ * won't be unloaded as long as the Powerwaf class is loaded */
 static jobject _action_ok;
 static jobject _action_monitor;
 static jobject _action_block;
@@ -34,14 +37,17 @@ static jclass _string_cls;
 static struct j_method _to_string;
 
 static struct j_method _number_longValue;
+// weak, but assumed never to be gced
 static jclass *_number_cls = &_number_longValue.class_glob;
 
 static struct j_method _map_entryset;
+// weak, but assumed never to be gced
 static jclass *_map_cls = &_map_entryset.class_glob;
 static struct j_method _entry_key;
 static struct j_method _entry_value;
 
 static struct j_method _iterable_iterator;
+// weak, but assumed never to be gced
 static jclass *_iterable_cls = &_iterable_iterator.class_glob;
 static struct j_method _iterator_next;
 static struct j_method _iterator_hasNext;
@@ -368,15 +374,15 @@ error:
 static void _dispose_of_action_enums(JNIEnv *env)
 {
     if (_action_ok) {
-        JNI(DeleteGlobalRef, _action_ok);
+        JNI(DeleteWeakGlobalRef, _action_ok);
         _action_ok = NULL;
     }
     if (_action_monitor) {
-        JNI(DeleteGlobalRef, _action_monitor);
+        JNI(DeleteWeakGlobalRef, _action_monitor);
         _action_monitor = NULL;
     }
     if (_action_block) {
-        JNI(DeleteGlobalRef, _action_block);
+        JNI(DeleteWeakGlobalRef, _action_block);
         _action_block = NULL;
     }
 }

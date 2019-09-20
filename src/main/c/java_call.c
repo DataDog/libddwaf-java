@@ -26,7 +26,7 @@ bool java_meth_init_checked(
     }
 
     if (type != JMETHOD_VIRTUAL) {
-        class_global = JNI(NewGlobalRef, class_local);
+        class_global = JNI(NewWeakGlobalRef, class_local);
         if (!class_global) {
             if (!JNI(ExceptionCheck)) {
                 JNI(ThrowNew, jcls_rte, "Failed creating global reference");
@@ -73,31 +73,46 @@ jobject java_meth_call(JNIEnv *env,
         return NULL;
     }
 
+    jobject ret = NULL;
+    jclass class_strongref = NULL;
+    if (jmeth->type != JMETHOD_VIRTUAL) {
+        class_strongref = JNI(NewLocalRef, jmeth->class_glob);
+        if (!class_strongref) {
+            if (!JNI(ExceptionCheck)) {
+                JNI(ThrowNew, jcls_rte, "Cached class was garbage collected");
+            }
+            return NULL;
+        }
+    }
+
     va_list args;
     va_start(args, receiver);
-    jobject ret = NULL;
-
     if (jmeth->type == JMETHOD_CONSTRUCTOR) {
-        ret = JNI(NewObjectV, jmeth->class_glob, jmeth->meth_id, args);
+        ret = JNI(NewObjectV, class_strongref, jmeth->meth_id, args);
     } else if (jmeth->type == JMETHOD_STATIC) {
         ret = JNI(CallStaticObjectMethodV,
-                  jmeth->class_glob, jmeth->meth_id, args);
+                  class_strongref, jmeth->meth_id, args);
     } else if (jmeth->type == JMETHOD_NON_VIRTUAL) {
         ret = JNI(CallNonvirtualObjectMethodV, receiver,
-                  jmeth->class_glob, jmeth->meth_id, args);
+                  class_strongref, jmeth->meth_id, args);
     } else { // JMETHOD_VIRTUAL
         ret = JNI(CallObjectMethodV, receiver,
                   jmeth->meth_id, args);
     }
 
     va_end(args);
+
+    if (class_strongref) {
+        JNI(DeleteLocalRef, class_strongref);
+    }
+
     return ret;
 }
 
 void java_meth_destroy(JNIEnv *env, struct j_method *jmeth)
 {
     if (jmeth->class_glob) {
-        JNI(DeleteGlobalRef, jmeth->class_glob);
+        JNI(DeleteWeakGlobalRef, jmeth->class_glob);
         jmeth->class_glob = NULL;
     }
 }
@@ -119,7 +134,7 @@ jobject java_static_field_checked(JNIEnv *env, jclass clazz,
         goto error;
     }
 
-    global_obj = JNI(NewGlobalRef, local_obj);
+    global_obj = JNI(NewWeakGlobalRef, local_obj);
     if (!global_obj) {
         // out of memory
         goto error;
