@@ -66,6 +66,10 @@ public final class Powerwaf {
     /**
      * Releases all JNI references, allowing the classloader that loaded the
      * native library to be garbage collected.
+     *
+     * WARNING: no locking is place to ensure that this deinitialization does
+     * not occur while addRule, clearRule and runRule are running. If they are
+     * running (in another thread), then a crash may ensue.
      */
     public static native void deinitialize();
 

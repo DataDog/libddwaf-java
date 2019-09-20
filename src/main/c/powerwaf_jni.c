@@ -54,6 +54,18 @@ static struct j_method _iterator_hasNext;
 
 static bool _init_ok;
 
+#ifdef _MSC_VER
+# include <crtdbg.h>
+# define FULL_MEMORY_BARRIER _ReadWriteBarrier
+_STATIC_ASSERT(sizeof(bool) == 1);
+# define COMPARE_AND_SWAP(ptr, old, new) \
+    _InterlockedCompareExchange8(ptr, new, old)
+#else
+# define FULL_MEMORY_BARRIER __sync_synchronize
+# define COMPARE_AND_SWAP(ptr, old, new) \
+    __sync_bool_compare_and_swap(ptr, old, new)
+#endif
+
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
 {
     UNUSED(reserved);
@@ -78,6 +90,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
         goto error;
     }
 
+    // probably not needed, as we piggyback on Java's synchronization
+    FULL_MEMORY_BARRIER();
     _init_ok = true;
 
 error:
@@ -279,10 +293,14 @@ static bool _check_init(JNIEnv *env)
 
 static void _deinitialize(JNIEnv *env)
 {
-    if (_init_ok) {
-        JAVA_LOG(PWL_DEBUG, "Deinitializing JNI library");
-        _dispose_of_cache_references(env);
+    // ensure no race between Powerwaf::deinitialize() and JNI's onUnload
+    bool inited = COMPARE_AND_SWAP(&_init_ok, true, false);
+    if (!inited) {
+        return;
     }
+
+    JAVA_LOG(PWL_DEBUG, "Deinitializing JNI library");
+    _dispose_of_cache_references(env);
 
     // do not delete reference to jcls_rte, as _check_init uses it
 //    if (jcls_rte) {
@@ -290,11 +308,10 @@ static void _deinitialize(JNIEnv *env)
 //        jcls_rte = NULL;
 //    }
 
-    java_log_shutdown(env);
-
-    _init_ok = false;
     powerwaf_clearAll();
     powerwaf_setupLogging(NULL, PWL_ERROR);
+
+    java_log_shutdown(env);
 }
 
 // sets a pending exception in case of failure
