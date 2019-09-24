@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public final class Powerwaf {
-    public final static String LIB_VERSION = "0.2.0";
+    public final static String LIB_VERSION = "0.3.0";
 
     private final static Logger LOGGER = LoggerFactory.get(Powerwaf.class);
 
