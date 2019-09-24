@@ -1,3 +1,12 @@
+trigger:
+  tags:
+    include:
+      - '*'
+pr:
+  branches:
+    include:
+      - '*'
+
 variables:
   GRADLE_USER_HOME: $(Pipeline.Workspace)/.gradle
 
@@ -177,3 +186,9 @@ stages:
             inputs:
               pathtoPublish: "$(Agent.TempDirectory)/packages"
               artifactName: "powerwaf_jni_jar"
+          - task: Gradle@2
+            condition: and(succeeded(), contains(variables['Build.SourceBranch'], 'refs/tags/v'))
+            displayName: Publish artifacts to S3
+            inputs:
+              jdkVersionOption: 1.8
+              tasks: publish
