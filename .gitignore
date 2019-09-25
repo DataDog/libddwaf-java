@@ -13,3 +13,4 @@
 /native_libs/**/*.dylib.dwarf
 /.idea/
 /static_analysis/
+*.iml
