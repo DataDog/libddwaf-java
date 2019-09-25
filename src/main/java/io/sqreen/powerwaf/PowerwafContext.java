@@ -111,7 +111,7 @@ public class PowerwafContext implements Closeable {
         this.writeLock.lock();
         try {
             if (!this.offline) {
-                this.logger.warn("Context {} had not been properly closed", this.uniqueName);
+                this.logger.warn("Context %s had not been properly closed", this.uniqueName);
                 close();
             }
         } finally {
