@@ -51,9 +51,11 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
 
     bool retval = false;
     struct j_method fact_get = {0};
+    struct j_method wrapper_log_init = {0};
     jstring logger_name = NULL;
     jstring str_pattern_local = NULL;
     jobject logger_local = NULL;
+    jobject wrapper_local = NULL;
     jclass level_cls = NULL;
     jclass object_cls_local = NULL;
 
@@ -92,12 +94,25 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
+    if (!java_meth_init_checked(
+            env, &wrapper_log_init, "io/sqreen/powerwaf/logging/InfoToDebugLogger",
+            "<init>", "(Lio/sqreen/logging/Logger;)V",
+            JMETHOD_CONSTRUCTOR)) {
+        goto error;
+    }
+
     logger_name = JNI(NewStringUTF, LOGGER_NAME);
     logger_local = java_meth_call(env, &fact_get, NULL, logger_name);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    _logger = JNI(NewGlobalRef, logger_local);
+
+    wrapper_local = java_meth_call(env, &wrapper_log_init, NULL, logger_local);
+    if (!wrapper_local) {
+        goto error;
+    }
+
+    _logger = JNI(NewGlobalRef, wrapper_local);
     if (!_logger) {
         goto error;
     }
@@ -148,7 +163,11 @@ error:
     if (logger_local) {
         JNI(DeleteLocalRef, logger_local);
     }
+    if (wrapper_local) {
+        JNI(DeleteLocalRef, wrapper_local);
+    }
     java_meth_destroy(env, &fact_get);
+    java_meth_destroy(env, &wrapper_log_init);
     if (!retval) {
         java_log_shutdown(env);
     }

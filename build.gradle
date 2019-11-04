@@ -27,7 +27,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '0.4.0'
+version '0.4.1'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
@@ -38,7 +38,7 @@ task cmakeNativeLibDebug(type: Exec) {
     description = 'Runs cmake in a debug configuration'
 
     def pwafConfDir = project.hasProperty('powerwafConfig') ?
-            project.powerwafInstall :
+            project.powerwafConfig :
             "$projectDir/PowerWAF/Debug/out/usr/local/share/cmake/powerwaf"
 
     doFirst {
@@ -117,7 +117,7 @@ jacocoTestReport {
 }
 
 dependencies {
-    compile group: 'io.sqreen', name: 'logging', version: '1.0'
+    compile group: 'io.sqreen', name: 'logging', version: '2.1'
     compile group: 'com.google.guava', name: 'guava', version: '20.0', { // last version for java6
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
         exclude group: 'com.google.errorprone',    module: 'error_prone_annotations'
