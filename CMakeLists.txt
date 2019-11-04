@@ -41,7 +41,8 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -Weverything -Wno-unused-macros  -Wno-gnu-zero-variadic-macro-arguments
         -Wno-documentation -Wno-nullability-extension -Wno-zero-length-array
         -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-switch
-        -Wno-gnu-statement-expression -Wno-reserved-id-macro)
+        -Wno-gnu-statement-expression -Wno-reserved-id-macro
+        -Wno-atomic-implicit-seq-cst)
 endif()
 
 set_target_properties(powerwaf_jni PROPERTIES
