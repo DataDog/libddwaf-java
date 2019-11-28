@@ -1,5 +1,6 @@
 package io.sqreen.powerwaf;
 
+import com.google.common.base.MoreObjects;
 import io.sqreen.logging.Logger;
 import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
@@ -10,7 +11,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public final class Powerwaf {
-    public final static String LIB_VERSION = "0.4.0";
+    public final static String LIB_VERSION = "0.5.0";
 
     private final static Logger LOGGER = LoggerFactory.get(Powerwaf.class);
 
@@ -61,7 +62,7 @@ public final class Powerwaf {
 
     native static ActionWithData runRule(String ruleName,
                                          Map<String, Object> parameters,
-                                         long timeLeftInUs) throws AbstractPowerwafException;
+                                         Limits limits) throws AbstractPowerwafException;
 
     public static native String getVersion();
 
@@ -109,6 +110,30 @@ public final class Powerwaf {
             sb.append(", data='").append(data).append('\'');
             sb.append('}');
             return sb.toString();
+        }
+    }
+
+    public static class Limits {
+        public final int maxDepth;
+        public final int maxElements;
+        public final int maxStringSize;
+        public final long maxTimeInUs;
+
+        public Limits(int maxDepth, int maxElements, int maxStringSize, long maxTimeInUs) {
+            this.maxDepth = maxDepth;
+            this.maxElements = maxElements;
+            this.maxStringSize = maxStringSize;
+            this.maxTimeInUs = maxTimeInUs;
+        }
+
+        @Override
+        public String toString() {
+            return MoreObjects.toStringHelper(this)
+                    .add("maxDepth", maxDepth)
+                    .add("maxElements", maxElements)
+                    .add("maxStringSize", maxStringSize)
+                    .add("maxTimeInMs", maxTimeInUs / 1000.0)
+                    .toString();
         }
     }
 }

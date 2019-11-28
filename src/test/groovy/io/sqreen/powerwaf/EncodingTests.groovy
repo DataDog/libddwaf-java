@@ -18,7 +18,7 @@ class EncodingTests implements PowerwafTrait {
     @Test
     void 'user input has an unpaired leading surrogate'() {
         Powerwaf.ActionWithData awd = ctx.runRule(
-                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uD800'], timeoutInUs)
+                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uD800'], limits)
 
         def json = slurper.parseText(awd.data)
         assert json.filter.first().first().resolved_value == 'Arachni\uFFFD'
@@ -27,7 +27,7 @@ class EncodingTests implements PowerwafTrait {
     @Test
     void 'user input has unpaired leading surrogate'() {
         Powerwaf.ActionWithData awd = ctx.runRule(
-                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uD800Ā'], timeoutInUs)
+                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uD800Ā'], limits)
 
         def json = slurper.parseText(awd.data)
         assert json.filter.first().first().resolved_value == 'Arachni\uFFFDĀ'
@@ -36,7 +36,7 @@ class EncodingTests implements PowerwafTrait {
     @Test
     void 'user input has unpaired trailing surrogate'() {
         Powerwaf.ActionWithData awd = ctx.runRule(
-                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uDC00x'], timeoutInUs)
+                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uDC00x'], limits)
 
         def json = slurper.parseText(awd.data)
         assert json.filter.first().first().resolved_value == 'Arachni\uFFFDx'
@@ -45,17 +45,16 @@ class EncodingTests implements PowerwafTrait {
     @Test
     void 'user input has two adjacent leading surrogates and does not invalidate the second'() {
         Powerwaf.ActionWithData awd = ctx.runRule(
-                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uD800\uD801\uDC00'], timeoutInUs)
+                'test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni\uD800\uD801\uDC00'], limits)
 
         assertThat awd.data, containsString('Arachni\uFFFD\uD801\uDC00')
     }
 
     @Test
-    @Ignore('powerwaf is buggy')
     void 'user input has NUL character before and after matching part'() {
         Powerwaf.ActionWithData awd = ctx.runRule(
-                'test_atom', ["#._server['HTTP_USER_AGENT']": '\u0000Arachni\u0000'], timeoutInUs)
+                'test_atom', ["#._server['HTTP_USER_AGENT']": '\u0000Arachni\u0000'], limits)
 
-        assertThat awd.data, containsString('\u0000Arachni\u0000')
+        assertThat awd.data, containsString('\\u0000Arachni\\u0000')
     }
 }

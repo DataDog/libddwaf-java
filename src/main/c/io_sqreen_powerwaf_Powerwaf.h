@@ -34,10 +34,10 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRule
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    runRule
- * Signature: (Ljava/lang/String;Ljava/util/Map;J)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * Signature: (Ljava/lang/String;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule
-  (JNIEnv *, jclass, jstring, jobject, jlong);
+  (JNIEnv *, jclass, jstring, jobject, jobject);
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf

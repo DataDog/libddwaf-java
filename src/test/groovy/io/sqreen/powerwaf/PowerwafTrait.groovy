@@ -41,7 +41,15 @@ trait PowerwafTrait {
           ]
         }'''
 
+    int maxDepth = 5
+    int maxElements = 20
+    int maxStringSize = 100
     long timeoutInUs = 100000 // 100 ms
+
+    Powerwaf.Limits getLimits() {
+        new Powerwaf.Limits(
+                maxDepth, maxElements, maxStringSize, timeoutInUs)
+    }
 
     @BeforeClass
     static void beforeClass() {

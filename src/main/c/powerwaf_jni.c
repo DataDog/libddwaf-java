@@ -7,8 +7,16 @@
 #include <PowerWAF.h>
 #include <assert.h>
 #include <string.h>
+#include <inttypes.h>
+#include <time.h>
 
-#define MAX_CONVERT_REC_LEVEL 10
+struct _limits {
+    int64_t max_time_in_us;
+    int max_depth;
+    int max_elements;
+    int max_string_size;
+    char _padding[4];
+};
 
 // suffix _checked means if a function fails it leaves a pending exception
 static bool _check_init(JNIEnv *env);
@@ -17,9 +25,18 @@ static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *len);
 static bool _cache_references(JNIEnv *env);
 static void _dispose_of_action_enums(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
-static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level);
+static PWArgs _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
+static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
+static bool _get_time_checked(JNIEnv *env, struct timespec *time);
+static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
 
 static const PWArgs _pwinput_invalid = { .type = PWI_INVALID };
+
+// disable these checks. Our limits are given at rule run time
+static const PWConfig _pw_config = {
+    .maxArrayLength = UINT64_MAX,
+    .maxMapDepth = UINT64_MAX,
+};
 
 jclass jcls_rte;
 jmethodID rte_constr_cause;
@@ -32,6 +49,10 @@ static jobject _action_ok;
 static jobject _action_monitor;
 static jobject _action_block;
 static struct j_method _action_with_data_init;
+static jfieldID _limit_max_depth;
+static jfieldID _limit_max_elements;
+static jfieldID _limit_max_string_size;
+static jfieldID _limit_max_time_in_us;
 
 static jclass _string_cls;
 static struct j_method _to_string;
@@ -148,7 +169,7 @@ JNIEXPORT jboolean JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRule(
         goto end;
     }
 
-    result = powerwaf_initializePowerWAF(rule_name_c, rule_def_c);
+    result = powerwaf_init(rule_name_c, rule_def_c, &_pw_config);
 
 end:
     free(rule_name_c);
@@ -183,18 +204,29 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRule(
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
  * Method:    runRule
- * Signature: (Ljava/lang/String;Ljava/util/Map;J)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * Signature: (Ljava/lang/String;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
         JNIEnv *env, jclass clazz,
-        jstring rule_name, jobject parameters, jlong budget_in_us)
+        jstring rule_name, jobject parameters, jobject limits_obj)
 {
     jobject result = NULL;
     char *rule_name_c = NULL;
     PWArgs input = { .type = PWI_INVALID };
+    struct _limits limits;
     PWRet *ret = NULL;
+    struct timespec start;
+
+    if (!_get_time_checked(env, &start)) {
+        return NULL;
+    }
 
     if (!_check_init(env)) {
+        return NULL;
+    }
+
+    limits = _fetch_limits_checked(env, limits_obj);
+    if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
@@ -203,13 +235,29 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
         goto end;
     }
 
-    input = _convert_checked(env, parameters, 0);
+    input = _convert_checked(env, parameters, &limits, 0);
     if (JNI(ExceptionCheck)) {
         goto end;
     }
+    struct timespec conv_end;
+    if (!_get_time_checked(env, &conv_end)) {
+        goto end;
+    }
+    int64_t diff_us = _timespec_diff_ns(conv_end, start) / 1000LL;
+    JAVA_LOG(PWL_DEBUG, "Conversion of WAF arguments took %" PRId64
+                        " us", diff_us);
+    if (diff_us >= limits.max_time_in_us) {
+        JAVA_LOG(PWL_INFO, "Budget of %" PRId64 " ms exhausted after native "
+                           "conversion (spent %" PRId64 ")",
+                 limits.max_time_in_us, diff_us);
+        jobject exc = JNI(CallStaticObjectMethod, clazz,
+                          _create_exception_mid, -5 /* timeout */);
+        JNI(Throw, exc);
+        goto end;
+    }
+    limits.max_time_in_us -= diff_us;
 
-    ret = powerwaf_runPowerWAF(
-                rule_name_c, &input, (size_t)budget_in_us);
+    ret = powerwaf_run(rule_name_c, &input, (size_t)limits.max_time_in_us);
 
     if (ret->action < 0 || ret->action > 2) {
         jobject exc = JNI(CallStaticObjectMethod,
@@ -314,16 +362,12 @@ static void _deinitialize(JNIEnv *env)
     java_log_shutdown(env);
 }
 
-// sets a pending exception in case of failure
-static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *len)
+static char *_to_utf8_checked_utf16_len(JNIEnv *env,
+                                        jstring str, jint utf16_len,
+                                        size_t *utf8_out_len)
 {
-    const jint utf16_len = JNI(GetStringLength, str);
-    if (JNI(ExceptionCheck)) {
-        java_wrap_exc("Error getting the length of putative string");
-        return NULL;
-    }
-
     const jchar *utf16_str = JNI(GetStringChars, str, NULL);
+
     if (!utf16_str) {
         if (!JNI(ExceptionCheck)) {
             JNI(ThrowNew, jcls_rte, "Error calling GetStringChars");
@@ -335,9 +379,57 @@ static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *len)
     }
 
     uint8_t *out = NULL;
-    java_utf16_to_utf8_checked(env, utf16_str, utf16_len, &out, len);
+    java_utf16_to_utf8_checked(env, utf16_str, utf16_len, &out, utf8_out_len);
 
     JNI(ReleaseStringChars, str, utf16_str);
+
+    return (char *)out;
+}
+
+static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *utf8_out_len)
+{
+    const jint utf16_len = JNI(GetStringLength, str);
+    if (JNI(ExceptionCheck)) {
+        java_wrap_exc("Error getting the length of putative string");
+        return NULL;
+    }
+
+    return _to_utf8_checked_utf16_len(env, str, utf16_len, utf8_out_len);
+}
+
+// sets a pending exception in case of failure
+static char *_to_utf8_limited_checked(
+        JNIEnv *env, jstring str, size_t *len, int max_len)
+{
+    const jint utf16_len = JNI(GetStringLength, str);
+    if (JNI(ExceptionCheck)) {
+        java_wrap_exc("Error getting the length of putative string");
+        return NULL;
+    }
+
+    if (max_len < 0 || utf16_len <= max_len) {
+        return _to_utf8_checked_utf16_len(env, str, utf16_len, len);
+    }
+
+    jchar *utf16_str = calloc((size_t)max_len, sizeof *utf16_str);
+    if (!utf16_str) {
+            JNI(ThrowNew, jcls_rte, "malloc failed allocated jchar array");
+            return NULL;
+    }
+
+    JNI(GetStringRegion, str, 0, max_len, utf16_str);
+
+    if (JNI(ExceptionCheck)) {
+        java_wrap_exc("Error calling GetStringRegion for substring of size %d",
+                      max_len);
+        free(utf16_str);
+        return NULL;
+    }
+
+    uint8_t *out = NULL;
+    java_utf16_to_utf8_checked(env, utf16_str, max_len, &out, len);
+
+    free(utf16_str);
 
     return (char *)out;
 }
@@ -360,6 +452,8 @@ static bool _cache_create_exception(JNIEnv *env)
 #define ACTION_ENUM_DESCR "Lio/sqreen/powerwaf/Powerwaf$Action;"
 static bool _fetch_action_enums(JNIEnv *env)
 {
+    bool ret = false;
+
     jclass action_jclass = JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$Action");
     if (!action_jclass) {
         goto error;
@@ -381,11 +475,46 @@ static bool _fetch_action_enums(JNIEnv *env)
         goto error;
     }
 
-    return true;
+    ret = true;
 
 error:
-    _dispose_of_action_enums(env);
-    return false;
+    JNI(DeleteLocalRef, action_jclass);
+    if (!ret) {
+        _dispose_of_action_enums(env);
+    }
+    return ret;
+}
+
+static bool _fetch_limit_fields(JNIEnv *env)
+{
+    bool ret = false;
+
+    jclass limits_jclass = JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$Limits");
+    if (!limits_jclass) {
+        goto error;
+    }
+
+    _limit_max_depth = JNI(GetFieldID, limits_jclass, "maxDepth", "I");
+    if (!_limit_max_depth) {
+        goto error;
+    }
+    _limit_max_elements = JNI(GetFieldID, limits_jclass, "maxElements", "I");
+    if (!_limit_max_elements) {
+        goto error;
+    }
+    _limit_max_string_size = JNI(GetFieldID, limits_jclass, "maxStringSize", "I");
+    if (!_limit_max_string_size) {
+        goto error;
+    }
+    _limit_max_time_in_us = JNI(GetFieldID, limits_jclass, "maxTimeInUs", "J");
+    if (!_limit_max_time_in_us) {
+        goto error;
+    }
+
+    ret = true;
+error:
+    JNI(DeleteLocalRef, limits_jclass);
+    return ret;
 }
 
 static void _dispose_of_action_enums(JNIEnv *env)
@@ -404,7 +533,7 @@ static void _dispose_of_action_enums(JNIEnv *env)
     }
 }
 
-static bool _cache_single_class(JNIEnv *env,
+static bool _cache_single_class_weak(JNIEnv *env,
                                 const char *class_name,
                                 jclass *out)
 {
@@ -414,7 +543,7 @@ static bool _cache_single_class(JNIEnv *env,
         return false;
     }
 
-    *out = JNI(NewGlobalRef, cls_local);
+    *out = JNI(NewWeakGlobalRef, cls_local);
     JNI(DeleteLocalRef, cls_local);
 
     if (!*out) {
@@ -427,8 +556,8 @@ static bool _cache_single_class(JNIEnv *env,
 
 static bool _cache_classes(JNIEnv *env)
 {
-    return _cache_single_class(env, "java/lang/RuntimeException", &jcls_rte) &&
-            _cache_single_class(env, "java/lang/String", &_string_cls);
+    return _cache_single_class_weak(env, "java/lang/RuntimeException", &jcls_rte) &&
+            _cache_single_class_weak(env, "java/lang/String", &_string_cls);
 }
 
 static void _dispose_of_classes(JNIEnv *env)
@@ -559,6 +688,10 @@ static bool _cache_references(JNIEnv *env)
         goto error;
     }
 
+    if (!_fetch_limit_fields(env)) {
+        goto error;
+    }
+
     if (!_cache_methods(env)) {
         goto error;
     }
@@ -576,7 +709,9 @@ static void _dispose_of_cache_references(JNIEnv * env)
     _dispose_of_cached_methods(env);
 }
 
-static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
+static PWArgs _convert_checked(JNIEnv *env, jobject obj,
+                               struct _limits *lims,
+                               int rec_level)
 {
 #define RET_IF_EXC() do { if (JNI(ExceptionCheck)) { goto error; } } while (0)
 #define JAVA_CALL(var, meth, recv) \
@@ -593,6 +728,8 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
         } \
     } while (0)
 
+    lims->max_elements--;
+
     /* this function can only fail in two situations:
      * 1) maximum depth exceeded or
      * 2) a java method call or another JNI calls throws.
@@ -603,7 +740,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
      * implementation is designed in such a way that passing NULL pointers
      * or PWI_INVALID objects doesn't cause crashes */
 
-    if (rec_level > MAX_CONVERT_REC_LEVEL) {
+    if (rec_level > lims->max_depth) {
         JNI(ThrowNew, jcls_rte, "Maximum recursion level exceeded");
         goto error;
     }
@@ -614,6 +751,11 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
         result = powerwaf_createMap(); // replace NULLs with empty maps
     } else if (JNI(IsInstanceOf, obj, *_map_cls)) {
         result = powerwaf_createMap();
+        if (rec_level >= lims->max_depth) {
+            JAVA_LOG(PWL_DEBUG, "Leaving map empty because max depth of %d "
+                                "has been reached", lims->max_depth);
+            goto early_return;
+        }
 
         jobject entry_set, entry_set_it;
         JAVA_CALL(entry_set,    _map_entryset, obj);
@@ -624,6 +766,12 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
+            if (lims->max_elements <= 0) {
+                JAVA_LOG(PWL_DEBUG, "Interrupting map iteration due to the max "
+                                    "number of elements being reached");
+                break;
+            }
+
             jobject entry, key_obj, value_obj;
             jstring key_jstr;
 
@@ -633,13 +781,15 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
                         "Error calling toString() on map key");
             JAVA_CALL(value_obj, _entry_value, entry);
 
-            PWArgs value = _convert_checked(env, value_obj, rec_level + 1);
+            PWArgs value = _convert_checked(
+                        env, value_obj, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
             size_t key_len;
-            char *key_cstr = _to_utf8_checked(env, key_jstr, &key_len);
+            char *key_cstr = _to_utf8_limited_checked(env, key_jstr, &key_len,
+                                                      lims->max_string_size);
             if (!key_cstr) {
                 goto error;
             }
@@ -662,6 +812,11 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
 
     } else if (JNI(IsInstanceOf, obj, *_iterable_cls)) {
         result = powerwaf_createArray();
+        if (rec_level >= lims->max_depth) {
+            JAVA_LOG(PWL_DEBUG, "Leaving array empty because max depth of %d "
+                                "has been reached", lims->max_depth);
+            goto early_return;
+        }
 
         jobject it;
         JAVA_CALL(it, _iterable_iterator, obj);
@@ -669,10 +824,16 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
+            if (lims->max_elements <= 0) {
+                JAVA_LOG(PWL_DEBUG, "Interrupting iterable iteration due to "
+                                    "the max of elements being reached");
+                break;
+            }
+
             jobject element;
             JAVA_CALL(element, _iterator_next, it);
 
-            PWArgs value = _convert_checked(env, element, rec_level + 1);
+            PWArgs value = _convert_checked(env, element, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -686,7 +847,8 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
 
     } else if (JNI(IsInstanceOf, obj, _string_cls)) {
         size_t len;
-        char *str_c = _to_utf8_checked(env, obj, &len);
+        char *str_c = _to_utf8_limited_checked(
+                    env, obj, &len, lims->max_string_size);
         if (!str_c) {
             goto error;
         }
@@ -704,9 +866,53 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, int rec_level)
         result = powerwaf_createInt(lval);
     }
 
+    // having lael here so if we add cleanup in the future we don't forget
+early_return:
     return result;
 error:
     powerwaf_freeInput(&result, false);
 
     return _pwinput_invalid;
+}
+
+static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
+{
+    struct _limits l = {0};
+    l.max_depth = JNI(GetIntField, limits_obj, _limit_max_depth);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    l.max_elements = JNI(GetIntField, limits_obj, _limit_max_elements);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    l.max_string_size = JNI(GetIntField, limits_obj, _limit_max_string_size);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    jlong maxTime = JNI(GetIntField, limits_obj, _limit_max_time_in_us);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    l.max_time_in_us = maxTime >= 0 ? (long)maxTime : 0;
+
+    return l;
+error:
+    return (struct _limits) {0};
+}
+
+static bool _get_time_checked(JNIEnv *env, struct timespec *time)
+{
+    int res = clock_gettime(CLOCK_MONOTONIC, time);
+    if (res) {
+        JNI(ThrowNew, jcls_rte, "Error getting time");
+        return false;
+    }
+    return true;
+}
+
+static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b)
+{
+    return ((int64_t)a.tv_sec - (int64_t)b.tv_sec) * 1000000000L +
+            ((int64_t)a.tv_nsec - (int64_t)b.tv_nsec);
 }

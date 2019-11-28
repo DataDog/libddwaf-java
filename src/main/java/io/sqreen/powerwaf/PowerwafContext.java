@@ -60,16 +60,16 @@ public class PowerwafContext implements Closeable {
 
     public Powerwaf.ActionWithData runRule(String ruleName,
                                            Map<String, Object> parameters,
-                                           long timeLeftInUs) throws AbstractPowerwafException {
+                                           Powerwaf.Limits limits) throws AbstractPowerwafException {
         String fullRuleName = getFullRuleName(ruleName);
         this.readLock.lock();
         try {
             checkIfOnline();
-            this.logger.debug("Running rule %s with %d ms on the clock",
-                    fullRuleName, timeLeftInUs / 1000);
+            this.logger.debug("Running rule %s with limits %s",
+                    fullRuleName, limits);
 
             Powerwaf.ActionWithData res;
-            res = Powerwaf.runRule(fullRuleName, parameters, timeLeftInUs);
+            res = Powerwaf.runRule(fullRuleName, parameters, limits);
 
             this.logger.debug("Rule %s ran successfully with return %s", fullRuleName, res);
 
