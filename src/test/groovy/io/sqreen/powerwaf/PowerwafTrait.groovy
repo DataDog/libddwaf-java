@@ -3,7 +3,6 @@ package io.sqreen.powerwaf
 import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
 import org.junit.After
-import org.junit.AfterClass
 import org.junit.BeforeClass
 
 @CompileStatic
@@ -45,10 +44,11 @@ trait PowerwafTrait {
     int maxElements = 20
     int maxStringSize = 100
     long timeoutInUs = 100000 // 100 ms
+    long runBudget = 0; // unspecified
 
     Powerwaf.Limits getLimits() {
         new Powerwaf.Limits(
-                maxDepth, maxElements, maxStringSize, timeoutInUs)
+                maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
     }
 
     @BeforeClass

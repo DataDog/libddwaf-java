@@ -11,7 +11,8 @@
 #include <time.h>
 
 struct _limits {
-    int64_t max_time_in_us;
+    int64_t general_budget_in_us;
+    int64_t run_budget_in_us;
     int max_depth;
     int max_elements;
     int max_string_size;
@@ -52,7 +53,8 @@ static struct j_method _action_with_data_init;
 static jfieldID _limit_max_depth;
 static jfieldID _limit_max_elements;
 static jfieldID _limit_max_string_size;
-static jfieldID _limit_max_time_in_us;
+static jfieldID _limit_general_budget_in_us;
+static jfieldID _limit_run_budget_in_us;
 
 static jclass _string_cls;
 static struct j_method _to_string;
@@ -244,20 +246,34 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
         goto end;
     }
     int64_t diff_us = _timespec_diff_ns(conv_end, start) / 1000LL;
+    int64_t rem_gen_budget_in_us = limits.general_budget_in_us - diff_us;
+    if (rem_gen_budget_in_us < 0) {
+        rem_gen_budget_in_us = 0;
+    }
     JAVA_LOG(PWL_DEBUG, "Conversion of WAF arguments took %" PRId64
-                        " us", diff_us);
-    if (diff_us >= limits.max_time_in_us) {
-        JAVA_LOG(PWL_INFO, "Budget of %" PRId64 " ms exhausted after native "
-                           "conversion (spent %" PRId64 ")",
-                 limits.max_time_in_us, diff_us);
+                        " us; remaining general budget is %" PRId64 " us",
+             diff_us, rem_gen_budget_in_us);
+    if (rem_gen_budget_in_us == 0) {
+        JAVA_LOG(PWL_INFO, "General budget of %" PRId64 " us exhausted after "
+                           "native conversion (spent %" PRId64 " us)",
+                 limits.general_budget_in_us, diff_us);
         jobject exc = JNI(CallStaticObjectMethod, clazz,
                           _create_exception_mid, -5 /* timeout */);
         JNI(Throw, exc);
         goto end;
     }
-    limits.max_time_in_us -= diff_us;
 
-    ret = powerwaf_run(rule_name_c, &input, (size_t)limits.max_time_in_us);
+    size_t run_budget;
+    if (rem_gen_budget_in_us > limits.run_budget_in_us) {
+        JAVA_LOG(PWL_DEBUG, "Using run budget of % " PRId64 " us instead of "
+                            "remaining general budget of %" PRId64 " us",
+                 limits.run_budget_in_us, rem_gen_budget_in_us);
+        run_budget = (size_t)limits.run_budget_in_us;
+    } else {
+        run_budget = (size_t)rem_gen_budget_in_us;
+    }
+
+    ret = powerwaf_run(rule_name_c, &input, run_budget);
 
     if (ret->action < 0 || ret->action > 2) {
         jobject exc = JNI(CallStaticObjectMethod,
@@ -506,8 +522,14 @@ static bool _fetch_limit_fields(JNIEnv *env)
     if (!_limit_max_string_size) {
         goto error;
     }
-    _limit_max_time_in_us = JNI(GetFieldID, limits_jclass, "maxTimeInUs", "J");
-    if (!_limit_max_time_in_us) {
+    _limit_general_budget_in_us =
+            JNI(GetFieldID, limits_jclass, "generalBudgetInUs", "J");
+    if (!_limit_general_budget_in_us) {
+        goto error;
+    }
+    _limit_run_budget_in_us =
+            JNI(GetFieldID, limits_jclass, "runBudgetInUs", "J");
+    if (!_limit_run_budget_in_us) {
         goto error;
     }
 
@@ -890,11 +912,20 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    jlong maxTime = JNI(GetIntField, limits_obj, _limit_max_time_in_us);
+    l.general_budget_in_us =
+            JNI(GetIntField, limits_obj, _limit_general_budget_in_us);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    l.max_time_in_us = maxTime >= 0 ? (long)maxTime : 0;
+    jlong run_budget =
+            JNI(GetIntField, limits_obj, _limit_run_budget_in_us);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    // PW_RUN_TIMEOUT is in ms
+    l.run_budget_in_us = run_budget > 0
+            ? (int64_t)run_budget
+            : PW_RUN_TIMEOUT * 1000L;
 
     return l;
 error:

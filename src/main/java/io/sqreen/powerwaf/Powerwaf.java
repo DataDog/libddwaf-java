@@ -117,13 +117,16 @@ public final class Powerwaf {
         public final int maxDepth;
         public final int maxElements;
         public final int maxStringSize;
-        public final long maxTimeInUs;
+        public final long generalBudgetInUs;
+        public final long runBudgetInUs; // <= 0
 
-        public Limits(int maxDepth, int maxElements, int maxStringSize, long maxTimeInUs) {
+
+        public Limits(int maxDepth, int maxElements, int maxStringSize, long generalBudgetInUs, long runBudgetInUs) {
             this.maxDepth = maxDepth;
             this.maxElements = maxElements;
             this.maxStringSize = maxStringSize;
-            this.maxTimeInUs = maxTimeInUs;
+            this.generalBudgetInUs = generalBudgetInUs;
+            this.runBudgetInUs = runBudgetInUs;
         }
 
         @Override
@@ -132,7 +135,8 @@ public final class Powerwaf {
                     .add("maxDepth", maxDepth)
                     .add("maxElements", maxElements)
                     .add("maxStringSize", maxStringSize)
-                    .add("maxTimeInMs", maxTimeInUs / 1000.0)
+                    .add("generalBudgetInUs", generalBudgetInUs)
+                    .add("runBudgetInUs", runBudgetInUs)
                     .toString();
         }
     }

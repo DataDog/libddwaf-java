@@ -1,5 +1,5 @@
-import io.sqreen.powerwaf.Powerwaf
-import io.sqreen.powerwaf.PowerwafTrait
+package io.sqreen.powerwaf
+
 import org.junit.Test
 
 import static io.sqreen.powerwaf.Powerwaf.ActionWithData

@@ -6,7 +6,9 @@ import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.hasItem
 import static org.hamcrest.Matchers.is
+import static org.hamcrest.Matchers.isOneOf
 
 class LimitsTests implements PowerwafTrait {
 
@@ -85,12 +87,74 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
-    void 'maxTimeInUs is observed during PWARgs conversion'() {
+    void 'generalBudgetInUs is observed during PWARgs conversion'() {
         timeoutInUs = 5
 
         shouldFail(TimeoutPowerwafException) {
             ctx.runRule('test_atom',
                     ["#._server['HTTP_USER_AGENT']": [['Arachni']]], limits)
         }
+    }
+
+    @Test
+    void 'runBudgetInUs is oberserved'() {
+        def atom = '''
+            {
+              "rules":[
+                {
+                  "rule_id":"1",
+                  "filters":[
+                    {
+                      "operator":"@rx",
+                      "targets":[
+                        "#._server['HTTP_USER_AGENT']"
+                      ],
+                      "value":"Arachni"
+                    }
+                  ]
+                }
+              ],
+              "flows":[
+                {
+                  "name":"arachni_detection",
+                  "steps":[
+                    {
+                      "id":"start",
+                      "rule_ids":[
+                        "1"
+                      ],
+                      "on_match":"exit_monitor"
+                    }
+                  ]
+                },
+                {
+                  "name":"arachni_detection2",
+                  "steps":[
+                    {
+                      "id":"start",
+                      "rule_ids":[
+                        "1"
+                      ],
+                      "on_match":"exit_monitor"
+                    }
+                  ]
+                }
+              ]
+            }'''
+        ctx = Powerwaf.createContext('test', [test_atom: atom])
+
+        timeoutInUs = 10000000 // 10 sec
+        runBudget = 10 // 10 microseconds
+        maxStringSize = Integer.MAX_VALUE
+
+        def res = ctx.runRule('test_atom',
+                ["#._server['HTTP_USER_AGENT']": 'Arachni' * 9000],
+                limits)
+        assertThat res.action, isOneOf(
+                Powerwaf.Action.MONITOR,
+                Powerwaf.Action.OK) // depending if it happened on first or 2nd rule
+
+        def json = slurper.parseText(res.data)
+        assertThat json.ret_code, hasItem(is(-5))
     }
 }
