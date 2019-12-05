@@ -53,7 +53,8 @@ trait PowerwafTrait {
 
     @BeforeClass
     static void beforeClass() {
-        boolean simpleInit = System.getProperty("useReleaseBinaries") == null
+        boolean simpleInit = System.getProperty('useReleaseBinaries') == null
+        System.setProperty('PW_RUN_TIMEOUT', '500000' /* 500 ms */)
         Powerwaf.initialize(simpleInit)
     }
 

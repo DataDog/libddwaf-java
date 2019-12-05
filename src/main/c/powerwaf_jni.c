@@ -30,6 +30,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits,
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
 static bool _get_time_checked(JNIEnv *env, struct timespec *time);
 static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
+static int64_t _get_pw_run_timeout_checked(JNIEnv *env);
 
 static const PWArgs _pwinput_invalid = { .type = PWI_INVALID };
 
@@ -75,6 +76,8 @@ static jclass *_iterable_cls = &_iterable_iterator.class_glob;
 static struct j_method _iterator_next;
 static struct j_method _iterator_hasNext;
 
+static int64_t pw_run_timeout;
+
 static bool _init_ok;
 
 #ifdef _MSC_VER
@@ -110,6 +113,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
             JNI(ThrowNew, jcls_rte, "Library initialization failed"
                                     "(java_log_init)");
         }
+        goto error;
+    }
+
+    pw_run_timeout = _get_pw_run_timeout_checked(env);
+    if (JNI(ExceptionCheck)) {
         goto error;
     }
 
@@ -925,7 +933,7 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
     // PW_RUN_TIMEOUT is in us
     l.run_budget_in_us = run_budget > 0
             ? (int64_t)run_budget
-            : PW_RUN_TIMEOUT;
+            : pw_run_timeout;
 
     return l;
 error:
@@ -946,4 +954,65 @@ static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b)
 {
     return ((int64_t)a.tv_sec - (int64_t)b.tv_sec) * 1000000000L +
             ((int64_t)a.tv_nsec - (int64_t)b.tv_nsec);
+}
+
+static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
+{
+    struct j_method get_prop = {0};
+    jstring env_key = NULL;
+    jstring val_jstr = NULL;
+    char *val_cstr = NULL;
+    long long val = PW_RUN_TIMEOUT;
+
+    if (!java_meth_init_checked(
+                env, &get_prop, "java/lang/System", "getProperty",
+                "(Ljava/lang/String;)Ljava/lang/String;", JMETHOD_STATIC)) {
+        goto end;
+    }
+
+    env_key = java_utf8_to_jstring_checked(
+                env, "PW_RUN_TIMEOUT", strlen("PW_RUN_TIMEOUT"));
+    if (!env_key) {
+        goto end;
+    }
+
+    val_jstr = java_meth_call(env, &get_prop, NULL, env_key);
+    if (JNI(ExceptionCheck)) {
+        goto end;
+    }
+
+    if (JNI(IsSameObject, val_jstr, NULL)) {
+        JAVA_LOG(PWL_DEBUG, "No property PW_RUN_TIMEOUT; using default %lld",
+                 val);
+        goto end;
+    }
+
+    size_t len;
+    // _to_utf8_checked gives out a NUL-terminated string
+    if ((val_cstr = _to_utf8_checked(env, val_jstr, &len)) == NULL) {
+        goto end;
+    }
+
+    char *end;
+    val = strtoll(val_cstr, &end, 10);
+    if (*end != '\0') {
+        JAVA_LOG(PWL_WARN, "Invalid valid of system property "
+                           "PW_RUN_TIMEOUT: '%s'", val_cstr);
+        goto end;
+    }
+
+    JAVA_LOG(PWL_INFO, "Using value %lld us for PW_RUN_TIMEOUT", val);
+
+end:
+    if (get_prop.class_glob) {
+        java_meth_destroy(env, &get_prop);
+    }
+    if (env_key) {
+        JNI(DeleteLocalRef, env_key);
+    }
+    if (val_jstr) {
+        JNI(DeleteLocalRef, val_jstr);
+    }
+    free(val_cstr);
+    return val;
 }
