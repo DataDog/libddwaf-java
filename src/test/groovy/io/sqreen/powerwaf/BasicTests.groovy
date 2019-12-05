@@ -1,5 +1,5 @@
-import io.sqreen.powerwaf.Powerwaf
-import io.sqreen.powerwaf.PowerwafTrait
+package io.sqreen.powerwaf
+
 import org.junit.Test
 
 import static io.sqreen.powerwaf.Powerwaf.ActionWithData
@@ -19,7 +19,8 @@ class BasicTests implements PowerwafTrait {
 
         ctx = Powerwaf.createContext('test', [test_atom: atom])
 
-        ActionWithData awd = ctx.runRule('test_atom', ["#._server['HTTP_USER_AGENT']": 'Arachni'], timeoutInUs)
+        ActionWithData awd = ctx.runRule('test_atom',
+                ["#._server['HTTP_USER_AGENT']": 'Arachni'], limits)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
         def json = slurper.parseText(awd.data)
@@ -35,7 +36,8 @@ class BasicTests implements PowerwafTrait {
 
         ctx = Powerwaf.createContext('test', [test_atom: atom])
 
-        ActionWithData awd = ctx.runRule('test_atom', ["#._server['HTTP_USER_AGENT']": [null, 'Arachni']], timeoutInUs)
+        ActionWithData awd = ctx.runRule('test_atom',
+                ["#._server['HTTP_USER_AGENT']": [null, 'Arachni']], limits)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 }

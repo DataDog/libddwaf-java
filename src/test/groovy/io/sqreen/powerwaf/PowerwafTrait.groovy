@@ -3,7 +3,6 @@ package io.sqreen.powerwaf
 import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
 import org.junit.After
-import org.junit.AfterClass
 import org.junit.BeforeClass
 
 @CompileStatic
@@ -41,11 +40,21 @@ trait PowerwafTrait {
           ]
         }'''
 
+    int maxDepth = 5
+    int maxElements = 20
+    int maxStringSize = 100
     long timeoutInUs = 100000 // 100 ms
+    long runBudget = 0; // unspecified
+
+    Powerwaf.Limits getLimits() {
+        new Powerwaf.Limits(
+                maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
+    }
 
     @BeforeClass
     static void beforeClass() {
-        boolean simpleInit = System.getProperty("useReleaseBinaries") == null
+        boolean simpleInit = System.getProperty('useReleaseBinaries') == null
+        System.setProperty('PW_RUN_TIMEOUT', '500000' /* 500 ms */)
         Powerwaf.initialize(simpleInit)
     }
 

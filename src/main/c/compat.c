@@ -45,6 +45,34 @@ int asprintf(char **strp, const char *fmt, ...) {
 }
 #endif
 
+#ifdef _MSC_VER
+#include <windows.h>
+
+long clock_gettime(clockid_t which_clock, struct timespec* tp)
+{
+    static double freq_per_ns = -1.0;
+    if (freq_per_ns < 0.0) {
+        int64_t freq_per_sec;
+        QueryPerformanceFrequency(&freq_per_sec);
+        freq_per_ns = freq_per_sec / 1000000000.0;
+    }
+
+    if (!tp) {
+        return -1;
+    }
+
+    int64_t counter;
+    QueryPerformanceCounter(&counter); //always succeeds
+
+    int64_t counter_ns = (int64_t)(((double)counter) / freq_per_ns);
+
+    tp->tv_sec = counter_ns / 1000000000UL;
+    tp->tv_nsec = counter_ns % 1000000000UL;
+
+    return 0;
+}
+#endif
+
 void *memrchr(const void *buf, int c, size_t n)
 {
     const char *p = buf;
