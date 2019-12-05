@@ -922,10 +922,10 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    // PW_RUN_TIMEOUT is in ms
+    // PW_RUN_TIMEOUT is in us
     l.run_budget_in_us = run_budget > 0
             ? (int64_t)run_budget
-            : PW_RUN_TIMEOUT * 1000L;
+            : PW_RUN_TIMEOUT;
 
     return l;
 error:
