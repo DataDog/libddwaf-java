@@ -103,6 +103,7 @@ public class PowerwafContext implements Closeable {
         } finally {
             this.writeLock.unlock();
         }
+        this.logger.debug("Closed context %s", this.uniqueName);
     }
 
     @Override

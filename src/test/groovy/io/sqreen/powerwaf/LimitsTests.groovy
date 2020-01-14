@@ -1,6 +1,7 @@
 package io.sqreen.powerwaf
 
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
@@ -97,7 +98,7 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
-    void 'runBudgetInUs is oberserved'() {
+    void 'runBudgetInUs is observed'() {
         def atom = '''
             {
               "rules":[
