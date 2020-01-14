@@ -13,14 +13,13 @@ import static org.hamcrest.Matchers.isOneOf
 
 class LimitsTests implements PowerwafTrait {
 
-    @Before
-    void before() {
-        def atom = ARACHNI_ATOM
-        ctx = Powerwaf.createContext('test', [test_atom: atom])
-    }
+    @Lazy
+    PowerwafContext ctxWithArachniAtom =
+            Powerwaf.createContext('test', [test_atom: ARACHNI_ATOM])
 
     @Test
     void 'maxDepth is respected'() {
+        ctx = ctxWithArachniAtom
         maxDepth = 2
 
         Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
@@ -34,6 +33,7 @@ class LimitsTests implements PowerwafTrait {
 
     @Test
     void 'maxDepth is respected — map variant'() {
+        ctx = ctxWithArachniAtom
         maxDepth = 2
 
         Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
@@ -47,6 +47,7 @@ class LimitsTests implements PowerwafTrait {
 
     @Test
     void 'maxElements is respected'() {
+        ctx = ctxWithArachniAtom
         maxElements = 4
 
         Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
@@ -61,6 +62,7 @@ class LimitsTests implements PowerwafTrait {
 
     @Test
     void 'maxStringSize is observed'() {
+        ctx = ctxWithArachniAtom
         maxStringSize = 100
 
         Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
@@ -75,6 +77,7 @@ class LimitsTests implements PowerwafTrait {
 
     @Test
     void 'maxStringSize is observed — map key variant'() {
+        ctx = ctxWithArachniAtom
         maxStringSize = 100
 
         Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
@@ -89,6 +92,7 @@ class LimitsTests implements PowerwafTrait {
 
     @Test
     void 'generalBudgetInUs is observed during PWARgs conversion'() {
+        ctx = ctxWithArachniAtom
         timeoutInUs = 5
 
         shouldFail(TimeoutPowerwafException) {
