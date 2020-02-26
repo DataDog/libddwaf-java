@@ -74,11 +74,11 @@ stages:
               artifactName: "powerwaf_jni_linux"
       - job: asan
         displayName: ASAN/static analyzer on Linux
-        pool: { vmImage: 'ubuntu-latest' }
+        pool: { vmImage: 'ubuntu-18.04' }
         steps:
           - bash: |
                 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-                echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main | sudo tee -a /etc/apt/sources.list
+                echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main | sudo tee -a /etc/apt/sources.list
                 sudo add-apt-repository ppa:ubuntu-toolchain-r/test
                 sudo apt-get update
                 sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 \
