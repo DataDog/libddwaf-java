@@ -57,7 +57,7 @@ stages:
                 mkdir ../buildAG && cd ../buildAG &&
                 cmake /AgentJavaNative -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
                 make -j &&
-                cp {.,../buildPW}/*.so* /AgentJavaNative/native_libs/linux_64/ &&
+                cp {.,../buildPW}/*.so* /AgentJavaNative/native_libs/linux_64_glibc/ &&
                 cd /AgentJavaNative &&
                 ./gradlew check --info -PuseReleaseBinaries'
           - script: |
@@ -165,7 +165,7 @@ stages:
               script: |
                 set -ex
                 cp $(System.ArtifactsDirectory)/powerwaf_jni_win_amd64/* native_libs/windows_64/
-                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux/* native_libs/linux_64/
+                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux/* native_libs/linux_64_glibc/
                 cp $(System.ArtifactsDirectory)/powerwaf_jni_macos/* native_libs/osx_64/
           - task: Gradle@2
             displayName: Build final JAR and debug symbols package

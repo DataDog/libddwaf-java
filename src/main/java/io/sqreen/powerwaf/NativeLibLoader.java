@@ -6,16 +6,14 @@ import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 import static com.google.common.io.ByteStreams.copy;
 import static com.google.common.io.Files.createTempDir;
 
 public class NativeLibLoader {
 
-    private final static Logger LOGGER = LoggerFactory.get(NativeLibLoader.class);
+    private static final Logger LOGGER = LoggerFactory.get(NativeLibLoader.class);
 
     public static void load() throws IOException, UnsupportedVMException {
         LOGGER.info("Will load native library");
@@ -26,7 +24,7 @@ public class NativeLibLoader {
 
     private static File extractLib() throws UnsupportedVMException, IOException {
         ClassLoader cl = NativeLibLoader.class.getClassLoader();
-        List<String> nativeLibs = getNativeLibs();
+        List<String> nativeLibs = getNativeLibs(getOsType());
         LOGGER.debug("Native libs to copy: %s", Joiner.on(", ").join(nativeLibs));
 
         File tempDir = createTempDir();
@@ -61,45 +59,88 @@ public class NativeLibLoader {
         return jniLib;
     }
 
-    private static List<String> getNativeLibs() throws UnsupportedVMException {
-        String os = System.getProperty("os.name");
+    private enum OsType {
+        LINUX_64_GLIBC,
+        LINUX_64_MUSL,
+        MAC_OS_64,
+        SUN_OS_64,
+        WINDOWS_64
+    }
 
-        String osPart;
-        String jniLibName;
-        String powerwafName;
-        if ("Linux".equals(os)) {
-            osPart = "linux";
-            jniLibName = "libpowerwaf_jni.so";
-            powerwafName = "libSqreen.so";
-        } else if ("Mac OS X".equals(os)) {
-            osPart = "osx";
-            jniLibName = "libpowerwaf_jni.dylib";
-            powerwafName = "libSqreen.dylib";
-        } else if ("SunOS".equals(os)) {
-            osPart = "solaris";
-            jniLibName = "libpowerwaf_jni.so";
-            powerwafName = "libSqreen.so";
-        } else if (os != null && os.toLowerCase(Locale.ENGLISH).contains("windows")) {
-            osPart = "windows";
-            jniLibName = "powerwaf_jni.dll";
-            powerwafName = null;
-        } else {
-            throw new UnsupportedVMException("Unsupported OS: " + os);
-        }
+    private static OsType getOsType() throws UnsupportedVMException {
 
         String arch = System.getProperty("os.arch");
         if (!"amd64".equals(arch) && !"x86_64".equals(arch)) {
             throw new UnsupportedVMException("Unsupported architecture: " + arch);
         }
 
-        String parent = osPart + "_64";
+        String os = System.getProperty("os.name");
+        if ("Linux".equals(os)) {
 
-        List<String> ret = new ArrayList<String>();
-        ret.add(parent + "/" + jniLibName);
-        if (powerwafName != null) {
-            ret.add(parent + "/" + powerwafName);
+            // Try filesystem (family only)
+            final File folder = new File("/lib");
+            File[] listOfFiles = folder.listFiles();
+            if (listOfFiles != null) {
+                for (final File f : listOfFiles) {
+                    if (f != null && f.isFile()) {
+                        String name = f.getName();
+                        if (name.contains("-linux-gnu")) {
+                            return OsType.LINUX_64_GLIBC;
+                        } else if (name.contains("libc.musl-") || name.contains("ld-musl-")) {
+                            return OsType.LINUX_64_MUSL;
+                        }
+                    }
+                }
+            }
+
+            // Try ldd
+            try {
+                Process process = new ProcessBuilder().command("sh", "-c", "ldd --version").start();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.toLowerCase();
+                    if (line.contains("musl")) {
+                        return OsType.LINUX_64_MUSL;
+                    } else if (line.contains("glibc")) {
+                        return OsType.LINUX_64_GLIBC;
+                    }
+                }
+                process.waitFor();
+            } catch(IOException ignored) {}
+              catch(InterruptedException ignored) {}
+
+            return OsType.LINUX_64_GLIBC;
+        } else if ("Mac OS X".equals(os)) {
+            return OsType.MAC_OS_64;
+        } else if ("SunOS".equals(os)) {
+            return OsType.SUN_OS_64;
+        } else if (os != null && os.toLowerCase(Locale.ENGLISH).contains("windows")) {
+            return OsType.WINDOWS_64;
+        } else {
+            throw new UnsupportedVMException("Unsupported OS: " + os);
         }
-        return ret;
+    }
+
+    private static List<String> getNativeLibs(OsType type) {
+        switch(type) {
+            case LINUX_64_GLIBC:
+                return Arrays.asList("linux_64_glibc/libpowerwaf_jni.so",
+                                     "linux_64_glibc/libSqreen.so");
+            case LINUX_64_MUSL:
+                return Arrays.asList("linux_64_musl/libpowerwaf_jni.so",
+                                     "linux_64_musl/libSqreen.so");
+            case MAC_OS_64:
+                return Arrays.asList("osx_64/libpowerwaf_jni.dylib",
+                                     "osx_64/libSqreen.dylib");
+            case SUN_OS_64:
+                return Arrays.asList("solaris_64/libpowerwaf_jni.so",
+                                     "solaris_64/libSqreen.so");
+            case WINDOWS_64:
+                return Collections.singletonList("windows_64/powerwaf_jni.dll");
+            default:
+                return Collections.emptyList();
+        }
     }
 
     private static void copyToFile(InputStream input, File dest) throws IOException {
