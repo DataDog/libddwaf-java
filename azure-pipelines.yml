@@ -102,8 +102,8 @@ stages:
               docker cp pwaf_java_musl_build:/buildAG/libpowerwaf_jni.so .
               docker cp pwaf_java_musl_build:/buildAG/libpowerwaf_jni.so.debug .
           - task: PublishBuildArtifacts@1
-              displayName: Save Artifacts
-              inputs:
+            displayName: Save Artifacts
+            inputs:
               pathtoPublish: "$(Agent.TempDirectory)/packages"
               artifactName: "powerwaf_jni_linux_musl"
       - job: asan
