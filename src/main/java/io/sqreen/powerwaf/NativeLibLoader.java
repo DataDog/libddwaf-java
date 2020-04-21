@@ -78,7 +78,9 @@ public class NativeLibLoader {
         String os = System.getProperty("os.name");
         if ("Linux".equals(os)) {
             File file = new File(LINUX_JVM_PROC_MAP);
-            try (Scanner sc = new Scanner(file, StandardCharsets.ISO_8859_1.name())) {
+            Scanner sc = null;
+            try {
+                sc = new Scanner(file, StandardCharsets.ISO_8859_1.name());
                 while (sc.hasNextLine()){
                     String module = sc.nextLine();
                     if (module.contains("-linux-gnu")) {
@@ -91,6 +93,10 @@ public class NativeLibLoader {
             }
             catch (IOException e) {
                 LOGGER.debug("Unable to read jvm maps", e);
+            } finally {
+                if (sc != null) {
+                    sc.close();
+                }
             }
         } else if ("Mac OS X".equals(os)) {
             return OsType.MAC_OS_64;
