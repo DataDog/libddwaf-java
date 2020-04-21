@@ -74,7 +74,7 @@ stages:
               artifactName: "powerwaf_jni_linux_glibc"
       - job: linux_amd64_musl
         displayName: Linux amd64 (musl)
-        pool: { vmImage: 'alpine-3.11' }
+        pool: { vmImage: 'alpine:3.11' }
         steps:
           - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
           - checkout: self
