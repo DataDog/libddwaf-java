@@ -124,9 +124,15 @@ public class NativeLibLoader {
     }
 
     private static void copyToFile(InputStream input, File dest) throws IOException {
-        try (OutputStream os = new FileOutputStream(dest)) {
+        OutputStream os = null;
+        try {
+            os = new FileOutputStream(dest);
             copy(input, os);
             os.flush();
+        } finally {
+            if (os != null) {
+                os.close();
+            }
         }
     }
 }
