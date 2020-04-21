@@ -1,11 +1,11 @@
 package io.sqreen.powerwaf;
 
-import com.google.common.base.Joiner;
 import io.sqreen.logging.Logger;
 import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static com.google.common.io.ByteStreams.copy;
@@ -14,6 +14,7 @@ import static com.google.common.io.Files.createTempDir;
 public class NativeLibLoader {
 
     private static final Logger LOGGER = LoggerFactory.get(NativeLibLoader.class);
+    private static final String LINUX_JVM_PROC_MAP = "/proc/self/maps";
 
     public static void load() throws IOException, UnsupportedVMException {
         LOGGER.info("Will load native library");
@@ -25,7 +26,7 @@ public class NativeLibLoader {
     private static File extractLib() throws UnsupportedVMException, IOException {
         ClassLoader cl = NativeLibLoader.class.getClassLoader();
         List<String> nativeLibs = getNativeLibs(getOsType());
-        LOGGER.debug("Native libs to copy: %s", Joiner.on(", ").join(nativeLibs));
+        LOGGER.debug("Native libs to copy: %s",  String.join(", ", nativeLibs));
 
         File tempDir = createTempDir();
         LOGGER.debug("Created temporary directory %s", tempDir);
@@ -76,50 +77,29 @@ public class NativeLibLoader {
 
         String os = System.getProperty("os.name");
         if ("Linux".equals(os)) {
-
-            // Try filesystem (family only)
-            final File folder = new File("/lib");
-            File[] listOfFiles = folder.listFiles();
-            if (listOfFiles != null) {
-                for (final File f : listOfFiles) {
-                    if (f != null && f.isFile()) {
-                        String name = f.getName();
-                        if (name.contains("-linux-gnu")) {
-                            return OsType.LINUX_64_GLIBC;
-                        } else if (name.contains("libc.musl-") || name.contains("ld-musl-")) {
-                            return OsType.LINUX_64_MUSL;
-                        }
+            File file = new File(LINUX_JVM_PROC_MAP);
+            try (Scanner sc = new Scanner(file, StandardCharsets.ISO_8859_1.name())) {
+                while (sc.hasNextLine()){
+                    String module = sc.nextLine();
+                    if (module.contains("-linux-gnu")) {
+                        return NativeLibLoader.OsType.LINUX_64_GLIBC;
+                    } else if (module.contains("libc.musl-") ||
+                               module.contains("ld-musl-")) {
+                        return NativeLibLoader.OsType.LINUX_64_MUSL;
                     }
                 }
             }
-
-            // Try ldd
-            try {
-                Process process = new ProcessBuilder().command("sh", "-c", "ldd --version").start();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    line = line.toLowerCase();
-                    if (line.contains("musl")) {
-                        return OsType.LINUX_64_MUSL;
-                    } else if (line.contains("glibc")) {
-                        return OsType.LINUX_64_GLIBC;
-                    }
-                }
-                process.waitFor();
-            } catch(IOException ignored) {}
-              catch(InterruptedException ignored) {}
-
-            return OsType.LINUX_64_GLIBC;
+            catch (IOException e) {
+                LOGGER.debug("Unable to read jvm maps", e);
+            }
         } else if ("Mac OS X".equals(os)) {
             return OsType.MAC_OS_64;
         } else if ("SunOS".equals(os)) {
             return OsType.SUN_OS_64;
         } else if (os != null && os.toLowerCase(Locale.ENGLISH).contains("windows")) {
             return OsType.WINDOWS_64;
-        } else {
-            throw new UnsupportedVMException("Unsupported OS: " + os);
         }
+        throw new UnsupportedVMException("Unsupported OS: " + os);
     }
 
     private static List<String> getNativeLibs(OsType type) {
@@ -144,15 +124,9 @@ public class NativeLibLoader {
     }
 
     private static void copyToFile(InputStream input, File dest) throws IOException {
-        OutputStream os = null;
-        try {
-            os = new FileOutputStream(dest);
+        try (OutputStream os = new FileOutputStream(dest)) {
             copy(input, os);
             os.flush();
-        } finally {
-            if (os != null) {
-                os.close();
-            }
         }
     }
 }
