@@ -38,7 +38,7 @@ stages:
               debug_ext: pdb
               artifactsuff: win_amd64
               libdir: windows_64
-      - job: linux_amd64
+      - job: linux_amd64_glibc
         displayName: Linux amd64 (glibc)
         pool: { vmImage: 'ubuntu-latest' }
         steps:
@@ -46,10 +46,10 @@ stages:
           - checkout: self
             clean: true
             submodules: recursive
-          - script: docker build ci -t manylinux_cmake
-          - script: docker rm -f pwaf_java_build || true
+          - script: docker build ci/manylinux -t manylinux_cmake
+          - script: docker rm -f pwaf_java_glibc_build || true
           - script: >
-              docker run --name pwaf_java_build -v $(pwd):/AgentJavaNative manylinux_cmake
+              docker run --name pwaf_java_glibc_build -v $(pwd):/AgentJavaNative manylinux_cmake
               bash -e -c 'export VERBOSE=1;
                 mkdir buildPW && cd buildPW &&
                 cmake /AgentJavaNative/PowerWAF -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
@@ -63,15 +63,49 @@ stages:
           - script: |
               mkdir $(Agent.TempDirectory)/packages
               cd $(Agent.TempDirectory)/packages
-              docker cp pwaf_java_build:/buildPW/libSqreen.so .
-              docker cp pwaf_java_build:/buildPW/libSqreen.so.debug .
-              docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so .
-              docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so.debug .
+              docker cp pwaf_java_glibc_build:/buildPW/libSqreen.so .
+              docker cp pwaf_java_glibc_build:/buildPW/libSqreen.so.debug .
+              docker cp pwaf_java_glibc_build:/buildAG/libpowerwaf_jni.so .
+              docker cp pwaf_java_glibc_build:/buildAG/libpowerwaf_jni.so.debug .
           - task: PublishBuildArtifacts@1
             displayName: Save Artifacts
             inputs:
               pathtoPublish: "$(Agent.TempDirectory)/packages"
-              artifactName: "powerwaf_jni_linux"
+              artifactName: "powerwaf_jni_linux_glibc"
+      - job: linux_amd64_musl
+        displayName: Linux amd64 (musl)
+        pool: { vmImage: 'alpine-3.11' }
+        steps:
+          - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
+          - checkout: self
+            clean: true
+            submodules: recursive
+          - script: docker build ci/alpine -t alpine_cmake
+          - script: docker rm -f pwaf_java_musl_build || true
+          - script: >
+              docker run --name pwaf_java_musl_build -v $(pwd):/AgentJavaNative alpine_cmake
+              bash -e -c 'export VERBOSE=1;
+                mkdir buildPW && cd buildPW &&
+                cmake /AgentJavaNative/PowerWAF -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
+                make -j && make install &&
+                mkdir ../buildAG && cd ../buildAG &&
+                cmake /AgentJavaNative -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
+                make -j &&
+                cp {.,../buildPW}/*.so* /AgentJavaNative/native_libs/linux_64_musl/ &&
+                cd /AgentJavaNative &&
+                ./gradlew check --info -PuseReleaseBinaries'
+          - script: |
+              mkdir $(Agent.TempDirectory)/packages
+              cd $(Agent.TempDirectory)/packages
+              docker cp pwaf_java_musl_build:/buildPW/libSqreen.so .
+              docker cp pwaf_java_musl_build:/buildPW/libSqreen.so.debug .
+              docker cp pwaf_java_musl_build:/buildAG/libpowerwaf_jni.so .
+              docker cp pwaf_java_musl_build:/buildAG/libpowerwaf_jni.so.debug .
+            - task: PublishBuildArtifacts@1
+              displayName: Save Artifacts
+              inputs:
+              pathtoPublish: "$(Agent.TempDirectory)/packages"
+              artifactName: "powerwaf_jni_linux_musl"
       - job: asan
         displayName: ASAN/static analyzer on Linux
         pool: { vmImage: 'ubuntu-18.04' }
@@ -145,12 +179,19 @@ stages:
               artifactName: 'powerwaf_jni_win_amd64'
               downloadPath: $(System.ArtifactsDirectory)
           - task: DownloadBuildArtifacts@0
-            displayName: Download powerwaf_jni_linux
+            displayName: Download powerwaf_jni_linux_glibc
             inputs:
               buildType: 'current'
               downloadType: 'single'
-              artifactName: 'powerwaf_jni_linux'
+              artifactName: 'powerwaf_jni_linux_glibc'
               downloadPath: $(System.ArtifactsDirectory)
+          - task: DownloadBuildArtifacts@0
+              displayName: Download powerwaf_jni_linux_musl
+              inputs:
+                buildType: 'current'
+                downloadType: 'single'
+                artifactName: 'powerwaf_jni_linux_musl'
+                downloadPath: $(System.ArtifactsDirectory)
           - task: DownloadBuildArtifacts@0
             displayName: Download powerwaf_jni_macos
             inputs:
@@ -165,7 +206,8 @@ stages:
               script: |
                 set -ex
                 cp $(System.ArtifactsDirectory)/powerwaf_jni_win_amd64/* native_libs/windows_64/
-                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux/* native_libs/linux_64_glibc/
+                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux_glibc/* native_libs/linux_64_glibc/
+                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux_musl/* native_libs/linux_64_musl/
                 cp $(System.ArtifactsDirectory)/powerwaf_jni_macos/* native_libs/osx_64/
           - task: Gradle@2
             displayName: Build final JAR and debug symbols package
