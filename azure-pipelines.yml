@@ -111,16 +111,16 @@ stages:
         pool: { vmImage: 'ubuntu-18.04' }
         steps:
           - bash: |
-                wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-                echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main | sudo tee -a /etc/apt/sources.list
-                sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-                sudo apt-get update
-                sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 \
-                  clang-8 clang-tools-8 ruby
-                sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-9 100
-                sudo update-alternatives --set cc /usr/bin/gcc-9
-                sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-9 100
-                sudo update-alternatives --set c++ /usr/bin/g++-9
+              wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+              echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main | sudo tee -a /etc/apt/sources.list
+              sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+              sudo apt-get update
+              sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 \
+                clang-8 clang-tools-8 ruby
+              sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-9 100
+              sudo update-alternatives --set cc /usr/bin/gcc-9
+              sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-9 100
+              sudo update-alternatives --set c++ /usr/bin/g++-9
             displayName: Install GCC 9 and clang 8
           - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
             displayName: Use https for git
@@ -129,16 +129,16 @@ stages:
             clean: true
             submodules: recursive
           - bash: |
-             set -ex
-             cd PowerWAF
-             mkdir Debug && cd Debug
-             cmake .. -DCMAKE_BUILD_TYPE=Debug \
-               -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=leak" \
-               -DCMAKE_C_FLAGS="-fsanitize=address -fsanitize=leak" \
-               -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak" \
-               -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak"
-             VERBOSE=1 make -j
-             DESTDIR=out make install
+              set -ex
+              cd PowerWAF
+              mkdir Debug && cd Debug
+              cmake .. -DCMAKE_BUILD_TYPE=Debug \
+                -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=leak" \
+                -DCMAKE_C_FLAGS="-fsanitize=address -fsanitize=leak" \
+                -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak" \
+                -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak"
+              VERBOSE=1 make -j
+              DESTDIR=out make install
             displayName: Build PowerWAF
           - task: Bash@3
             displayName: Run static analyzer
@@ -186,12 +186,12 @@ stages:
               artifactName: 'powerwaf_jni_linux_glibc'
               downloadPath: $(System.ArtifactsDirectory)
           - task: DownloadBuildArtifacts@0
-              displayName: Download powerwaf_jni_linux_musl
-              inputs:
-                buildType: 'current'
-                downloadType: 'single'
-                artifactName: 'powerwaf_jni_linux_musl'
-                downloadPath: $(System.ArtifactsDirectory)
+            displayName: Download powerwaf_jni_linux_musl
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'powerwaf_jni_linux_musl'
+              downloadPath: $(System.ArtifactsDirectory)
           - task: DownloadBuildArtifacts@0
             displayName: Download powerwaf_jni_macos
             inputs:
