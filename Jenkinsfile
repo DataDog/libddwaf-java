@@ -5,6 +5,7 @@ def git = new Git(this)
 
 node 'docker_build', {
     stage 'Checkout', {
+        sh 'git config --local url."https://github.com/".insteadOf git@github.com'
         git.checkout()
     }
 
