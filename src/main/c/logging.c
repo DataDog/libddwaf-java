@@ -180,19 +180,19 @@ void java_log_shutdown(JNIEnv *env)
         JNI(DeleteGlobalRef, _object_jcls);
     }
     if (_trace) {
-        JNI(DeleteGlobalRef, _trace);
+        JNI(DeleteWeakGlobalRef, _trace);
     }
     if (_debug) {
-        JNI(DeleteGlobalRef, _debug);
+        JNI(DeleteWeakGlobalRef, _debug);
     }
     if (_info) {
-        JNI(DeleteGlobalRef, _info);
+        JNI(DeleteWeakGlobalRef, _info);
     }
     if (_warn) {
-        JNI(DeleteGlobalRef, _warn);
+        JNI(DeleteWeakGlobalRef, _warn);
     }
     if (_error) {
-        JNI(DeleteGlobalRef, _error);
+        JNI(DeleteWeakGlobalRef, _error);
     }
     if (_logger) {
         JNI(DeleteGlobalRef, _logger);
