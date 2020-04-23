@@ -83,11 +83,10 @@ public class NativeLibLoader {
                 sc = new Scanner(file, StandardCharsets.ISO_8859_1.name());
                 while (sc.hasNextLine()){
                     String module = sc.nextLine();
-                    if (module.contains("-linux-gnu")) {
-                        return NativeLibLoader.OsType.LINUX_64_GLIBC;
-                    } else if (module.contains("libc.musl-") ||
-                               module.contains("ld-musl-")) {
+                    if (module.contains("libc.musl-") || module.contains("ld-musl-")) {
                         return NativeLibLoader.OsType.LINUX_64_MUSL;
+                    } else if (module.contains("-linux-gnu") || module.contains("libc-")) {
+                        return NativeLibLoader.OsType.LINUX_64_GLIBC;
                     }
                 }
             }
