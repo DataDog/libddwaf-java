@@ -590,11 +590,11 @@ static bool _cache_classes(JNIEnv *env)
             _cache_single_class_weak(env, "java/lang/String", &_string_cls);
 }
 
-static void _dispose_of_classes(JNIEnv *env)
+static void _dispose_of_weak_classes(JNIEnv *env)
 {
 #define DESTROY_CLASS_REF(jcls) \
     if (jcls) { \
-        JNI(DeleteGlobalRef, jcls); \
+        JNI(DeleteWeakGlobalRef, jcls); \
         jcls = NULL; \
     }
 
@@ -735,7 +735,7 @@ error:
 static void _dispose_of_cache_references(JNIEnv * env)
 {
     _dispose_of_action_enums(env);
-    _dispose_of_classes(env);
+    _dispose_of_weak_classes(env);
     _dispose_of_cached_methods(env);
 }
 
