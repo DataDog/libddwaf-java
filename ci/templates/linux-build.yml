@@ -7,7 +7,9 @@ steps:
     clean: true
     submodules: recursive
   - script: docker build ${{ parameters.dockerfile }} -t linux_cmake
+    displayName: Build docker linux image
   - script: docker rm -f pwaf_java_build || true
+    displayName: Clean pervious docker container
   - script: >
       docker run --name pwaf_java_build -v $(pwd):$(Build.SourcesDirectory) linux_cmake
       bash -e -c 'export VERBOSE=1;
@@ -20,6 +22,7 @@ steps:
       cp {.,../buildPW}/*.so* $(Build.SourcesDirectory)/native_libs/${{parameters.libdir}} &&
       cd $(Build.SourcesDirectory) &&
       ./gradlew check --info -PuseReleaseBinaries'
+    displayName: Compile PowerWAF and JNI binaries
   - script: |
       mkdir $(Agent.TempDirectory)/packages
       cd $(Agent.TempDirectory)/packages
@@ -27,6 +30,7 @@ steps:
       docker cp pwaf_java_build:/buildPW/libSqreen.so.debug .
       docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so .
       docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so.debug .
+    displayName: Copy JNI binding binaries to packages
   - task: PublishBuildArtifacts@1
     displayName: Save Artifacts
     inputs:
