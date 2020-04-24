@@ -170,7 +170,7 @@ stages:
               targetType: inline
               script: |
                 set -ex
-                mkdir -p "$(artifactsuff.TempDirectory)/packages"
+                mkdir -p "$(Agent.TempDirectory)/packages"
                 cp $(Build.SourcesDirectory)/build/libs/powerwaf-*.jar "$(Agent.TempDirectory)/packages"
                 cp $(Build.SourcesDirectory)/build/distributions/powerwaf-*-dbgsym.zip "$(Agent.TempDirectory)/packages"
           - task: PublishBuildArtifacts@1
