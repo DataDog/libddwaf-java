@@ -28,7 +28,7 @@ steps:
       docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so .
       docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so.debug .
   - task: PublishBuildArtifacts@1
-      displayName: Save Artifacts
-      inputs:
-        pathtoPublish: "$(Agent.TempDirectory)/packages"
-        artifactName: "powerwaf_jni_${{parameters.artifactsuff}}"
+    displayName: Save Artifacts
+    inputs:
+      pathtoPublish: "$(Agent.TempDirectory)/packages"
+      artifactName: "powerwaf_jni_${{parameters.artifactsuff}}"
