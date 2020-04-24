@@ -46,7 +46,7 @@ stages:
             parameters:
               dockerfile: "ci/manylinux"
               artifactName: linux_glibc
-              libdir: linux_64_glib
+              libdir: linux_64_glibc
       - job: linux_amd64_musl
         displayName: Linux amd64 (musl)
         pool: { vmImage: 'ubuntu-latest' }
