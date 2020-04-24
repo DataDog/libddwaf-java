@@ -42,7 +42,7 @@ stages:
         displayName: Linux amd64 (glibc)
         pool: { vmImage: 'ubuntu-latest' }
         steps:
-          - template: ci/templates/docker-linux-build.yml
+          - template: ci/templates/linux-build.yml
             parameters:
               dockerfile: "ci/manylinux"
               artifactName: linux_glibc
@@ -51,7 +51,7 @@ stages:
         displayName: Linux amd64 (musl)
         pool: { vmImage: 'ubuntu-latest' }
         steps:
-          - template: ci/templates/docker-linux-build.yml
+          - template: ci/templates/linux-build.yml
             parameters:
               dockerfile: "ci/alpine"
               artifactsuff: linux_musl
