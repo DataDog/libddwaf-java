@@ -9,16 +9,16 @@ steps:
   - script: docker build ${{ parameters.dockerfile }} -t linux_cmake
   - script: docker rm -f pwaf_java_build || true
   - script: >
-      docker run --name pwaf_java_build -v $(pwd):/AgentJavaNative linux_cmake
+      docker run --name pwaf_java_build -v $(pwd):$(Build.SourcesDirectory) linux_cmake
       bash -e -c 'export VERBOSE=1;
       mkdir buildPW && cd buildPW &&
-      cmake /AgentJavaNative/PowerWAF -DCMAKE_BUILD_TYPE=${{parameters.buildType}} &&
+      cmake $(Build.SourcesDirectory)/PowerWAF -DCMAKE_BUILD_TYPE=${{parameters.buildType}} &&
       make -j && make install &&
       mkdir ../buildAG && cd ../buildAG &&
-      cmake /AgentJavaNative -DCMAKE_BUILD_TYPE=${{parameters.buildType}} &&
+      cmake $(Build.SourcesDirectory) -DCMAKE_BUILD_TYPE=${{parameters.buildType}} &&
       make -j &&
-      cp {.,../buildPW}/*.so* /AgentJavaNative/native_libs/${{parameters.libdir}} &&
-      cd /AgentJavaNative &&
+      cp {.,../buildPW}/*.so* $(Build.SourcesDirectory)/native_libs/${{parameters.libdir}} &&
+      cd $(Build.SourcesDirectory) &&
       ./gradlew check --info -PuseReleaseBinaries'
   - script: |
       mkdir $(Agent.TempDirectory)/packages
