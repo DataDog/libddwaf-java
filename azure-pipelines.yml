@@ -18,7 +18,7 @@ stages:
         displayName: Mac OS X
         pool: {vmImage: 'macOS-10.14'}
         steps:
-          - template: ci/azure-build.yml
+          - template: ci/templates/azure-build.yml
             parameters:
               generator: "Unix Makefiles"
               shlib_prefix: lib
@@ -30,7 +30,7 @@ stages:
         displayName: Windows amd64
         pool: {vmImage: 'vs2017-win2016'}
         steps:
-          - template: ci/azure-build.yml
+          - template: ci/templates/azure-build.yml
             parameters:
               generator: "NMake Makefiles"
               shlib_prefix: ''
@@ -42,70 +42,20 @@ stages:
         displayName: Linux amd64 (glibc)
         pool: { vmImage: 'ubuntu-latest' }
         steps:
-          - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
-          - checkout: self
-            clean: true
-            submodules: recursive
-          - script: docker build ci/manylinux -t manylinux_cmake
-          - script: docker rm -f pwaf_java_glibc_build || true
-          - script: >
-              docker run --name pwaf_java_glibc_build -v $(pwd):/AgentJavaNative manylinux_cmake
-              bash -e -c 'export VERBOSE=1;
-                mkdir buildPW && cd buildPW &&
-                cmake /AgentJavaNative/PowerWAF -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
-                make -j && make install &&
-                mkdir ../buildAG && cd ../buildAG &&
-                cmake /AgentJavaNative -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
-                make -j &&
-                cp {.,../buildPW}/*.so* /AgentJavaNative/native_libs/linux_64_glibc/ &&
-                cd /AgentJavaNative &&
-                ./gradlew check --info -PuseReleaseBinaries'
-          - script: |
-              mkdir $(Agent.TempDirectory)/packages
-              cd $(Agent.TempDirectory)/packages
-              docker cp pwaf_java_glibc_build:/buildPW/libSqreen.so .
-              docker cp pwaf_java_glibc_build:/buildPW/libSqreen.so.debug .
-              docker cp pwaf_java_glibc_build:/buildAG/libpowerwaf_jni.so .
-              docker cp pwaf_java_glibc_build:/buildAG/libpowerwaf_jni.so.debug .
-          - task: PublishBuildArtifacts@1
-            displayName: Save Artifacts
-            inputs:
-              pathtoPublish: "$(Agent.TempDirectory)/packages"
-              artifactName: "powerwaf_jni_linux_glibc"
+          - template: ci/templates/docker-linux-build.yml
+            parameters:
+              dockerfile: "ci/manylinux"
+              artifactName: linux_glibc
+              libdir: linux_64_glib
       - job: linux_amd64_musl
         displayName: Linux amd64 (musl)
         pool: { vmImage: 'ubuntu-latest' }
         steps:
-          - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
-          - checkout: self
-            clean: true
-            submodules: recursive
-          - script: docker build ci/alpine -t alpine_cmake
-          - script: docker rm -f pwaf_java_musl_build || true
-          - script: >
-              docker run --name pwaf_java_musl_build -v $(pwd):/AgentJavaNative alpine_cmake
-              bash -e -c 'export VERBOSE=1;
-                mkdir buildPW && cd buildPW &&
-                cmake /AgentJavaNative/PowerWAF -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
-                make -j && make install &&
-                mkdir ../buildAG && cd ../buildAG &&
-                cmake /AgentJavaNative -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
-                make -j &&
-                cp {.,../buildPW}/*.so* /AgentJavaNative/native_libs/linux_64_musl/ &&
-                cd /AgentJavaNative &&
-                ./gradlew check --info -PuseReleaseBinaries'
-          - script: |
-              mkdir $(Agent.TempDirectory)/packages
-              cd $(Agent.TempDirectory)/packages
-              docker cp pwaf_java_musl_build:/buildPW/libSqreen.so .
-              docker cp pwaf_java_musl_build:/buildPW/libSqreen.so.debug .
-              docker cp pwaf_java_musl_build:/buildAG/libpowerwaf_jni.so .
-              docker cp pwaf_java_musl_build:/buildAG/libpowerwaf_jni.so.debug .
-          - task: PublishBuildArtifacts@1
-            displayName: Save Artifacts
-            inputs:
-              pathtoPublish: "$(Agent.TempDirectory)/packages"
-              artifactName: "powerwaf_jni_linux_musl"
+          - template: ci/templates/docker-linux-build.yml
+            parameters:
+              dockerfile: "ci/alpine"
+              artifactsuff: linux_musl
+              libdir: linux_64_musl
       - job: asan
         displayName: ASAN/static analyzer on Linux
         pool: { vmImage: 'ubuntu-18.04' }
