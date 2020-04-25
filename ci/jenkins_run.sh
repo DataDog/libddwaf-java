@@ -47,7 +47,7 @@ function docker_epilogue {
 }
 
 function build_docker_image {
-  cd "$PROJ_DIR/ci"
+  cd "$PROJ_DIR/ci/manylinux"
   docker build -t manylinux-cmake .
 }
 

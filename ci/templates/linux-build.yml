@@ -1,0 +1,40 @@
+parameters:
+  buildType: "RelWithDebInfo"
+
+steps:
+  - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
+    displayName: Configure git to use https
+  - checkout: self
+    displayName: Checkout repository
+    clean: true
+    submodules: recursive
+  - script: docker build ${{ parameters.dockerfile }} -t linux_cmake
+    displayName: Build docker linux image
+  - script: docker rm -f pwaf_java_build || true
+    displayName: Clean previous docker container
+  - script: >
+      docker run --name pwaf_java_build -v $(pwd):$(Build.SourcesDirectory) linux_cmake
+      bash -e -c 'export VERBOSE=1;
+        mkdir buildPW && cd buildPW &&
+        cmake $(Build.SourcesDirectory)/PowerWAF -DCMAKE_BUILD_TYPE=${{parameters.buildType}} &&
+        make -j && make install &&
+        mkdir ../buildAG && cd ../buildAG &&
+        cmake $(Build.SourcesDirectory) -DCMAKE_BUILD_TYPE=${{parameters.buildType}} &&
+        make -j &&
+        cp {.,../buildPW}/*.so* $(Build.SourcesDirectory)/native_libs/${{parameters.libdir}} &&
+        cd $(Build.SourcesDirectory) &&
+        ./gradlew check --info -PuseReleaseBinaries'
+    displayName: Build and test with release binaries
+  - script: |
+      mkdir $(Agent.TempDirectory)/packages
+      cd $(Agent.TempDirectory)/packages
+      docker cp pwaf_java_build:/buildPW/libSqreen.so .
+      docker cp pwaf_java_build:/buildPW/libSqreen.so.debug .
+      docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so .
+      docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so.debug .
+    displayName: Copy binaries and debug symbols
+  - task: PublishBuildArtifacts@1
+    displayName: Save Artifacts
+    inputs:
+      pathtoPublish: "$(Agent.TempDirectory)/packages"
+      artifactName: "powerwaf_jni_${{parameters.artifactsuff}}"

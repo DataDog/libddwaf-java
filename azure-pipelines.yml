@@ -18,7 +18,7 @@ stages:
         displayName: Mac OS X
         pool: {vmImage: 'macOS-10.14'}
         steps:
-          - template: ci/azure-build.yml
+          - template: ci/templates/azure-build.yml
             parameters:
               generator: "Unix Makefiles"
               shlib_prefix: lib
@@ -30,7 +30,7 @@ stages:
         displayName: Windows amd64
         pool: {vmImage: 'vs2017-win2016'}
         steps:
-          - template: ci/azure-build.yml
+          - template: ci/templates/azure-build.yml
             parameters:
               generator: "NMake Makefiles"
               shlib_prefix: ''
@@ -38,55 +38,39 @@ stages:
               debug_ext: pdb
               artifactsuff: win_amd64
               libdir: windows_64
-      - job: linux_amd64
+      - job: linux_amd64_glibc
         displayName: Linux amd64 (glibc)
         pool: { vmImage: 'ubuntu-latest' }
         steps:
-          - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
-          - checkout: self
-            clean: true
-            submodules: recursive
-          - script: docker build ci -t manylinux_cmake
-          - script: docker rm -f pwaf_java_build || true
-          - script: >
-              docker run --name pwaf_java_build -v $(pwd):/AgentJavaNative manylinux_cmake
-              bash -e -c 'export VERBOSE=1;
-                mkdir buildPW && cd buildPW &&
-                cmake /AgentJavaNative/PowerWAF -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
-                make -j && make install &&
-                mkdir ../buildAG && cd ../buildAG &&
-                cmake /AgentJavaNative -DCMAKE_BUILD_TYPE=RelWithDebInfo &&
-                make -j &&
-                cp {.,../buildPW}/*.so* /AgentJavaNative/native_libs/linux_64/ &&
-                cd /AgentJavaNative &&
-                ./gradlew check --info -PuseReleaseBinaries'
-          - script: |
-              mkdir $(Agent.TempDirectory)/packages
-              cd $(Agent.TempDirectory)/packages
-              docker cp pwaf_java_build:/buildPW/libSqreen.so .
-              docker cp pwaf_java_build:/buildPW/libSqreen.so.debug .
-              docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so .
-              docker cp pwaf_java_build:/buildAG/libpowerwaf_jni.so.debug .
-          - task: PublishBuildArtifacts@1
-            displayName: Save Artifacts
-            inputs:
-              pathtoPublish: "$(Agent.TempDirectory)/packages"
-              artifactName: "powerwaf_jni_linux"
+          - template: ci/templates/linux-build.yml
+            parameters:
+              dockerfile: "ci/manylinux"
+              artifactsuff: linux_glibc
+              libdir: linux_64_glibc
+      - job: linux_amd64_musl
+        displayName: Linux amd64 (musl)
+        pool: { vmImage: 'ubuntu-latest' }
+        steps:
+          - template: ci/templates/linux-build.yml
+            parameters:
+              dockerfile: "ci/alpine"
+              artifactsuff: linux_musl
+              libdir: linux_64_musl
       - job: asan
         displayName: ASAN/static analyzer on Linux
         pool: { vmImage: 'ubuntu-18.04' }
         steps:
           - bash: |
-                wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-                echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main | sudo tee -a /etc/apt/sources.list
-                sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-                sudo apt-get update
-                sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 \
-                  clang-8 clang-tools-8 ruby
-                sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-9 100
-                sudo update-alternatives --set cc /usr/bin/gcc-9
-                sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-9 100
-                sudo update-alternatives --set c++ /usr/bin/g++-9
+              wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+              echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main | sudo tee -a /etc/apt/sources.list
+              sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+              sudo apt-get update
+              sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 \
+                clang-8 clang-tools-8 ruby
+              sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-9 100
+              sudo update-alternatives --set cc /usr/bin/gcc-9
+              sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-9 100
+              sudo update-alternatives --set c++ /usr/bin/g++-9
             displayName: Install GCC 9 and clang 8
           - script: 'git config --global url."https://github.com/".insteadOf git@github.com:'
             displayName: Use https for git
@@ -95,16 +79,16 @@ stages:
             clean: true
             submodules: recursive
           - bash: |
-             set -ex
-             cd PowerWAF
-             mkdir Debug && cd Debug
-             cmake .. -DCMAKE_BUILD_TYPE=Debug \
-               -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=leak" \
-               -DCMAKE_C_FLAGS="-fsanitize=address -fsanitize=leak" \
-               -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak" \
-               -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak"
-             VERBOSE=1 make -j
-             DESTDIR=out make install
+              set -ex
+              cd PowerWAF
+              mkdir Debug && cd Debug
+              cmake .. -DCMAKE_BUILD_TYPE=Debug \
+                -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=leak" \
+                -DCMAKE_C_FLAGS="-fsanitize=address -fsanitize=leak" \
+                -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak" \
+                -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=leak"
+              VERBOSE=1 make -j
+              DESTDIR=out make install
             displayName: Build PowerWAF
           - task: Bash@3
             displayName: Run static analyzer
@@ -145,11 +129,18 @@ stages:
               artifactName: 'powerwaf_jni_win_amd64'
               downloadPath: $(System.ArtifactsDirectory)
           - task: DownloadBuildArtifacts@0
-            displayName: Download powerwaf_jni_linux
+            displayName: Download powerwaf_jni_linux_glibc
             inputs:
               buildType: 'current'
               downloadType: 'single'
-              artifactName: 'powerwaf_jni_linux'
+              artifactName: 'powerwaf_jni_linux_glibc'
+              downloadPath: $(System.ArtifactsDirectory)
+          - task: DownloadBuildArtifacts@0
+            displayName: Download powerwaf_jni_linux_musl
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'powerwaf_jni_linux_musl'
               downloadPath: $(System.ArtifactsDirectory)
           - task: DownloadBuildArtifacts@0
             displayName: Download powerwaf_jni_macos
@@ -165,7 +156,8 @@ stages:
               script: |
                 set -ex
                 cp $(System.ArtifactsDirectory)/powerwaf_jni_win_amd64/* native_libs/windows_64/
-                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux/* native_libs/linux_64/
+                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux_glibc/* native_libs/linux_64_glibc/
+                cp $(System.ArtifactsDirectory)/powerwaf_jni_linux_musl/* native_libs/linux_64_musl/
                 cp $(System.ArtifactsDirectory)/powerwaf_jni_macos/* native_libs/osx_64/
           - task: Gradle@2
             displayName: Build final JAR and debug symbols package
