@@ -181,7 +181,7 @@ stages:
               pathtoPublish: "$(Agent.TempDirectory)/packages"
               artifactName: "powerwaf_jni_jar"
           - task: Gradle@2
-            condition: and(succeeded(), contains(variables['Build.SourceBranch'], 'refs/tags/v'))
+            #condition: and(succeeded(), contains(variables['Build.SourceBranch'], 'refs/tags/v'))
             displayName: Publish artifacts to S3
             env:
               AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
