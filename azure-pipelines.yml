@@ -65,8 +65,8 @@ stages:
               echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main | sudo tee -a /etc/apt/sources.list
               sudo add-apt-repository ppa:ubuntu-toolchain-r/test
               sudo apt-get update
-              sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 \
-                clang-8 clang-tools-8 ruby
+              sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 clang-8 \
+                clang-tools-8 ruby
               sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-9 100
               sudo update-alternatives --set cc /usr/bin/gcc-9
               sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-9 100
