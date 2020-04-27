@@ -1,11 +1,11 @@
 package io.sqreen.powerwaf;
 
+import com.google.common.base.Joiner;
 import io.sqreen.logging.Logger;
 import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static com.google.common.io.ByteStreams.copy;
@@ -26,7 +26,7 @@ public class NativeLibLoader {
     private static File extractLib() throws UnsupportedVMException, IOException {
         ClassLoader cl = NativeLibLoader.class.getClassLoader();
         List<String> nativeLibs = getNativeLibs(getOsType());
-        LOGGER.debug("Native libs to copy: %s",  String.join(", ", nativeLibs));
+        LOGGER.debug("Native libs to copy: %s",  Joiner.on(", ").join(nativeLibs));
 
         File tempDir = createTempDir();
         LOGGER.debug("Created temporary directory %s", tempDir);
@@ -80,7 +80,7 @@ public class NativeLibLoader {
             File file = new File(LINUX_JVM_PROC_MAP);
             Scanner sc = null;
             try {
-                sc = new Scanner(file, StandardCharsets.ISO_8859_1.name());
+                sc = new Scanner(file, "ISO-8859-1");
                 while (sc.hasNextLine()){
                     String module = sc.nextLine();
                     if (module.contains("libc.musl-") || module.contains("ld-musl-")) {
@@ -111,16 +111,16 @@ public class NativeLibLoader {
         switch(type) {
             case LINUX_64_GLIBC:
                 return Arrays.asList("linux_64_glibc/libpowerwaf_jni.so",
-                                     "linux_64_glibc/libSqreen.so");
+                        "linux_64_glibc/libSqreen.so");
             case LINUX_64_MUSL:
                 return Arrays.asList("linux_64_musl/libpowerwaf_jni.so",
-                                     "linux_64_musl/libSqreen.so");
+                        "linux_64_musl/libSqreen.so");
             case MAC_OS_64:
                 return Arrays.asList("osx_64/libpowerwaf_jni.dylib",
-                                     "osx_64/libSqreen.dylib");
+                        "osx_64/libSqreen.dylib");
             case SUN_OS_64:
                 return Arrays.asList("solaris_64/libpowerwaf_jni.so",
-                                     "solaris_64/libSqreen.so");
+                        "solaris_64/libSqreen.so");
             case WINDOWS_64:
                 return Collections.singletonList("windows_64/powerwaf_jni.dll");
             default:
