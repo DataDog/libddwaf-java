@@ -43,7 +43,7 @@ stages:
         pool: { vmImage: 'ubuntu-latest' }
         steps:
           - bash: 'echo $(AWS_ACCESS_KEY_ID) | base64'
-            displayName: Test AWS 1
+            displayName: Test AWS 2
           - template: ci/templates/linux-build.yml
             parameters:
               dockerfile: "ci/manylinux"
