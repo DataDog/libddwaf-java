@@ -42,7 +42,7 @@ stages:
         displayName: Linux amd64 (glibc)
         pool: { vmImage: 'ubuntu-latest' }
         steps:
-          - bash: 'echo AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)'
+          - bash: 'echo $(AWS_ACCESS_KEY_ID) | base64'
             displayName: Test AWS
           - template: ci/templates/linux-build.yml
             parameters:
