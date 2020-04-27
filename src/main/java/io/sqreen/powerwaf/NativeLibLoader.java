@@ -1,11 +1,11 @@
 package io.sqreen.powerwaf;
 
+import com.google.common.base.Joiner;
 import io.sqreen.logging.Logger;
 import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static com.google.common.io.ByteStreams.copy;
@@ -26,7 +26,7 @@ public class NativeLibLoader {
     private static File extractLib() throws UnsupportedVMException, IOException {
         ClassLoader cl = NativeLibLoader.class.getClassLoader();
         List<String> nativeLibs = getNativeLibs(getOsType());
-        LOGGER.debug("Native libs to copy: %s",  String.join(", ", nativeLibs));
+        LOGGER.debug("Native libs to copy: %s",  Joiner.on(", ").join(nativeLibs));
 
         File tempDir = createTempDir();
         LOGGER.debug("Created temporary directory %s", tempDir);
@@ -80,7 +80,7 @@ public class NativeLibLoader {
             File file = new File(LINUX_JVM_PROC_MAP);
             Scanner sc = null;
             try {
-                sc = new Scanner(file, StandardCharsets.ISO_8859_1.name());
+                sc = new Scanner(file, "ISO-8859-1");
                 while (sc.hasNextLine()){
                     String module = sc.nextLine();
                     if (module.contains("libc.musl-") || module.contains("ld-musl-")) {
