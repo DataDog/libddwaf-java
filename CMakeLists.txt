@@ -37,6 +37,7 @@ target_compile_definitions(powerwaf_jni PRIVATE _GNU_SOURCE)
 message(STATUS "CMAKE_C_COMPILER=${CMAKE_C_COMPILER}")
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(powerwaf_jni PRIVATE
+        -DTARGET_RT_MAC_CFM=0   # for build on MacOS
         -Werror
         -Weverything -Wno-unused-macros  -Wno-gnu-zero-variadic-macro-arguments
         -Wno-documentation -Wno-nullability-extension -Wno-zero-length-array

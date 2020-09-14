@@ -36,8 +36,8 @@ static const PWArgs _pwinput_invalid = { .type = PWI_INVALID };
 
 // disable these checks. Our limits are given at rule run time
 static const PWConfig _pw_config = {
-    .maxArrayLength = UINT64_MAX,
-    .maxMapDepth = UINT64_MAX,
+    .maxArrayLength = 0,
+    .maxMapDepth = 0,
 };
 
 jclass jcls_rte;
@@ -179,7 +179,7 @@ JNIEXPORT jboolean JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRule(
         goto end;
     }
 
-    result = powerwaf_init(rule_name_c, rule_def_c, &_pw_config);
+    result = pw_init(rule_name_c, rule_def_c, &_pw_config, NULL);
 
 end:
     free(rule_name_c);
@@ -207,7 +207,7 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRule(
         return;
     }
 
-    powerwaf_clearRule(rule_name_c);
+    pw_clearRule(rule_name_c);
     free(rule_name_c);
 }
 
@@ -224,7 +224,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
     char *rule_name_c = NULL;
     PWArgs input = { .type = PWI_INVALID };
     struct _limits limits;
-    PWRet *ret = NULL;
+    PWRet ret;
     struct timespec start;
 
     if (!_get_time_checked(env, &start)) {
@@ -281,11 +281,11 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
         run_budget = (size_t)rem_gen_budget_in_us;
     }
 
-    ret = powerwaf_run(rule_name_c, &input, run_budget);
+    ret = pw_run(rule_name_c, input, run_budget);
 
-    if (ret->action < 0 || ret->action > 2) {
+    if (ret.action < 0 || ret.action > 2) {
         jobject exc = JNI(CallStaticObjectMethod,
-                          clazz, _create_exception_mid, (jint) ret->action);
+                          clazz, _create_exception_mid, (jint) ret.action);
         if (!JNI(ExceptionOccurred)) {
             JNI(Throw, exc);
         } // if an exception occurred calling createException, let it propagate
@@ -293,19 +293,19 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
     }
 
     jobject action_obj;
-    if (ret->action == PW_GOOD) {
+    if (ret.action == PW_GOOD) {
         action_obj = _action_ok;
-    } else if (ret->action == PW_MONITOR) {
+    } else if (ret.action == PW_MONITOR) {
         action_obj = _action_monitor;
     } else {
-        assert(ret->action == PW_BLOCK);
+        assert(ret.action == PW_BLOCK);
         action_obj = _action_block;
     }
     jstring data_obj = NULL;
-    if (ret->data) {
+    if (ret.data) {
         // no length, so the string must be NUL-terminated
         data_obj = java_utf8_to_jstring_checked(
-                    env, ret->data, strlen(ret->data));
+                    env, ret.data, strlen(ret.data));
         if (!data_obj) {
             if (!JNI(ExceptionCheck)) {
                 JNI(ThrowNew, jcls_rte, "Could not create result data string");
@@ -321,10 +321,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
 
 end:
     free(rule_name_c);
-    powerwaf_freeInput(&input, false);
-    if (ret) {
-        powerwaf_freeReturn(ret);
-    }
+    pw_freeArg(&input);
     return result;
 }
 
@@ -339,7 +336,7 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion(
     UNUSED(env);
     UNUSED(clazz);
 
-    PWVersion iversion = powerwaf_getVersion();
+    PWVersion iversion = pw_getVersion();
     char *version;
     int size_version = asprintf(&version, "%d.%d.%d",
                                 iversion.major, iversion.minor, iversion.patch);
@@ -380,8 +377,8 @@ static void _deinitialize(JNIEnv *env)
 //        jcls_rte = NULL;
 //    }
 
-    powerwaf_clearAll();
-    powerwaf_setupLogging(NULL, PWL_ERROR);
+    pw_clearAll();
+    pw_setupLogging(NULL, PWL_ERROR);
 
     java_log_shutdown(env);
 }
@@ -778,9 +775,9 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
     PWArgs result = _pwinput_invalid;
 
     if (JNI(IsSameObject, obj, NULL)) {
-        result = powerwaf_createMap(); // replace NULLs with empty maps
+        result = pw_createMap(); // replace NULLs with empty maps
     } else if (JNI(IsInstanceOf, obj, *_map_cls)) {
-        result = powerwaf_createMap();
+        result = pw_createMap();
         if (rec_level >= lims->max_depth) {
             JAVA_LOG(PWL_DEBUG, "Leaving map empty because max depth of %d "
                                 "has been reached", lims->max_depth);
@@ -824,7 +821,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
                 goto error;
             }
 
-            powerwaf_addToPWArgsMap(&result, key_cstr, key_len, value);
+            pw_addMap(&result, key_cstr, key_len, value);
 
             free(key_cstr);
 
@@ -841,7 +838,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
         JNI(DeleteLocalRef, entry_set);
 
     } else if (JNI(IsInstanceOf, obj, *_iterable_cls)) {
-        result = powerwaf_createArray();
+        result = pw_createArray();
         if (rec_level >= lims->max_depth) {
             JAVA_LOG(PWL_DEBUG, "Leaving array empty because max depth of %d "
                                 "has been reached", lims->max_depth);
@@ -868,7 +865,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
                 goto error;
             }
 
-            powerwaf_addToPWArgsArray(&result, value);
+            pw_addArray(&result, value);
 
             JNI(DeleteLocalRef, element);
         }
@@ -883,7 +880,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
             goto error;
         }
 
-        result = powerwaf_createStringWithLength(str_c, len);
+        result = pw_createStringWithLength(str_c, len);
 
         free(str_c);
 
@@ -893,14 +890,14 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
             goto error;
         }
 
-        result = powerwaf_createInt(lval);
+        result = pw_createInt(lval);
     }
 
     // having lael here so if we add cleanup in the future we don't forget
 early_return:
     return result;
 error:
-    powerwaf_freeInput(&result, false);
+    pw_freeArg(&result);
 
     return _pwinput_invalid;
 }

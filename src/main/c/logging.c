@@ -32,7 +32,7 @@ static int file_strip_idx;
 static bool _get_min_log_level(JNIEnv *env, PW_LOG_LEVEL *level);
 static void _powerwaf_logging_c(
         PW_LOG_LEVEL level, const char *function, const char *file, int line,
-        const char *message, size_t message_len);
+        const char *message, uint64_t message_len);
 static const char *_remove_path(const char *path);
 static JNIEnv *_attach_vm_checked(bool *attached);
 static void _detach_vm(void);
@@ -143,7 +143,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-    powerwaf_setupLogging(_powerwaf_logging_c, min_level);
+    pw_setupLogging(_powerwaf_logging_c, min_level);
 
     retval = true;
 
@@ -219,7 +219,7 @@ void java_log(PW_LOG_LEVEL level, const char *function, const char *file,
         return;
     }
     _powerwaf_logging_c(level, function, file + file_strip_idx, line,
-                        message, (size_t)message_len);
+                        message, (uint64_t)message_len);
     free(message);
 }
 
@@ -262,7 +262,7 @@ static jobject _lvl_api_to_java(PW_LOG_LEVEL api_lvl)
 
 static void _powerwaf_logging_c(
         PW_LOG_LEVEL level, const char *function, const char *file, int line,
-        const char *message, size_t message_len)
+        const char *message, uint64_t message_len)
 {
     UNUSED(message_len);
 

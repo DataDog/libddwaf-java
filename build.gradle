@@ -27,7 +27,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '0.7.0'
+version '1.0.0'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
@@ -35,6 +35,7 @@ targetCompatibility = 1.6
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 
 task cmakeNativeLibDebug(type: Exec) {
+    outputs.upToDateWhen { false }
     description = 'Runs cmake in a debug configuration'
 
     def pwafConfDir = project.hasProperty('powerwafConfig') ?
@@ -84,6 +85,7 @@ task cmakeNativeLibDebug(type: Exec) {
 }
 
 task buildNativeLibDebug(type: Exec) {
+    outputs.upToDateWhen { false }
     description = 'Builds the native JNI lib in a debug configuration'
     group = 'test'
 

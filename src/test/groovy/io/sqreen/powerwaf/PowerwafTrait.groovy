@@ -10,6 +10,13 @@ trait PowerwafTrait {
 
     static final String ARACHNI_ATOM = '''
         {
+          "manifest": {
+            "#._server['HTTP_USER_AGENT']": {
+              "inherit_from": "#._server['HTTP_USER_AGENT']",
+              "run_on_value": true,
+              "run_on_key": true
+            }
+          },
           "rules":[
             {
               "rule_id":"1",
