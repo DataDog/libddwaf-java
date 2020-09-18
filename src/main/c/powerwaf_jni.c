@@ -179,7 +179,11 @@ JNIEXPORT jboolean JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRule(
         goto end;
     }
 
-    result = pw_init(rule_name_c, rule_def_c, &_pw_config, NULL);
+    char * errors = NULL;
+    result = pw_init(rule_name_c, rule_def_c, &_pw_config, &errors);
+
+    if (errors != NULL)
+        JAVA_LOG(PWL_WARN, "PowerWAF init error: '%s'", errors);
 
 end:
     free(rule_name_c);
@@ -289,7 +293,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
         if (!JNI(ExceptionOccurred)) {
             JNI(Throw, exc);
         } // if an exception occurred calling createException, let it propagate
-        goto end;
+        goto freeRet;
     }
 
     jobject action_obj;
@@ -310,7 +314,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
             if (!JNI(ExceptionCheck)) {
                 JNI(ThrowNew, jcls_rte, "Could not create result data string");
             }
-            goto end;
+            goto freeRet;
         }
     }
 
@@ -319,9 +323,12 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
 
     JNI(DeleteLocalRef, data_obj);
 
+freeRet:
+    pw_freeReturn(ret);
 end:
     free(rule_name_c);
     pw_freeArg(&input);
+
     return result;
 }
 
