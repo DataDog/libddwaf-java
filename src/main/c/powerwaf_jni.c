@@ -287,24 +287,30 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
 
     ret = pw_run(rule_name_c, input, run_budget);
 
-    if (ret.action < 0 || ret.action > 2) {
-        jobject exc = JNI(CallStaticObjectMethod,
-                          clazz, _create_exception_mid, (jint) ret.action);
-        if (!JNI(ExceptionOccurred)) {
-            JNI(Throw, exc);
-        } // if an exception occurred calling createException, let it propagate
-        goto freeRet;
+    jobject action_obj;
+    switch (ret.action) {
+        case PW_GOOD:
+            action_obj = _action_ok;
+            break;
+        case PW_MONITOR:
+            action_obj = _action_monitor;
+            break;
+        case PW_BLOCK:
+            action_obj = _action_block;
+            break;
+        case PW_ERR_TIMEOUT:
+            goto freeRet;
+        default: {
+            // any errors or unknown statuses
+            jobject exc = JNI(CallStaticObjectMethod,
+                      clazz, _create_exception_mid, (jint) ret.action);
+            if (!JNI(ExceptionOccurred)) {
+                JNI(Throw, exc);
+            } // if an exception occurred calling createException, let it propagate
+            goto freeRet;
+        }
     }
 
-    jobject action_obj;
-    if (ret.action == PW_GOOD) {
-        action_obj = _action_ok;
-    } else if (ret.action == PW_MONITOR) {
-        action_obj = _action_monitor;
-    } else {
-        assert(ret.action == PW_BLOCK);
-        action_obj = _action_block;
-    }
     jstring data_obj = NULL;
     if (ret.data) {
         // no length, so the string must be NUL-terminated
