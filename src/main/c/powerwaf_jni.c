@@ -500,7 +500,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
         run_budget = (size_t)rem_gen_budget_in_us;
     }
 
-    JAVA_LOG(PWL_DEBUG, "Before pw_runAdditive( %ld )", (long)additive.ptr);
+    JAVA_LOG(PWL_DEBUG, "Before pw_runAdditive( 0x%llx, 0x%llx )", (int64_t)&additive, (int64_t)additive.ptr);
 
     ret = pw_runAdditive((PWAddContext)additive.ptr, input, run_budget);
 
