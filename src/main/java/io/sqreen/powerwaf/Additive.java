@@ -41,7 +41,8 @@ public final class Additive implements Closeable {
      * @throws IllegalArgumentException     if Additive or Limits is null
      * @throws RuntimeException             if Additive has already been cleared
      */
-    static native Powerwaf.ActionWithData runAdditive(Additive additive, Map<String, Object> parameters, Powerwaf.Limits limits);
+    static native Powerwaf.ActionWithData runAdditive(
+            Additive additive, Map<String, Object> parameters, Powerwaf.Limits limits);
 
     /**
      * Clear given Additive (free PWAddContext in PowerWAF)
@@ -126,7 +127,8 @@ public final class Additive implements Closeable {
         this.writeLock.lock();
         try {
             if (this.ptr != 0) {
-                this.logger.warn("Additive for rule %s had not been properly cleared", this.ruleName);
+                this.logger.warn(
+                        "Additive for rule %s had not been properly cleared", this.ruleName);
                 close();
             }
         } finally {
