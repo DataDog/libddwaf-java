@@ -19,6 +19,10 @@ struct _limits {
     char _padding[4];
 };
 
+struct _additive {
+    int64_t ptr;
+};
+
 // suffix _checked means if a function fails it leaves a pending exception
 static bool _check_init(JNIEnv *env);
 static void _deinitialize(JNIEnv *env);
@@ -28,6 +32,8 @@ static void _dispose_of_action_enums(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
 static PWArgs _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
+static struct _additive _fetch_additive_checked(JNIEnv *env, jobject additive_obj);
+static bool _set_additive_ptr(JNIEnv *env, jobject additive_obj, jlong value);
 static bool _get_time_checked(JNIEnv *env, struct timespec *time);
 static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
 static int64_t _get_pw_run_timeout_checked(JNIEnv *env);
@@ -41,6 +47,7 @@ static const PWConfig _pw_config = {
 };
 
 jclass jcls_rte;
+jclass jcls_iae;
 jmethodID rte_constr_cause;
 
 static jmethodID _create_exception_mid;
@@ -57,8 +64,12 @@ static jfieldID _limit_max_string_size;
 static jfieldID _limit_general_budget_in_us;
 static jfieldID _limit_run_budget_in_us;
 
+static jfieldID _additive_ptr;
+
 static jclass _string_cls;
 static struct j_method _to_string;
+
+static struct j_method _additive_init;
 
 static struct j_method _number_longValue;
 // weak, but assumed never to be gced
@@ -182,7 +193,7 @@ JNIEXPORT jboolean JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRule(
     char * errors = NULL;
     result = pw_init(rule_name_c, rule_def_c, &_pw_config, &errors);
 
-    if (errors != NULL)
+    if (result == JNI_FALSE && errors != NULL)
         JAVA_LOG(PWL_WARN, "PowerWAF init error: '%s'", errors);
 
 end:
@@ -364,6 +375,221 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion(
     return ret;
 }
 
+/*
+ * Class:     io.sqreen.powerwaf.Additive
+ * Method:    initAdditive
+ * Signature: (Ljava/lang/String;)Ljava/lang/Object;
+ */
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
+        (JNIEnv *env, jclass clazz, jstring rule_name)
+{
+    UNUSED(env);
+    UNUSED(clazz);
+
+    PWAddContext *context = NULL;
+    char *rule_name_c = NULL;
+    jobject result = NULL;
+
+    if (rule_name == NULL) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_iae, "ruleName should not be null");
+        }
+        return NULL;
+    }
+
+    rule_name_c = _to_utf8_checked(env, rule_name, NULL);
+    if (!rule_name_c) {
+        return 0;
+    }
+
+    context = pw_initAdditive(rule_name_c);
+    if (context != NULL) {
+        result = java_meth_call(env, &_additive_init, NULL, (long) context, rule_name);
+    }
+
+    return result;
+}
+
+/*
+ * Class:     io.sqreen.powerwaf.Additive
+ * Method:    runAdditive
+ * Signature: (Lio/sqreen/powerwaf/Additive;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ */
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
+  (JNIEnv *env, jclass clazz, jobject additive_obj, jobject parameters, jobject limits_obj) {
+
+    jobject result = NULL;
+    struct _additive additive;
+    PWArgs input = { .type = PWI_INVALID };
+    struct _limits limits;
+    PWRet ret;
+    struct timespec start;
+
+    if (!_get_time_checked(env, &start)) {
+        return NULL;
+    }
+
+    if (!_check_init(env)) {
+        return NULL;
+    }
+
+    if (!limits_obj) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_iae, "limits should not be null");
+        }
+        return NULL;
+    }
+
+    limits = _fetch_limits_checked(env, limits_obj);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+
+    if (!additive_obj) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_iae, "additive should not be null");
+        }
+        return NULL;
+    }
+
+    if (additive.ptr == 0) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_rte, "The Additive has already been cleared");
+        }
+        return NULL;
+    }
+
+    additive = _fetch_additive_checked(env, additive_obj);
+    if (JNI(ExceptionCheck)) {
+        goto end;
+    }
+
+    input = _convert_checked(env, parameters, &limits, 0);
+    if (JNI(ExceptionCheck)) {
+        goto end;
+    }
+    struct timespec conv_end;
+    if (!_get_time_checked(env, &conv_end)) {
+        goto end;
+    }
+    int64_t diff_us = _timespec_diff_ns(conv_end, start) / 1000LL;
+    int64_t rem_gen_budget_in_us = limits.general_budget_in_us - diff_us;
+    if (rem_gen_budget_in_us < 0) {
+        rem_gen_budget_in_us = 0;
+    }
+    JAVA_LOG(PWL_DEBUG, "Conversion of WAF arguments took %" PRId64
+                        " us; remaining general budget is %" PRId64 " us",
+             diff_us, rem_gen_budget_in_us);
+    if (rem_gen_budget_in_us == 0) {
+        JAVA_LOG(PWL_INFO, "General budget of %" PRId64 " us exhausted after "
+                           "native conversion (spent %" PRId64 " us)",
+             limits.general_budget_in_us, diff_us);
+        jobject exc = JNI(CallStaticObjectMethod, clazz,
+                      _create_exception_mid, -5 /* timeout */);
+        JNI(Throw, exc);
+        goto end;
+    }
+
+    size_t run_budget;
+    if (rem_gen_budget_in_us > limits.run_budget_in_us) {
+        JAVA_LOG(PWL_DEBUG, "Using run budget of % " PRId64 " us instead of "
+                            "remaining general budget of %" PRId64 " us",
+             limits.run_budget_in_us, rem_gen_budget_in_us);
+        run_budget = (size_t)limits.run_budget_in_us;
+    } else {
+        run_budget = (size_t)rem_gen_budget_in_us;
+    }
+
+    ret = pw_runAdditive((PWAddContext)additive.ptr, input, run_budget);
+
+    jobject action_obj;
+    switch (ret.action) {
+        case PW_GOOD:
+            action_obj = _action_ok;
+            break;
+        case PW_MONITOR:
+            action_obj = _action_monitor;
+            break;
+        case PW_BLOCK:
+            action_obj = _action_block;
+            break;
+        case PW_ERR_TIMEOUT:
+            goto freeRet;
+        default: {
+            // any errors or unknown statuses
+            jobject exc = JNI(CallStaticObjectMethod,
+                      clazz, _create_exception_mid, (jint) ret.action);
+            if (!JNI(ExceptionOccurred)) {
+                JNI(Throw, exc);
+            } // if an exception occurred calling createException, let it propagate
+            goto freeRet;
+        }
+    }
+
+    jstring data_obj = NULL;
+    if (ret.data) {
+        // no length, so the string must be NUL-terminated
+        data_obj = java_utf8_to_jstring_checked(
+            env, ret.data, strlen(ret.data));
+        if (!data_obj) {
+            if (!JNI(ExceptionCheck)) {
+                JNI(ThrowNew, jcls_rte, "Could not create result data string");
+            }
+            goto freeRet;
+        }
+    }
+
+    result = java_meth_call(env, &_action_with_data_init, NULL,
+                            action_obj, data_obj);
+
+    JNI(DeleteLocalRef, data_obj);
+
+    freeRet:
+    pw_freeReturn(ret);
+    end:
+    //free(add_context);
+    //pw_freeArg(&input);
+
+    return result;
+}
+
+/*
+ * Class:     io.sqreen.powerwaf.Additive
+ * Method:    clearAdditive
+ * Signature: (Lio/sqreen/powerwaf/Additive;)V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Additive_clearAdditive
+  (JNIEnv *env, jclass clazz, jobject additive_obj) {
+
+    UNUSED(clazz);
+
+    struct _additive additive;
+
+    if (!additive_obj) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_iae, "additive should not be null");
+        }
+        return;
+    }
+
+    additive = _fetch_additive_checked(env, additive_obj);
+    if (JNI(ExceptionCheck)) {
+        return;
+    }
+
+    if (additive.ptr == 0) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_rte, "Double free detected. The Additive has already been cleared");
+        }
+        return;
+    }
+
+    pw_clearAdditive((PWAddContext)additive.ptr);
+
+    _set_additive_ptr(env, additive_obj, 0);
+}
+
+
 static bool _check_init(JNIEnv *env)
 {
     if (!_init_ok) {
@@ -519,6 +745,27 @@ error:
     return ret;
 }
 
+static bool _fetch_additive_fields(JNIEnv *env)
+{
+    bool ret = false;
+
+    jclass additive_jclass = JNI(FindClass, "io/sqreen/powerwaf/Additive");
+    if (!additive_jclass) {
+        goto error;
+    }
+
+    _additive_ptr =
+            JNI(GetFieldID, additive_jclass, "ptr", "J");
+    if (!_additive_ptr) {
+        goto error;
+    }
+
+    ret = true;
+    error:
+    JNI(DeleteLocalRef, additive_jclass);
+    return ret;
+}
+
 static bool _fetch_limit_fields(JNIEnv *env)
 {
     bool ret = false;
@@ -597,6 +844,7 @@ static bool _cache_single_class_weak(JNIEnv *env,
 static bool _cache_classes(JNIEnv *env)
 {
     return _cache_single_class_weak(env, "java/lang/RuntimeException", &jcls_rte) &&
+            _cache_single_class_weak(env, "java/lang/IllegalArgumentException", &jcls_iae) &&
             _cache_single_class_weak(env, "java/lang/String", &_string_cls);
 }
 
@@ -614,6 +862,14 @@ static void _dispose_of_weak_classes(JNIEnv *env)
 
 static bool _cache_methods(JNIEnv *env)
 {
+    if (!java_meth_init_checked(
+            env, &_additive_init,
+            "io/sqreen/powerwaf/Additive", "<init>",
+            "(JLjava/lang/String;)V",
+            JMETHOD_CONSTRUCTOR)) {
+        goto error;
+    }
+
     if (!java_meth_init_checked(
                 env, &_to_string,
                 "java/lang/Object", "toString",
@@ -696,6 +952,7 @@ static void _dispose_of_cached_methods(JNIEnv *env)
         java_meth_destroy(env, &(var)); \
     }
 
+    DESTROY_METH(_additive_init)
     DESTROY_METH(_to_string)
     DESTROY_METH(_number_longValue)
     DESTROY_METH(_action_with_data_init)
@@ -725,6 +982,10 @@ static bool _cache_references(JNIEnv *env)
     }
 
     if (!_fetch_action_enums(env)) {
+        goto error;
+    }
+
+    if (!_fetch_additive_fields(env)) {
         goto error;
     }
 
@@ -913,6 +1174,26 @@ error:
     pw_freeArg(&result);
 
     return _pwinput_invalid;
+}
+
+static struct _additive _fetch_additive_checked(JNIEnv *env, jobject additive_obj)
+{
+    struct _additive c = {0};
+    c.ptr =
+            JNI(GetLongField, additive_obj, _additive_ptr);
+    if (JNI(ExceptionCheck)) {
+        return (struct _additive) {0};
+    }
+    return c;
+}
+
+static bool _set_additive_ptr(JNIEnv *env, jobject additive_obj, jlong value)
+{
+    JNI(SetLongField, additive_obj, _additive_ptr, value);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+    return true;
 }
 
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)

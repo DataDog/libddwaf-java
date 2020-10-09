@@ -10,6 +10,7 @@
 #define UNUSED(var) (void) var
 
 extern jclass jcls_rte;
+extern jclass jcls_iae;
 extern jmethodID rte_constr_cause;
 
 #endif

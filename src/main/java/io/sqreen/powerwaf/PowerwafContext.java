@@ -83,6 +83,10 @@ public class PowerwafContext implements Closeable {
         }
     }
 
+    public Additive openAdditive(String ruleName) throws AbstractPowerwafException {
+        return Additive.createAdditive(getFullRuleName(ruleName));
+    }
+
     private void checkIfOnline() {
         if (this.offline) {
             throw new IllegalStateException("This context is already offline");
