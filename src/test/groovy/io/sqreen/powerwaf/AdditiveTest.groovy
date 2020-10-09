@@ -135,7 +135,7 @@ class AdditiveTest implements ReactiveTrait {
         assertThat additive, nullValue()
     }
 
-    /*@Test(expected = RuntimeException)
+    @Test(expected = RuntimeException)
     void 'Should throw RuntimeException if double free'() {
         def rule = ARACHNI_ATOM
 
@@ -162,5 +162,5 @@ class AdditiveTest implements ReactiveTrait {
     @Test(expected = IllegalArgumentException)
     void 'Should throw IllegalArgumentException if Additive is null while clean'() {
         Additive.clearAdditive(null)
-    }*/
+    }
 }
