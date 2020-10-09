@@ -413,14 +413,14 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
 /*
  * Class:     io.sqreen.powerwaf.Additive
  * Method:    runAdditive
- * Signature: (Lio/sqreen/powerwaf/Additive;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData; 
+ * Signature: (Lio/sqreen/powerwaf/Additive;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
   (JNIEnv *env, jclass clazz, jobject additive_obj, jobject parameters, jobject limits_obj) {
 
     jobject result = NULL;
     struct _additive additive;
-    PWArgs input = { .type = PWI_INVALID };
+    PWArgs input = { .nbEntries = 0 };
     struct _limits limits;
     PWRet ret;
     struct timespec start;
@@ -499,8 +499,6 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
     } else {
         run_budget = (size_t)rem_gen_budget_in_us;
     }
-
-    JAVA_LOG(PWL_DEBUG, "Before pw_runAdditive( %" PRId64 " )", (int64_t)additive.ptr);
 
     ret = pw_runAdditive((PWAddContext)additive.ptr, input, run_budget);
 
