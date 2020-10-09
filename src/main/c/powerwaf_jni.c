@@ -420,7 +420,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
 
     jobject result = NULL;
     struct _additive additive;
-    PWArgs input = { .nbEntries = 0 };
+    PWArgs input;
     struct _limits limits;
     PWRet ret;
     struct timespec start;
