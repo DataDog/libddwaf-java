@@ -452,16 +452,16 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
         return NULL;
     }
 
+    additive = _fetch_additive_checked(env, additive_obj);
+    if (JNI(ExceptionCheck)) {
+        goto end;
+    }
+
     if (additive.ptr == 0) {
         if (!JNI(ExceptionCheck)) {
             JNI(ThrowNew, jcls_rte, "The Additive has already been cleared");
         }
         return NULL;
-    }
-
-    additive = _fetch_additive_checked(env, additive_obj);
-    if (JNI(ExceptionCheck)) {
-        goto end;
     }
 
     input = _convert_checked(env, parameters, &limits, 0);
