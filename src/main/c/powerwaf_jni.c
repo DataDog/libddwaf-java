@@ -404,7 +404,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
 
     context = pw_initAdditive(rule_name_c);
     if (context != NULL) {
-        result = java_meth_call(env, &_additive_init, NULL, (long) context, rule_name);
+        result = java_meth_call(env, &_additive_init, NULL, (int64_t) context, rule_name);
     }
 
     return result;
@@ -500,7 +500,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
         run_budget = (size_t)rem_gen_budget_in_us;
     }
 
-    JAVA_LOG(PWL_DEBUG, "Before pw_runAdditive( 0x%llx, 0x%llx )", (int64_t)&additive, (int64_t)additive.ptr);
+    JAVA_LOG(PWL_DEBUG, "Before pw_runAdditive( %" PRId64 " )", (int64_t)additive.ptr);
 
     ret = pw_runAdditive((PWAddContext)additive.ptr, input, run_budget);
 
@@ -1181,8 +1181,7 @@ error:
 static struct _additive _fetch_additive_checked(JNIEnv *env, jobject additive_obj)
 {
     struct _additive c = {0};
-    c.ptr =
-            JNI(GetLongField, additive_obj, _additive_ptr);
+    c.ptr = JNI(GetLongField, additive_obj, _additive_ptr);
     if (JNI(ExceptionCheck)) {
         return (struct _additive) {0};
     }
