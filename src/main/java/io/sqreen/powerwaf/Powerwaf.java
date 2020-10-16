@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.0.4";
+    public static final String LIB_VERSION = "1.0.5";
 
     private static final Logger LOGGER = LoggerFactory.get(Powerwaf.class);
 
@@ -28,13 +28,13 @@ public final class Powerwaf {
 
         if (triedInitializing) {
             throw new UnclassifiedPowerwafException(
-                    "Previously loading attempt of powerwaf_jni failed; not retrying");
+                    "Previously loading attempt of sqreen_jni failed; not retrying");
         }
 
         triedInitializing = true;
         try {
             if (simple) {
-                System.loadLibrary("powerwaf_jni");
+                System.loadLibrary("sqreen_jni");
             } else {
                 NativeLibLoader.load();
             }

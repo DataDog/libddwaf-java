@@ -2,11 +2,12 @@ package io.sqreen.powerwaf
 
 import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
+import io.sqreen.jni.JNITrait
 import org.junit.After
 import org.junit.BeforeClass
 
 @CompileStatic
-trait PowerwafTrait {
+trait PowerwafTrait extends JNITrait {
 
     static final String ARACHNI_ATOM = '''
         {
@@ -57,23 +58,6 @@ trait PowerwafTrait {
         new Powerwaf.Limits(
                 maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
     }
-
-    @BeforeClass
-    static void beforeClass() {
-        boolean simpleInit = System.getProperty('useReleaseBinaries') == null
-        System.setProperty('PW_RUN_TIMEOUT', '500000' /* 500 ms */)
-        Powerwaf.initialize(simpleInit)
-    }
-
-    // do not deinitialize. Even when running the tests in a separate classloader,
-    // Groovy holds caches with soft references that prevent the classloader from
-    // being garbage collect and its native library from being unloaded in the finalizer
-    // Therefore, the library would be reloaded and reinitialized and would stay
-    // uninitialized for subsequent tests
-//    @AfterClass
-//    static void afterClass() {
-//        Powerwaf.deinitialize()
-//    }
 
     PowerwafContext ctx
 

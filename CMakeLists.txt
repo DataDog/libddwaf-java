@@ -1,4 +1,4 @@
-project(powerwaf_java)
+project(libsqreen_java)
 cmake_minimum_required(VERSION 2.8.8)
 
 include(FindJNI)
@@ -9,7 +9,9 @@ else()
     message(FATAL_ERROR "Found JNI: failed")
 endif()
 
-find_package(powerwaf REQUIRED)
+find_package(libsqreen REQUIRED)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(MSVC)
     foreach(flag_var
@@ -22,7 +24,12 @@ if(MSVC)
     endforeach()
 endif()
 
+if(NOT(MSVC))
+    add_compile_options(-Wall -Wno-padded -Wno-unknown-pragmas -Wno-switch -Werror)
+endif()
+
 set(SOURCE_FILES
+    src/main/c/detailed_metrics.c
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c
     src/main/c/utf16_utf8.c
@@ -30,14 +37,16 @@ set(SOURCE_FILES
 if(MSVC OR APPLE)
     set(SOURCE_FILES ${SOURCE_FILES} src/main/c/compat.c)
 endif()
-add_library(powerwaf_jni SHARED ${SOURCE_FILES})
+add_library(sqreen_jni SHARED ${SOURCE_FILES})
 
-target_compile_definitions(powerwaf_jni PRIVATE _GNU_SOURCE)
+target_compile_definitions(sqreen_jni PRIVATE _GNU_SOURCE)
+if(CMAKE_CXX_COMPILER_ID MATCHES APPLE)
+    target_compile_definitions(sqreen_jni PRIVATE TARGET_RT_MAC_CFM=0)
+endif()
 
 message(STATUS "CMAKE_C_COMPILER=${CMAKE_C_COMPILER}")
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(powerwaf_jni PRIVATE
-        -DTARGET_RT_MAC_CFM=0   # for build on MacOS
+    target_compile_options(sqreen_jni PRIVATE
         -Werror
         -Weverything -Wno-unused-macros  -Wno-gnu-zero-variadic-macro-arguments
         -Wno-documentation -Wno-nullability-extension -Wno-zero-length-array
@@ -47,19 +56,19 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -Wno-switch-enum)
 endif()
 
-set_target_properties(powerwaf_jni PROPERTIES
+set_target_properties(sqreen_jni PROPERTIES
     C_VISIBILITY_PRESET hidden)
 
-target_include_directories(powerwaf_jni PRIVATE ${JNI_INCLUDE_DIRS})
+target_include_directories(sqreen_jni PRIVATE ${JNI_INCLUDE_DIRS})
 if(MSVC)
     set(SQREEN_TARGET SqreenStatic)
 else()
     set(SQREEN_TARGET Sqreen)
 endif()
 if(NOT (CMAKE_CXX_COMPILER_ID MATCHES MSVC OR APPLE))
-    target_link_libraries(powerwaf_jni PRIVATE rt)
+    target_link_libraries(sqreen_jni PRIVATE rt)
 endif()
-target_link_libraries(powerwaf_jni PRIVATE ${SQREEN_TARGET} ${JAVA_JVM_LIBRARY})
+target_link_libraries(sqreen_jni PRIVATE ${SQREEN_TARGET} ${JAVA_JVM_LIBRARY})
 
 if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
     if(APPLE)
@@ -68,7 +77,7 @@ if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
         set(RPATH_VAL "$ORIGIN")
     endif()
 
-    set_target_properties(powerwaf_jni PROPERTIES
+    set_target_properties(sqreen_jni PROPERTIES
         INSTALL_RPATH_USE_LINK_PATH false
         BUILD_WITH_INSTALL_RPATH true
         INSTALL_RPATH ${RPATH_VAL})
@@ -82,7 +91,7 @@ if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
     endif()
 
     if(NOT (CMAKE_CXX_COMPILER_ID MATCHES MSVC OR APPLE))
-        target_link_libraries(powerwaf_jni PRIVATE -Wl,--build-id=0x${BUILD_ID})
+        target_link_libraries(sqreen_jni PRIVATE -Wl,--build-id=0x${BUILD_ID})
     endif()
 
     if (CMAKE_SYSTEM_NAME STREQUAL Darwin)
@@ -95,18 +104,18 @@ if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
             message(FATAL_ERROR "strip not found")
         endif()
 
-        set(SYMBOL_FILE $<TARGET_FILE:powerwaf_jni>.dwarf)
-        add_custom_command(TARGET powerwaf_jni POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:powerwaf_jni> ${SYMBOL_FILE}
+        set(SYMBOL_FILE $<TARGET_FILE:sqreen_jni>.dwarf)
+        add_custom_command(TARGET sqreen_jni POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:sqreen_jni> ${SYMBOL_FILE}
             COMMAND ${DSYMUTIL} --flat --minimize ${SYMBOL_FILE}
-            COMMAND ${STRIP} -S -x $<TARGET_FILE:powerwaf_jni>
+            COMMAND ${STRIP} -S -x $<TARGET_FILE:sqreen_jni>
             COMMAND mv ${SYMBOL_FILE}.dwarf ${SYMBOL_FILE})
     elseif(NOT WIN32)
-        set(SYMBOL_FILE $<TARGET_FILE:powerwaf_jni>.debug)
-        add_custom_command(TARGET powerwaf_jni POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:powerwaf_jni> ${SYMBOL_FILE}
+        set(SYMBOL_FILE $<TARGET_FILE:sqreen_jni>.debug)
+        add_custom_command(TARGET sqreen_jni POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:sqreen_jni> ${SYMBOL_FILE}
             COMMAND ${CMAKE_STRIP} --only-keep-debug ${SYMBOL_FILE}
-            COMMAND ${CMAKE_STRIP} $<TARGET_FILE:powerwaf_jni>)
+            COMMAND ${CMAKE_STRIP} $<TARGET_FILE:sqreen_jni>)
     endif()
 endif()
 

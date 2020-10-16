@@ -1,4 +1,7 @@
 /.gradle/
+/.clangd/
+/.vscode/
+/lsp/
 /CMakeLists.txt.user
 /Debug/
 /Release/

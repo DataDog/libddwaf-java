@@ -4,6 +4,7 @@
 #include "utf16_utf8.h"
 #include "logging.h"
 #include "compat.h"
+#include "detailed_metrics.h"
 #include <PowerWAF.h>
 #include <assert.h>
 #include <string.h>
@@ -22,7 +23,6 @@ struct _limits {
 // suffix _checked means if a function fails it leaves a pending exception
 static bool _check_init(JNIEnv *env);
 static void _deinitialize(JNIEnv *env);
-static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *len);
 static bool _cache_references(JNIEnv *env);
 static void _dispose_of_action_enums(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
@@ -64,26 +64,28 @@ static jfieldID _limit_run_budget_in_us;
 
 static jfieldID _additive_ptr;
 
-static jclass _string_cls;
-static struct j_method _to_string;
+jclass string_cls;
+struct j_method to_string;
 
 static struct j_method _additive_init;
 
-static struct j_method _number_longValue;
+struct j_method number_longValue;
+struct j_method number_doubleValue;
 // weak, but assumed never to be gced
-static jclass *_number_cls = &_number_longValue.class_glob;
+jclass *number_cls = &number_longValue.class_glob;
 
-static struct j_method _map_entryset;
+struct j_method map_entryset;
+struct j_method map_size;
 // weak, but assumed never to be gced
-static jclass *_map_cls = &_map_entryset.class_glob;
-static struct j_method _entry_key;
-static struct j_method _entry_value;
+jclass *map_cls = &map_entryset.class_glob;
+struct j_method entry_key;
+struct j_method entry_value;
 
-static struct j_method _iterable_iterator;
+struct j_method iterable_iterator;
 // weak, but assumed never to be gced
-static jclass *_iterable_cls = &_iterable_iterator.class_glob;
-static struct j_method _iterator_next;
-static struct j_method _iterator_hasNext;
+jclass *iterable_cls = &iterable_iterator.class_glob;
+struct j_method iterator_next;
+struct j_method iterator_hasNext;
 
 static int64_t pw_run_timeout;
 
@@ -101,6 +103,7 @@ _STATIC_ASSERT(sizeof(bool) == 1);
     __sync_bool_compare_and_swap(ptr, old, new)
 #endif
 
+// TODO move global intialization/deinitialization to another file
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
 {
     UNUSED(reserved);
@@ -121,6 +124,15 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
         if (!JNI(ExceptionCheck)) {
             JNI(ThrowNew, jcls_rte, "Library initialization failed"
                                     "(java_log_init)");
+        }
+        goto error;
+    }
+
+    bool detailed_metrics_ok = detailed_metrics_cache_global_references(env);
+    if (!detailed_metrics_ok) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_rte, "Library initialization failed"
+                                    "(detailed_metrics_cache_global_references)");
         }
         goto error;
     }
@@ -179,11 +191,11 @@ JNIEXPORT jboolean JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRule(
     char *rule_name_c = NULL;
     char *rule_def_c = NULL;
 
-    rule_name_c = _to_utf8_checked(env, rule_name, NULL);
+    rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
     if (!rule_name_c) {
         goto end;
     }
-    rule_def_c = _to_utf8_checked(env, rule_def, NULL);
+    rule_def_c = java_to_utf8_checked(env, rule_def, NULL);
     if (!rule_def_c) {
         goto end;
     }
@@ -215,7 +227,7 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRule(
         return;
     }
 
-    char *rule_name_c = _to_utf8_checked(env, rule_name, NULL);
+    char *rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
     if (!rule_name_c) {
         return;
     }
@@ -253,7 +265,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
         return NULL;
     }
 
-    rule_name_c = _to_utf8_checked(env, rule_name, NULL);
+    rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
     if (!rule_name_c) {
         goto end;
     }
@@ -273,7 +285,9 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
                            "native conversion", limits.general_budget_in_us);
         jobject exc = JNI(CallStaticObjectMethod, clazz,
                           _create_exception_mid, PW_ERR_TIMEOUT);
-        JNI(Throw, exc);
+        if (!JNI(ExceptionOccurred)) {
+            JNI(Throw, exc);
+        }
         goto end;
     }
 
@@ -373,11 +387,11 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
     char *rule_name_c = NULL;
 
     if (rule_name == NULL) {
-        JNI(ThrowNew, jcls_iae, "ruleName should not be null");
+            JNI(ThrowNew, jcls_iae, "ruleName should not be null");
         return NULL;
     }
 
-    rule_name_c = _to_utf8_checked(env, rule_name, NULL);
+    rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
     if (rule_name_c == NULL) {
         return NULL;
     }
@@ -396,7 +410,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
  * Signature: (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
-  (JNIEnv *env, jobject this, jobject parameters, jobject limits_obj) {
+        (JNIEnv *env, jobject this, jobject parameters, jobject limits_obj) {
 
     jobject result = NULL;
     PWAddContext context = NULL;
@@ -449,7 +463,9 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
                            "native conversion", limits.general_budget_in_us);
         jobject exc = JNI(CallStaticObjectMethod, this,
                           _create_exception_mid, PW_ERR_TIMEOUT);
-        JNI(Throw, exc);
+        if (!JNI(ExceptionOccurred)) {
+            JNI(Throw, exc);
+        }
         goto end;
     }
 
@@ -558,82 +574,12 @@ static void _deinitialize(JNIEnv *env)
 //        jcls_rte = NULL;
 //    }
 
+    detailed_metrics_deinitialize(env);
+
     pw_clearAll();
     pw_setupLogging(NULL, PWL_ERROR);
 
     java_log_shutdown(env);
-}
-
-static char *_to_utf8_checked_utf16_len(JNIEnv *env,
-                                        jstring str, jint utf16_len,
-                                        size_t *utf8_out_len)
-{
-    const jchar *utf16_str = JNI(GetStringChars, str, NULL);
-
-    if (!utf16_str) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_rte, "Error calling GetStringChars");
-        } else {
-            java_wrap_exc("Error calling GetStringChars on string of size %d",
-                          utf16_len);
-        }
-        return NULL;
-    }
-
-    uint8_t *out = NULL;
-    java_utf16_to_utf8_checked(env, utf16_str, utf16_len, &out, utf8_out_len);
-
-    JNI(ReleaseStringChars, str, utf16_str);
-
-    return (char *)out;
-}
-
-static char *_to_utf8_checked(JNIEnv *env, jstring str, size_t *utf8_out_len)
-{
-    const jint utf16_len = JNI(GetStringLength, str);
-    if (JNI(ExceptionCheck)) {
-        java_wrap_exc("Error getting the length of putative string");
-        return NULL;
-    }
-
-    return _to_utf8_checked_utf16_len(env, str, utf16_len, utf8_out_len);
-}
-
-// sets a pending exception in case of failure
-static char *_to_utf8_limited_checked(
-        JNIEnv *env, jstring str, size_t *len, int max_len)
-{
-    const jint utf16_len = JNI(GetStringLength, str);
-    if (JNI(ExceptionCheck)) {
-        java_wrap_exc("Error getting the length of putative string");
-        return NULL;
-    }
-
-    if (max_len < 0 || utf16_len <= max_len) {
-        return _to_utf8_checked_utf16_len(env, str, utf16_len, len);
-    }
-
-    jchar *utf16_str = calloc((size_t)max_len, sizeof *utf16_str);
-    if (!utf16_str) {
-            JNI(ThrowNew, jcls_rte, "malloc failed allocated jchar array");
-            return NULL;
-    }
-
-    JNI(GetStringRegion, str, 0, max_len, utf16_str);
-
-    if (JNI(ExceptionCheck)) {
-        java_wrap_exc("Error calling GetStringRegion for substring of size %d",
-                      max_len);
-        free(utf16_str);
-        return NULL;
-    }
-
-    uint8_t *out = NULL;
-    java_utf16_to_utf8_checked(env, utf16_str, max_len, &out, len);
-
-    free(utf16_str);
-
-    return (char *)out;
 }
 
 static bool _cache_create_exception(JNIEnv *env)
@@ -662,17 +608,17 @@ static bool _fetch_action_enums(JNIEnv *env)
     }
 
     _action_ok = java_static_field_checked(env, action_jclass,
-                                   "OK", ACTION_ENUM_DESCR);
+                                           "OK", ACTION_ENUM_DESCR);
     if (!_action_ok) {
         goto error;
     }
     _action_monitor = java_static_field_checked(env, action_jclass,
-                                        "MONITOR", ACTION_ENUM_DESCR);
+                                                "MONITOR", ACTION_ENUM_DESCR);
     if (!_action_monitor) {
         goto error;
     }
     _action_block = java_static_field_checked(env, action_jclass,
-                                      "BLOCK", ACTION_ENUM_DESCR);
+                                              "BLOCK", ACTION_ENUM_DESCR);
     if (!_action_block) {
         goto error;
     }
@@ -696,8 +642,7 @@ static bool _fetch_additive_fields(JNIEnv *env)
         goto error;
     }
 
-    _additive_ptr =
-            JNI(GetFieldID, additive_jclass, "ptr", "J");
+    _additive_ptr = JNI(GetFieldID, additive_jclass, "ptr", "J");
     if (!_additive_ptr) {
         goto error;
     }
@@ -785,9 +730,11 @@ static bool _cache_single_class_weak(JNIEnv *env,
 
 static bool _cache_classes(JNIEnv *env)
 {
-    return _cache_single_class_weak(env, "java/lang/RuntimeException", &jcls_rte) &&
-            _cache_single_class_weak(env, "java/lang/IllegalArgumentException", &jcls_iae) &&
-            _cache_single_class_weak(env, "java/lang/String", &_string_cls);
+  return _cache_single_class_weak(env, "java/lang/RuntimeException",
+                                  &jcls_rte) &&
+         _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
+                                  &jcls_iae) &&
+         _cache_single_class_weak(env, "java/lang/String", &string_cls);
 }
 
 static void _dispose_of_weak_classes(JNIEnv *env)
@@ -798,7 +745,7 @@ static void _dispose_of_weak_classes(JNIEnv *env)
         jcls = NULL; \
     }
 
-    DESTROY_CLASS_REF(_string_cls)
+  DESTROY_CLASS_REF(string_cls)
     // leave jcls_rte for last in OnUnload; we might still need it
 }
 
@@ -812,23 +759,25 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &_to_string,
-                "java/lang/Object", "toString",
-                "()Ljava/lang/String;",
-                JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &to_string, "java/lang/Object", "toString",
+                                "()Ljava/lang/String;", JMETHOD_VIRTUAL)) {
         goto error;
     }
 
-    // we use non_virtual so a global reference to the class is stored
     if (!java_meth_init_checked(
-                env, &_number_longValue,
+                env, &number_longValue,
                 "java/lang/Number", "longValue",
                 "()J",
-                JMETHOD_NON_VIRTUAL)) {
+                JMETHOD_VIRTUAL_RETRIEVE_CLASS)) {
         goto error;
     }
-    _number_longValue.type = JMETHOD_VIRTUAL;
+    if (!java_meth_init_checked(
+                env, &number_doubleValue,
+                "java/lang/Number", "doubleValue",
+                "()D",
+                JMETHOD_VIRTUAL)) {
+        goto error;
+    }
 
     if (!java_meth_init_checked(
                 env, &_action_with_data_init,
@@ -838,45 +787,46 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &_map_entryset,
-                "java/util/Map", "entrySet",
+    if (!java_meth_init_checked(env, &map_entryset, "java/util/Map", "entrySet",
                 "()Ljava/util/Set;", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
-    _map_entryset.type = JMETHOD_VIRTUAL;
+    map_entryset.type = JMETHOD_VIRTUAL;
 
-    if (!java_meth_init_checked(
-                env, &_entry_key,
-                "java/util/Map$Entry", "getKey",
-                "()Ljava/lang/Object;", JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &map_size, "java/util/Map", "size",
+                                "()I", JMETHOD_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &entry_key, "java/util/Map$Entry",
+                                "getKey", "()Ljava/lang/Object;",
+                                JMETHOD_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &entry_value, "java/util/Map$Entry",
+                                "getValue", "()Ljava/lang/Object;",
+                                JMETHOD_VIRTUAL)) {
         goto error;
     }
 
     if (!java_meth_init_checked(
-                env, &_entry_value,
-                "java/util/Map$Entry", "getValue",
-                "()Ljava/lang/Object;", JMETHOD_VIRTUAL)) {
-        goto error;
-    }
-
-    if (!java_meth_init_checked(
-                env, &_iterable_iterator,
+                env, &iterable_iterator,
                 "java/lang/Iterable", "iterator",
                 "()Ljava/util/Iterator;", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
-    _iterable_iterator.type = JMETHOD_VIRTUAL;
+    iterable_iterator.type = JMETHOD_VIRTUAL;
 
     if (!java_meth_init_checked(
-                env, &_iterator_next,
+                env, &iterator_next,
                 "java/util/Iterator", "next",
                 "()Ljava/lang/Object;", JMETHOD_VIRTUAL)) {
         goto error;
     }
 
     if (!java_meth_init_checked(
-                env, &_iterator_hasNext,
+                env, &iterator_hasNext,
                 "java/util/Iterator", "hasNext",
                 "()Z", JMETHOD_VIRTUAL)) {
         goto error;
@@ -895,15 +845,16 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     }
 
     DESTROY_METH(_additive_init)
-    DESTROY_METH(_to_string)
-    DESTROY_METH(_number_longValue)
+    DESTROY_METH(to_string)
+    DESTROY_METH(number_longValue)
     DESTROY_METH(_action_with_data_init)
-    DESTROY_METH(_map_entryset)
-    DESTROY_METH(_entry_key)
-    DESTROY_METH(_entry_value)
-    DESTROY_METH(_iterable_iterator)
-    DESTROY_METH(_iterator_next)
-    DESTROY_METH(_iterator_hasNext)
+    DESTROY_METH(map_entryset)
+    DESTROY_METH(map_size)
+    DESTROY_METH(entry_key)
+    DESTROY_METH(entry_value)
+    DESTROY_METH(iterable_iterator)
+    DESTROY_METH(iterator_next)
+    DESTROY_METH(iterator_hasNext)
 }
 
 
@@ -992,20 +943,21 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
 
     if (JNI(IsSameObject, obj, NULL)) {
         result = pw_createMap(); // replace NULLs with empty maps
-    } else if (JNI(IsInstanceOf, obj, *_map_cls)) {
+    } else if (JNI(IsInstanceOf, obj, *map_cls)) {
         result = pw_createMap();
         if (rec_level >= lims->max_depth) {
-            JAVA_LOG(PWL_DEBUG, "Leaving map empty because max depth of %d "
-                                "has been reached", lims->max_depth);
+        JAVA_LOG(PWL_DEBUG,
+                 "Leaving map empty because max depth of %d "
+                 "has been reached",
+                 lims->max_depth);
             goto early_return;
         }
 
         jobject entry_set, entry_set_it;
-        JAVA_CALL(entry_set,    _map_entryset, obj);
-        JAVA_CALL(entry_set_it, _iterable_iterator, entry_set);
+        JAVA_CALL(entry_set, map_entryset, obj);
+        JAVA_CALL(entry_set_it, iterable_iterator, entry_set);
 
-        while (JNI(CallBooleanMethod, entry_set_it,
-                   _iterator_hasNext.meth_id)) {
+        while (JNI(CallBooleanMethod, entry_set_it, iterator_hasNext.meth_id)) {
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1018,21 +970,21 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
             jobject entry, key_obj, value_obj;
             jstring key_jstr;
 
-            JAVA_CALL(entry, _iterator_next, entry_set_it);
-            JAVA_CALL(key_obj, _entry_key, entry);
-            JAVA_CALL_ERR_MSG(key_jstr, _to_string, key_obj,
-                        "Error calling toString() on map key");
-            JAVA_CALL(value_obj, _entry_value, entry);
+            JAVA_CALL(entry, iterator_next, entry_set_it);
+            JAVA_CALL(key_obj, entry_key, entry);
+            JAVA_CALL_ERR_MSG(key_jstr, to_string, key_obj,
+                              "Error calling toString() on map key");
+            JAVA_CALL(value_obj, entry_value, entry);
 
-            PWArgs value = _convert_checked(
-                        env, value_obj, lims, rec_level + 1);
+            PWArgs value =
+                    _convert_checked(env, value_obj, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
             size_t key_len;
-            char *key_cstr = _to_utf8_limited_checked(env, key_jstr, &key_len,
-                                                      lims->max_string_size);
+            char *key_cstr = java_to_utf8_limited_checked(
+                    env, key_jstr, &key_len, lims->max_string_size);
             if (!key_cstr) {
                 goto error;
             }
@@ -1053,17 +1005,19 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
         JNI(DeleteLocalRef, entry_set_it);
         JNI(DeleteLocalRef, entry_set);
 
-    } else if (JNI(IsInstanceOf, obj, *_iterable_cls)) {
+    } else if (JNI(IsInstanceOf, obj, *iterable_cls)) {
         result = pw_createArray();
         if (rec_level >= lims->max_depth) {
-            JAVA_LOG(PWL_DEBUG, "Leaving array empty because max depth of %d "
-                                "has been reached", lims->max_depth);
+            JAVA_LOG(PWL_DEBUG,
+                     "Leaving array empty because max depth of %d "
+                     "has been reached",
+                     lims->max_depth);
             goto early_return;
         }
 
         jobject it;
-        JAVA_CALL(it, _iterable_iterator, obj);
-        while (JNI(CallBooleanMethod, it, _iterator_hasNext.meth_id)) {
+        JAVA_CALL(it, iterable_iterator, obj);
+        while (JNI(CallBooleanMethod, it, iterator_hasNext.meth_id)) {
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1074,7 +1028,7 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
             }
 
             jobject element;
-            JAVA_CALL(element, _iterator_next, it);
+            JAVA_CALL(element, iterator_next, it);
 
             PWArgs value = _convert_checked(env, element, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
@@ -1088,10 +1042,10 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
 
         JNI(DeleteLocalRef, it);
 
-    } else if (JNI(IsInstanceOf, obj, _string_cls)) {
+    } else if (JNI(IsInstanceOf, obj, string_cls)) {
         size_t len;
-        char *str_c = _to_utf8_limited_checked(
-                    env, obj, &len, lims->max_string_size);
+        char *str_c = java_to_utf8_limited_checked(env, obj, &len,
+                                                   lims->max_string_size);
         if (!str_c) {
             goto error;
         }
@@ -1100,8 +1054,8 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
 
         free(str_c);
 
-    } else if (JNI(IsInstanceOf, obj, *_number_cls)) {
-        jlong lval = JNI(CallLongMethod, obj, _number_longValue.meth_id);
+    } else if (JNI(IsInstanceOf, obj, *number_cls)) {
+        jlong lval = JNI(CallLongMethod, obj, number_longValue.meth_id);
         if (JNI(ExceptionCheck)) {
             goto error;
         }
@@ -1153,12 +1107,12 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
         goto error;
     }
     l.general_budget_in_us =
-            JNI(GetIntField, limits_obj, _limit_general_budget_in_us);
+            JNI(GetLongField, limits_obj, _limit_general_budget_in_us);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
     jlong run_budget =
-            JNI(GetIntField, limits_obj, _limit_run_budget_in_us);
+            JNI(GetLongField, limits_obj, _limit_run_budget_in_us);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
@@ -1220,8 +1174,8 @@ static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
     }
 
     size_t len;
-    // _to_utf8_checked gives out a NUL-terminated string
-    if ((val_cstr = _to_utf8_checked(env, val_jstr, &len)) == NULL) {
+    // java_to_utf8_checked gives out a NUL-terminated string
+    if ((val_cstr = java_to_utf8_checked(env, val_jstr, &len)) == NULL) {
         goto end;
     }
 

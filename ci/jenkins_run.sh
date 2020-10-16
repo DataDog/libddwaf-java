@@ -10,10 +10,10 @@ function main {
 
   if [[ $arg = 'build_docker_image' ]]; then
     build_docker_image
-  elif [[ $arg = 'build_powerwaf' ]]; then
-    build_powerwaf
-  elif [[ $arg = 'build_powerwaf_docker' ]]; then
-    build_powerwaf_docker
+  elif [[ $arg = 'build_libsqreen' ]]; then
+    build_libsqreen
+  elif [[ $arg = 'build_libsqreen_docker' ]]; then
+    build_libsqreen_docker
   elif [[ $arg = 'test_java' ]]; then
     test_java
   elif [[ $arg = 'test_java_docker' ]]; then
@@ -68,20 +68,20 @@ function run_in_docker_no_copy {
     bash -e -c "$new_cmd"
 }
 
-function build_powerwaf {
+function build_libsqreen {
   cd "$PROJ_DIR"
-  rm -rf PowerWAF/Debug
-  run_in_docker /tmp/AgentJavaNative/ci/jenkins_run.sh build_powerwaf_docker
+  rm -rf libsqreen/Debug
+  run_in_docker /tmp/AgentJavaNative/ci/jenkins_run.sh build_libsqreen_docker
 }
-function build_powerwaf_docker {
-  cd "/tmp/AgentJavaNative/PowerWAF"
+function build_libsqreen_docker {
+  cd "/tmp/AgentJavaNative/libsqreen"
   rm -rf Debug
   mkdir Debug
   cd Debug
   cmake .. -DCMAKE_BUILD_TYPE=Debug
   make -j Sqreen VERBOSE=1
   DESTDIR=out make install
-  docker_epilogue PowerWAF/Debug
+  docker_epilogue libsqreen/Debug
 }
 
 function test_java {
