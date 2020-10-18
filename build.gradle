@@ -1,13 +1,14 @@
 import com.amazonaws.AmazonClientException
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
 import com.amazonaws.auth.profile.*
+import com.amazonaws.auth.BasicSessionCredentials
 
 buildscript {
     repositories {
         jcenter()
     }
     dependencies {
-        classpath 'com.amazonaws:aws-java-sdk-core:1.11.5'
+        classpath 'com.amazonaws:aws-java-sdk-core:1.11.25'
     }
 }
 
@@ -166,7 +167,7 @@ publishing {
             artifactPattern 's3://sqreen-ci-java/jars/[organisation]/[artifact]-[revision](-[classifier]).[ext]'
             ivyPattern 's3://sqreen-ci-java/jars/[organisation]/[module]-[revision].xml'
 
-            def creds = null
+            BasicSessionCredentials creds = null
             try {
                 //looks in AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY) and AWS_SECRET_KEY
                 // (or AWS_SECRET_ACCESS_KEY) environment variables.
@@ -175,7 +176,7 @@ publishing {
                 logger.warn 'No AWS credentials in env variables'
                 try {
                     // creds can be in env variables or ~/.aws/{credentials,config}
-                    creds = new ProfileCredentialsProvider().credentials
+                    creds = new ProfileCredentialsProvider('mfa').credentials
                 } catch (IllegalArgumentException ee) {
                     logger.warn 'No AWS credentials in ~/.aws/credentials'
                 }
@@ -185,6 +186,7 @@ publishing {
                 credentials(AwsCredentials) {
                     accessKey = creds.AWSAccessKeyId
                     secretKey = creds.AWSSecretKey
+                    sessionToken = creds.sessionToken
                 }
             }
         }

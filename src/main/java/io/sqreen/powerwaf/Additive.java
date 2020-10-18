@@ -35,23 +35,20 @@ public final class Additive implements Closeable {
     /**
      * Push to PowerWAF existing params and returns execution result
      *
-     * @param additive                      additive context to push data
      * @param parameters                    data to push to PowerWAF
      * @param limits                        request limits
      * @throws IllegalArgumentException     if Additive or Limits is null
      * @throws RuntimeException             if Additive has already been cleared
      */
-    static native Powerwaf.ActionWithData runAdditive(
-            Additive additive, Map<String, Object> parameters, Powerwaf.Limits limits);
+    native Powerwaf.ActionWithData runAdditive(Map<String, Object> parameters, Powerwaf.Limits limits);
 
     /**
      * Clear given Additive (free PWAddContext in PowerWAF)
      *
-     * @param additive                      additive context to clear
      * @throws IllegalArgumentException     if Additive is null
      * @throws RuntimeException             if Additive has already been cleared (double free)
      */
-    static native void clearAdditive(Additive additive);
+    native void clearAdditive();
 
     /**
      * This constructor called by PowerWAF only
@@ -99,7 +96,7 @@ public final class Additive implements Closeable {
         this.readLock.lock();
 
         try {
-            return runAdditive(this, parameters, limits);
+            return runAdditive(parameters, limits);
         } catch (RuntimeException rte) {
             throw new UnclassifiedPowerwafException(
                     "Error run PowerWAF's Additive for rule " + ruleName +
@@ -114,7 +111,7 @@ public final class Additive implements Closeable {
         // use lock to avoid clearing rules while they're still being run
         this.writeLock.lock();
         try {
-            clearAdditive(this);
+            clearAdditive();
             this.logger.debug("Closed Additive for rule %s", this.ruleName);
         } finally {
             this.writeLock.unlock();

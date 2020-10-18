@@ -66,15 +66,15 @@ class AdditiveTest implements ReactiveTrait {
         '''
 
         Powerwaf.addRule('test', rule)
-        def addCtx = Additive.initAdditive('test')
+        def additive = Additive.initAdditive('test')
 
-        Powerwaf.ActionWithData awd = Additive.runAdditive(addCtx, [arg1: 'string 1'], limits)
+        Powerwaf.ActionWithData awd = additive.runAdditive([arg1: 'string 1'], limits)
         assertThat awd.action, is(Powerwaf.Action.OK)
 
-        awd = Additive.runAdditive(addCtx, [arg2: 'string 2'], limits)
+        awd = additive.runAdditive([arg2: 'string 2'], limits)
         assertThat awd.action, is(Powerwaf.Action.BLOCK)
 
-        Additive.clearAdditive(addCtx)
+        additive.clearAdditive()
         Powerwaf.clearRule('test')
     }
 
@@ -95,8 +95,8 @@ class AdditiveTest implements ReactiveTrait {
 
         Powerwaf.addRule('test', rule)
         Additive additive = Additive.initAdditive('test')
-        awd = Additive.runAdditive(additive, params, limits)
-        Additive.clearAdditive(additive)
+        awd = additive.runAdditive(params, limits)
+        additive.clearAdditive()
         Powerwaf.clearRule('test')
 
         assertThat awd.action, is(Powerwaf.Action.BLOCK)
@@ -141,13 +141,8 @@ class AdditiveTest implements ReactiveTrait {
 
         Powerwaf.addRule('test', rule)
         Additive additive = Additive.initAdditive('test')
-        Additive.clearAdditive(additive)
-        Additive.clearAdditive(additive)
-    }
-
-    @Test(expected = IllegalArgumentException)
-    void 'Should throw IllegalArgumentException if Additive is null while run'() {
-        Additive.runAdditive(null, [:], limits)
+        additive.clearAdditive()
+        additive.clearAdditive()
     }
 
     @Test(expected = IllegalArgumentException)
@@ -156,11 +151,6 @@ class AdditiveTest implements ReactiveTrait {
 
         Powerwaf.addRule('test', rule)
         Additive additive = Additive.initAdditive('test')
-        Additive.runAdditive(additive, [:], null)
-    }
-
-    @Test(expected = IllegalArgumentException)
-    void 'Should throw IllegalArgumentException if Additive is null while clean'() {
-        Additive.clearAdditive(null)
+        additive.runAdditive([:], null)
     }
 }

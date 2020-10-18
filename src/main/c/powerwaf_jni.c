@@ -20,7 +20,7 @@ struct _limits {
 };
 
 struct _additive {
-    int64_t ptr;
+    PWAddContext ptr;
 };
 
 // suffix _checked means if a function fails it leaves a pending exception
@@ -37,6 +37,8 @@ static bool _set_additive_ptr(JNIEnv *env, jobject additive_obj, jlong value);
 static bool _get_time_checked(JNIEnv *env, struct timespec *time);
 static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
 static int64_t _get_pw_run_timeout_checked(JNIEnv *env);
+static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limits);
+static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits);
 
 static const PWArgs _pwinput_invalid = { .type = PWI_INVALID };
 
@@ -193,7 +195,7 @@ JNIEXPORT jboolean JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRule(
     char * errors = NULL;
     result = pw_init(rule_name_c, rule_def_c, &_pw_config, &errors);
 
-    if (result == JNI_FALSE && errors != NULL)
+    if (!result && errors != NULL)
         JAVA_LOG(PWL_WARN, "PowerWAF init error: '%s'", errors);
 
 end:
@@ -268,33 +270,18 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
     if (!_get_time_checked(env, &conv_end)) {
         goto end;
     }
-    int64_t diff_us = _timespec_diff_ns(conv_end, start) / 1000LL;
-    int64_t rem_gen_budget_in_us = limits.general_budget_in_us - diff_us;
-    if (rem_gen_budget_in_us < 0) {
-        rem_gen_budget_in_us = 0;
-    }
-    JAVA_LOG(PWL_DEBUG, "Conversion of WAF arguments took %" PRId64
-                        " us; remaining general budget is %" PRId64 " us",
-             diff_us, rem_gen_budget_in_us);
+
+    int64_t rem_gen_budget_in_us = get_remaining_budget(start, conv_end, &limits);
     if (rem_gen_budget_in_us == 0) {
         JAVA_LOG(PWL_INFO, "General budget of %" PRId64 " us exhausted after "
-                           "native conversion (spent %" PRId64 " us)",
-                 limits.general_budget_in_us, diff_us);
+                           "native conversion", limits.general_budget_in_us);
         jobject exc = JNI(CallStaticObjectMethod, clazz,
-                          _create_exception_mid, -5 /* timeout */);
+                          _create_exception_mid, PW_ERR_TIMEOUT);
         JNI(Throw, exc);
         goto end;
     }
 
-    size_t run_budget;
-    if (rem_gen_budget_in_us > limits.run_budget_in_us) {
-        JAVA_LOG(PWL_DEBUG, "Using run budget of % " PRId64 " us instead of "
-                            "remaining general budget of %" PRId64 " us",
-                 limits.run_budget_in_us, rem_gen_budget_in_us);
-        run_budget = (size_t)limits.run_budget_in_us;
-    } else {
-        run_budget = (size_t)rem_gen_budget_in_us;
-    }
+    size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
     ret = pw_run(rule_name_c, input, run_budget);
 
@@ -381,42 +368,39 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion(
  * Signature: (Ljava/lang/String;)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
-        (JNIEnv *env, jclass clazz, jstring rule_name)
+        (JNIEnv *env, jobject clazz, jstring rule_name)
 {
     UNUSED(env);
     UNUSED(clazz);
 
     PWAddContext *context = NULL;
     char *rule_name_c = NULL;
-    jobject result = NULL;
 
     if (rule_name == NULL) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_iae, "ruleName should not be null");
-        }
+        JNI(ThrowNew, jcls_iae, "ruleName should not be null");
         return NULL;
     }
 
     rule_name_c = _to_utf8_checked(env, rule_name, NULL);
-    if (!rule_name_c) {
-        return 0;
+    if (rule_name_c == NULL) {
+        return NULL;
     }
 
     context = pw_initAdditive(rule_name_c);
-    if (context != NULL) {
-        result = java_meth_call(env, &_additive_init, NULL, (int64_t) context, rule_name);
+    if (context == NULL) {
+        return NULL;
     }
 
-    return result;
+    return java_meth_call(env, &_additive_init, NULL, (jlong) context, rule_name);
 }
 
 /*
  * Class:     io.sqreen.powerwaf.Additive
  * Method:    runAdditive
- * Signature: (Lio/sqreen/powerwaf/Additive;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * Signature: (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
-  (JNIEnv *env, jclass clazz, jobject additive_obj, jobject parameters, jobject limits_obj) {
+  (JNIEnv *env, jobject this, jobject parameters, jobject limits_obj) {
 
     jobject result = NULL;
     struct _additive additive;
@@ -433,10 +417,8 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
         return NULL;
     }
 
-    if (!limits_obj) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_iae, "limits should not be null");
-        }
+    if (limits_obj == NULL) {
+        JNI(ThrowNew, jcls_iae, "limits should not be null");
         return NULL;
     }
 
@@ -445,22 +427,13 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
         return NULL;
     }
 
-    if (!additive_obj) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_iae, "additive should not be null");
-        }
+    additive = _fetch_additive_checked(env, this);
+    if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
-    additive = _fetch_additive_checked(env, additive_obj);
-    if (JNI(ExceptionCheck)) {
-        goto end;
-    }
-
     if (additive.ptr == 0) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_rte, "The Additive has already been cleared");
-        }
+        JNI(ThrowNew, jcls_rte, "The Additive has already been cleared");
         return NULL;
     }
 
@@ -468,37 +441,23 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
     if (JNI(ExceptionCheck)) {
         goto end;
     }
+
     struct timespec conv_end;
     if (!_get_time_checked(env, &conv_end)) {
         goto end;
     }
-    int64_t diff_us = _timespec_diff_ns(conv_end, start) / 1000LL;
-    int64_t rem_gen_budget_in_us = limits.general_budget_in_us - diff_us;
-    if (rem_gen_budget_in_us < 0) {
-        rem_gen_budget_in_us = 0;
-    }
-    JAVA_LOG(PWL_DEBUG, "Conversion of WAF arguments took %" PRId64
-                        " us; remaining general budget is %" PRId64 " us",
-             diff_us, rem_gen_budget_in_us);
+
+    int64_t rem_gen_budget_in_us = get_remaining_budget(start, conv_end, &limits);
     if (rem_gen_budget_in_us == 0) {
         JAVA_LOG(PWL_INFO, "General budget of %" PRId64 " us exhausted after "
-                           "native conversion (spent %" PRId64 " us)",
-             limits.general_budget_in_us, diff_us);
-        jobject exc = JNI(CallStaticObjectMethod, clazz,
-                      _create_exception_mid, -5 /* timeout */);
+                           "native conversion", limits.general_budget_in_us);
+        jobject exc = JNI(CallStaticObjectMethod, this,
+                          _create_exception_mid, PW_ERR_TIMEOUT);
         JNI(Throw, exc);
         goto end;
     }
 
-    size_t run_budget;
-    if (rem_gen_budget_in_us > limits.run_budget_in_us) {
-        JAVA_LOG(PWL_DEBUG, "Using run budget of % " PRId64 " us instead of "
-                            "remaining general budget of %" PRId64 " us",
-             limits.run_budget_in_us, rem_gen_budget_in_us);
-        run_budget = (size_t)limits.run_budget_in_us;
-    } else {
-        run_budget = (size_t)rem_gen_budget_in_us;
-    }
+    size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
     ret = pw_runAdditive((PWAddContext)additive.ptr, input, run_budget);
 
@@ -518,7 +477,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
         default: {
             // any errors or unknown statuses
             jobject exc = JNI(CallStaticObjectMethod,
-                      clazz, _create_exception_mid, (jint) ret.action);
+                      this, _create_exception_mid, (jint) ret.action);
             if (!JNI(ExceptionOccurred)) {
                 JNI(Throw, exc);
             } // if an exception occurred calling createException, let it propagate
@@ -544,9 +503,9 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
 
     JNI(DeleteLocalRef, data_obj);
 
-    freeRet:
+freeRet:
     pw_freeReturn(ret);
-    end:
+end:
     //free(add_context);
     //pw_freeArg(&input);
 
@@ -556,37 +515,26 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
 /*
  * Class:     io.sqreen.powerwaf.Additive
  * Method:    clearAdditive
- * Signature: (Lio/sqreen/powerwaf/Additive;)V
+ * Signature: ()V
  */
 JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Additive_clearAdditive
-  (JNIEnv *env, jclass clazz, jobject additive_obj) {
-
-    UNUSED(clazz);
+  (JNIEnv *env, jobject this) {
 
     struct _additive additive;
 
-    if (!additive_obj) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_iae, "additive should not be null");
-        }
-        return;
-    }
-
-    additive = _fetch_additive_checked(env, additive_obj);
+    additive = _fetch_additive_checked(env, this);
     if (JNI(ExceptionCheck)) {
         return;
     }
 
     if (additive.ptr == 0) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_rte, "Double free detected. The Additive has already been cleared");
-        }
+        JNI(ThrowNew, jcls_rte, "Double free detected. The Additive has already been cleared");
         return;
     }
 
     pw_clearAdditive((PWAddContext)additive.ptr);
 
-    _set_additive_ptr(env, additive_obj, 0);
+    _set_additive_ptr(env, this, 0);
 }
 
 
@@ -1179,7 +1127,7 @@ error:
 static struct _additive _fetch_additive_checked(JNIEnv *env, jobject additive_obj)
 {
     struct _additive c = {0};
-    c.ptr = JNI(GetLongField, additive_obj, _additive_ptr);
+    c.ptr = (PWAddContext)(long)JNI(GetLongField, additive_obj, _additive_ptr);
     if (JNI(ExceptionCheck)) {
         return (struct _additive) {0};
     }
@@ -1305,4 +1253,31 @@ end:
     }
     free(val_cstr);
     return val;
+}
+
+static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits) {
+    int64_t diff_us = _timespec_diff_ns(end, start) / 1000LL;
+    int64_t rem_gen_budget_in_us = limits->general_budget_in_us - diff_us;
+    if (rem_gen_budget_in_us < 0) {
+        rem_gen_budget_in_us = 0;
+    }
+    JAVA_LOG(PWL_DEBUG, "Conversion of WAF arguments took %" PRId64
+            " us; remaining general budget is %" PRId64 " us",
+             diff_us, rem_gen_budget_in_us);
+    return rem_gen_budget_in_us;
+}
+
+static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limits) {
+
+    size_t run_budget;
+    if (rem_gen_budget_in_us > limits->run_budget_in_us) {
+        JAVA_LOG(PWL_DEBUG, "Using run budget of % " PRId64 " us instead of "
+                                                            "remaining general budget of %" PRId64 " us",
+                 limits->run_budget_in_us, rem_gen_budget_in_us);
+        run_budget = (size_t)limits->run_budget_in_us;
+    } else {
+        run_budget = (size_t)rem_gen_budget_in_us;
+    }
+
+    return run_budget;
 }
