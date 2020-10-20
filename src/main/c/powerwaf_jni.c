@@ -19,10 +19,6 @@ struct _limits {
     char _padding[4];
 };
 
-struct _additive {
-    PWAddContext ptr;
-};
-
 // suffix _checked means if a function fails it leaves a pending exception
 static bool _check_init(JNIEnv *env);
 static void _deinitialize(JNIEnv *env);
@@ -32,8 +28,8 @@ static void _dispose_of_action_enums(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
 static PWArgs _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
-static struct _additive _fetch_additive_checked(JNIEnv *env, jobject additive_obj);
-static bool _set_additive_ptr(JNIEnv *env, jobject additive_obj, jlong value);
+static PWAddContext _get_additive_context(JNIEnv *env, jobject additive_obj);
+static bool _set_additive_context(JNIEnv *env, jobject additive_obj, jlong value);
 static bool _get_time_checked(JNIEnv *env, struct timespec *time);
 static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
 static int64_t _get_pw_run_timeout_checked(JNIEnv *env);
@@ -403,7 +399,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
   (JNIEnv *env, jobject this, jobject parameters, jobject limits_obj) {
 
     jobject result = NULL;
-    struct _additive additive;
+    PWAddContext context = NULL;
     PWArgs input;
     struct _limits limits;
     PWRet ret;
@@ -427,12 +423,12 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
         return NULL;
     }
 
-    additive = _fetch_additive_checked(env, this);
+    context = _get_additive_context(env, this);
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
-    if (additive.ptr == 0) {
+    if (context == 0) {
         JNI(ThrowNew, jcls_rte, "The Additive has already been cleared");
         return NULL;
     }
@@ -459,7 +455,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
-    ret = pw_runAdditive((PWAddContext)additive.ptr, input, run_budget);
+    ret = pw_runAdditive(context, input, run_budget);
 
     jobject action_obj;
     switch (ret.action) {
@@ -520,21 +516,19 @@ end:
 JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Additive_clearAdditive
   (JNIEnv *env, jobject this) {
 
-    struct _additive additive;
-
-    additive = _fetch_additive_checked(env, this);
+    PWAddContext context = _get_additive_context(env, this);
     if (JNI(ExceptionCheck)) {
         return;
     }
 
-    if (additive.ptr == 0) {
+    if (context == 0) {
         JNI(ThrowNew, jcls_rte, "Double free detected. The Additive has already been cleared");
         return;
     }
 
-    pw_clearAdditive((PWAddContext)additive.ptr);
+    pw_clearAdditive(context);
 
-    _set_additive_ptr(env, this, 0);
+    _set_additive_context(env, this, 0);
 }
 
 
@@ -1124,17 +1118,17 @@ error:
     return _pwinput_invalid;
 }
 
-static struct _additive _fetch_additive_checked(JNIEnv *env, jobject additive_obj)
+static PWAddContext _get_additive_context(JNIEnv *env, jobject additive_obj)
 {
-    struct _additive c = {0};
-    c.ptr = (PWAddContext)(long)JNI(GetLongField, additive_obj, _additive_ptr);
+    PWAddContext context = NULL;
+    context = (PWAddContext)(long)JNI(GetLongField, additive_obj, _additive_ptr);
     if (JNI(ExceptionCheck)) {
-        return (struct _additive) {0};
+        return NULL;
     }
-    return c;
+    return context;
 }
 
-static bool _set_additive_ptr(JNIEnv *env, jobject additive_obj, jlong value)
+static bool _set_additive_context(JNIEnv *env, jobject additive_obj, jlong value)
 {
     JNI(SetLongField, additive_obj, _additive_ptr, value);
     if (JNI(ExceptionCheck)) {
