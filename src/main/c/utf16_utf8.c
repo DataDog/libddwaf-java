@@ -239,7 +239,11 @@ void java_utf16_to_utf8_checked(JNIEnv *env,
         out_len += _write_utf8_codeunits(&out[out_len], cp);
     }
 
+#ifndef __clang_analyzer__
+    // this is safe. _write_utf8_codeunits can only write 4 chars, which
+    // would make at most out_cap == out_len. And we always allocate out_cap +1
     out[out_len] = '\0';
+#endif
     *out_p = out;
     if (out_len_p) {
         *out_len_p = out_len;

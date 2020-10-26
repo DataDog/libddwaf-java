@@ -285,7 +285,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
                            "native conversion", limits.general_budget_in_us);
         jobject exc = JNI(CallStaticObjectMethod, clazz,
                           _create_exception_mid, PW_ERR_TIMEOUT);
-        if (!JNI(ExceptionOccurred)) {
+        if (!JNI(ExceptionCheck)) {
             JNI(Throw, exc);
         }
         goto end;
@@ -312,7 +312,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
             // any errors or unknown statuses
             jobject exc = JNI(CallStaticObjectMethod,
                       clazz, _create_exception_mid, (jint) ret.action);
-            if (!JNI(ExceptionOccurred)) {
+            if (!JNI(ExceptionCheck)) {
                 JNI(Throw, exc);
             } // if an exception occurred calling createException, let it propagate
             goto freeRet;
@@ -463,7 +463,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
                            "native conversion", limits.general_budget_in_us);
         jobject exc = JNI(CallStaticObjectMethod, this,
                           _create_exception_mid, PW_ERR_TIMEOUT);
-        if (!JNI(ExceptionOccurred)) {
+        if (!JNI(ExceptionCheck)) {
             JNI(Throw, exc);
         }
         goto end;
@@ -490,7 +490,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
             // any errors or unknown statuses
             jobject exc = JNI(CallStaticObjectMethod,
                       this, _create_exception_mid, (jint) ret.action);
-            if (!JNI(ExceptionOccurred)) {
+            if (!JNI(ExceptionCheck)) {
                 JNI(Throw, exc);
             } // if an exception occurred calling createException, let it propagate
             goto freeRet;

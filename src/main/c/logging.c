@@ -233,7 +233,7 @@ static bool _get_min_log_level(JNIEnv *env, PW_LOG_LEVEL *level)
             *level = pwl_level; \
             return true; \
         } \
-        if (JNI(ExceptionOccurred)) { \
+        if (JNI(ExceptionCheck)) { \
             return false; \
         } \
     } while (0)
@@ -431,7 +431,7 @@ void _java_wrap_exc_relay(JNIEnv *env,
 
     message_obj = java_utf8_to_jstring_checked(
                 env, final_msg, (size_t) (msg_write - final_msg));
-    if (JNI(ExceptionOccurred)) {
+    if (JNI(ExceptionCheck)) { // error in jstring creation; abort wrapping
         JNI(ExceptionClear);
         JNI(Throw, prev_throwable);
         goto error;
@@ -439,7 +439,7 @@ void _java_wrap_exc_relay(JNIEnv *env,
 
     new_throwable = JNI(NewObject, jcls_rte, rte_constr_cause,
                         message_obj, prev_throwable);
-    if (JNI(ExceptionOccurred)) {
+    if (JNI(ExceptionCheck)) {
         JNI(ExceptionClear);
         JNI(Throw, prev_throwable);
         goto error;

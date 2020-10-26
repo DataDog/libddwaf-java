@@ -264,7 +264,7 @@ static void _mark_object_seen(JNIEnv *env, jobject id_hm, jobject obj)
 static void _convert_checked(JNIEnv *env, jobject obj,
                              perf2_argb_t *arg,
                              jobject id_hm,
-                             ssize_t *max_elements,
+                             int64_t *max_elements,
                              int rec_level)
 {
     (*max_elements)--;
@@ -514,7 +514,7 @@ static void _convert_slow_call_checked(JNIEnv *env, jobject jsc,
         }
 
         args[i] = perf2_argb_new();
-        ssize_t max_elements = 300;
+        int64_t max_elements = 300;
         _convert_checked(env, a, args[i], seen, &max_elements, 1);
 
         JNI(DeleteLocalRef, seen);

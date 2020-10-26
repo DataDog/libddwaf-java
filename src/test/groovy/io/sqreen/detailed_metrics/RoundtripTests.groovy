@@ -201,6 +201,9 @@ class RoundtripTests implements JNITrait {
                 ?: 'libsqreen/Debug/out'
         def exe = "$installPrefix/usr/local/bin/perf2json"
         if (!new File(exe).exists()) {
+            exe = "$installPrefix/bin/perf2json"
+        }
+        if (!new File(exe).exists()) {
             exe += ".exe"
         }
         def p = [exe].execute()
