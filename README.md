@@ -35,11 +35,13 @@ On Windows:
 ```sh
 cd libsqreen
 mkdir Release && cd Release
-cmake .. -DCMAKE_INSTALL_PREFIX=out\usr\local
+cmake .. -DCMAKE_INSTALL_PREFIX=out\usr\local -A x64 -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build . --target Sqreen -j --config RelWithDebInfo
 cmake --build . --target install -j --config RelWithDebInfo
-copy RelWithDebInfo\Sqreen.dll ..\..\native_libs\windows_64\
-copy RelWithDebInfo\Sqreen.pdb ..\..\native_libs\windows_64\
+
 cd ..\..
+mkdir Release && cd Release
+cmake .. -DCMAKE_PREFIX_PATH=...\libsqreen\Release\out\usr\local -A x64 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
 ```
 

@@ -104,7 +104,7 @@ _STATIC_ASSERT(sizeof(bool) == 1);
 #endif
 
 // TODO move global intialization/deinitialization to another file
-JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 {
     UNUSED(reserved);
 
@@ -150,7 +150,7 @@ error:
     return JNI_VERSION_1_6;
 }
 
-JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved)
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved)
 {
     UNUSED(reserved);
 
@@ -1075,7 +1075,7 @@ error:
 static PWAddContext _get_additive_context(JNIEnv *env, jobject additive_obj)
 {
     PWAddContext context = NULL;
-    context = (PWAddContext)(long)JNI(GetLongField, additive_obj, _additive_ptr);
+    context = (PWAddContext)(intptr_t)JNI(GetLongField, additive_obj, _additive_ptr);
     if (JNI(ExceptionCheck)) {
         return NULL;
     }

@@ -22,6 +22,7 @@ if(MSVC)
         string(REPLACE "/MD" "-MT" ${flag_var} "${${flag_var}}")
         string(REPLACE "/W3" "/W4" ${flag_var} "${${flag_var}}")
     endforeach()
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS=1 -Dstrdup=_strdup -Dputenv=_putenv)
 endif()
 
 if(NOT(MSVC))
