@@ -11,9 +11,9 @@ import java.io.IOException;
 import java.util.Map;
 
 public final class Powerwaf {
-    public final static String LIB_VERSION = "0.7.0";
+    public static final String LIB_VERSION = "1.0.6";
 
-    private final static Logger LOGGER = LoggerFactory.get(Powerwaf.class);
+    private static final Logger LOGGER = LoggerFactory.get(Powerwaf.class);
 
     private static boolean triedInitializing;
     private static boolean initialized;
@@ -28,13 +28,13 @@ public final class Powerwaf {
 
         if (triedInitializing) {
             throw new UnclassifiedPowerwafException(
-                    "Previously loading attempt of powerwaf_jni failed; not retrying");
+                    "Previously loading attempt of sqreen_jni failed; not retrying");
         }
 
         triedInitializing = true;
         try {
             if (simple) {
-                System.loadLibrary("powerwaf_jni");
+                System.loadLibrary("sqreen_jni");
             } else {
                 NativeLibLoader.load();
             }
@@ -57,10 +57,10 @@ public final class Powerwaf {
     }
 
     // maps to powerwaf_initializePowerWAF
-    native static boolean addRule(String ruleName, String definition);
-    native static void clearRule(String ruleName);
+    static native boolean addRule(String ruleName, String definition);
+    static native void clearRule(String ruleName);
 
-    native static ActionWithData runRule(String ruleName,
+    static native ActionWithData runRule(String ruleName,
                                          Map<String, Object> parameters,
                                          Limits limits) throws AbstractPowerwafException;
 

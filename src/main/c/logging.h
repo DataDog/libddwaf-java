@@ -17,10 +17,12 @@ void _java_wrap_exc_relay(JNIEnv *env,
         __attribute__((format (printf, 2, 6)));
 
 #define JAVA_LOG(level, fmt, ...) \
-    java_log(level, __FUNCTION__, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+    java_log(level, __FUNCTION__, __FILE__, __LINE__, NULL, fmt, ##__VA_ARGS__)
+#define JAVA_LOG_THR(level, thr, fmt, ...) \
+    java_log(level, __FUNCTION__, __FILE__, __LINE__, thr, fmt, ##__VA_ARGS__)
 void java_log(PW_LOG_LEVEL level, const char *function, const char *file,
-              int line, const char *fmt, ...)
-__attribute__((format (printf, 5, 6)));
+              int line, jthrowable throwable, const char *fmt, ...)
+__attribute__((format (printf, 6, 7)));
 
 #ifdef _MSC_VER
 # undef __attribute__

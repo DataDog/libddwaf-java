@@ -1,3 +1,3 @@
-[submodule "PowerWAF"]
-	path = PowerWAF
-	url = git@github.com:sqreen/PowerWAF.git
+[submodule "libsqreen"]
+	path = libsqreen
+	url = https://github.com/sqreen/libsqreen.git

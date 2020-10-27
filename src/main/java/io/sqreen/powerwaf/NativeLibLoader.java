@@ -110,19 +110,19 @@ public class NativeLibLoader {
     private static List<String> getNativeLibs(OsType type) {
         switch(type) {
             case LINUX_64_GLIBC:
-                return Arrays.asList("linux_64_glibc/libpowerwaf_jni.so",
+                return Arrays.asList("linux_64_glibc/libsqreen_jni.so",
                         "linux_64_glibc/libSqreen.so");
             case LINUX_64_MUSL:
-                return Arrays.asList("linux_64_musl/libpowerwaf_jni.so",
+                return Arrays.asList("linux_64_musl/libsqreen_jni.so",
                         "linux_64_musl/libSqreen.so");
             case MAC_OS_64:
-                return Arrays.asList("osx_64/libpowerwaf_jni.dylib",
+                return Arrays.asList("osx_64/libsqreen_jni.dylib",
                         "osx_64/libSqreen.dylib");
             case SUN_OS_64:
-                return Arrays.asList("solaris_64/libpowerwaf_jni.so",
+                return Arrays.asList("solaris_64/libsqreen_jni.so",
                         "solaris_64/libSqreen.so");
             case WINDOWS_64:
-                return Collections.singletonList("windows_64/powerwaf_jni.dll");
+                return Collections.singletonList("windows_64/sqreen_jni.dll");
             default:
                 return Collections.emptyList();
         }

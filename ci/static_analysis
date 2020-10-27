@@ -28,7 +28,7 @@ done
 mkdir static_analysis && cd static_analysis
 scan-build-8 "${check_switches[@]}" -o output \
   cmake .. -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_PREFIX_PATH=$(realpath ../PowerWAF/Debug/out/usr/local/share/cmake/powerwaf/)
+  -DCMAKE_PREFIX_PATH=$(realpath ../libsqreen/Debug/out/usr/local/share/cmake/libsqreen/)
 scan-build-8 "${check_switches[@]}" -o output make -j
 function clang_violations {
   ruby <<'EOD'

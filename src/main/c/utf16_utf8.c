@@ -1,5 +1,6 @@
 #include "utf16_utf8.h"
 #include "common.h"
+#include "logging.h"
 #include <stdbool.h>
 #include <limits.h>
 #include <assert.h>
@@ -238,7 +239,11 @@ void java_utf16_to_utf8_checked(JNIEnv *env,
         out_len += _write_utf8_codeunits(&out[out_len], cp);
     }
 
+#ifndef __clang_analyzer__
+    // this is safe. _write_utf8_codeunits can only write 4 chars, which
+    // would make at most out_cap == out_len. And we always allocate out_cap +1
     out[out_len] = '\0';
+#endif
     *out_p = out;
     if (out_len_p) {
         *out_len_p = out_len;
@@ -290,4 +295,76 @@ jstring java_utf8_to_jstring_checked(JNIEnv *env,
     jstring ret = JNI(NewString, out, (jint)out_len);
     free(out);
     return ret;
+}
+
+static char *_to_utf8_checked_utf16_len(JNIEnv *env,
+                                        jstring str, jint utf16_len,
+                                        size_t *utf8_out_len)
+{
+    const jchar *utf16_str = JNI(GetStringChars, str, NULL);
+
+    if (!utf16_str) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_rte, "Error calling GetStringChars");
+        } else {
+            java_wrap_exc("Error calling GetStringChars on string of size %d",
+                          utf16_len);
+        }
+        return NULL;
+    }
+
+    uint8_t *out = NULL;
+    java_utf16_to_utf8_checked(env, utf16_str, utf16_len, &out, utf8_out_len);
+
+    JNI(ReleaseStringChars, str, utf16_str);
+
+    return (char *)out;
+}
+
+char *java_to_utf8_checked(JNIEnv *env, jstring str, size_t *utf8_out_len)
+{
+    const jint utf16_len = JNI(GetStringLength, str);
+    if (JNI(ExceptionCheck)) {
+        java_wrap_exc("Error getting the length of putative string");
+        return NULL;
+    }
+
+    return _to_utf8_checked_utf16_len(env, str, utf16_len, utf8_out_len);
+}
+
+// sets a pending exception in case of failure
+char *java_to_utf8_limited_checked(
+        JNIEnv *env, jstring str, size_t *len, int max_len)
+{
+    const jint utf16_len = JNI(GetStringLength, str);
+    if (JNI(ExceptionCheck)) {
+        java_wrap_exc("Error getting the length of putative string");
+        return NULL;
+    }
+
+    if (max_len < 0 || utf16_len <= max_len) {
+        return _to_utf8_checked_utf16_len(env, str, utf16_len, len);
+    }
+
+    jchar *utf16_str = calloc((size_t)max_len, sizeof *utf16_str);
+    if (!utf16_str) {
+            JNI(ThrowNew, jcls_rte, "malloc failed allocated jchar array");
+            return NULL;
+    }
+
+    JNI(GetStringRegion, str, 0, max_len, utf16_str);
+
+    if (JNI(ExceptionCheck)) {
+        java_wrap_exc("Error calling GetStringRegion for substring of size %d",
+                      max_len);
+        free(utf16_str);
+        return NULL;
+    }
+
+    uint8_t *out = NULL;
+    java_utf16_to_utf8_checked(env, utf16_str, max_len, &out, len);
+
+    free(utf16_str);
+
+    return (char *)out;
 }

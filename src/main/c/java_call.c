@@ -49,7 +49,7 @@ bool java_meth_init_checked(
     }
 
     *jmeth = (struct j_method) {
-        .type = type,
+        .type = type != JMETHOD_VIRTUAL_RETRIEVE_CLASS ? type : JMETHOD_VIRTUAL,
         .class_glob = class_global,
         .meth_id = meth_id,
     };

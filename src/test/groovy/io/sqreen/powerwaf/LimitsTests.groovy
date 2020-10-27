@@ -105,6 +105,13 @@ class LimitsTests implements PowerwafTrait {
     void 'runBudgetInUs is observed'() {
         def atom = '''
             {
+              "manifest": {
+                "#._server['HTTP_USER_AGENT']": {
+                  "inherit_from": "#._server['HTTP_USER_AGENT']",
+                  "run_on_value": true,
+                  "run_on_key": false
+                }
+              },
               "rules":[
                 {
                   "rule_id":"1",

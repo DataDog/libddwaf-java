@@ -10,6 +10,7 @@ enum j_method_type {
     JMETHOD_NON_VIRTUAL,
     JMETHOD_CONSTRUCTOR,
     JMETHOD_VIRTUAL,
+    JMETHOD_VIRTUAL_RETRIEVE_CLASS,
 };
 
 #pragma clang diagnostic push

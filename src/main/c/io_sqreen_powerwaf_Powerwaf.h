@@ -47,6 +47,34 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule
 JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion
   (JNIEnv *, jclass);
 
+//////////////////////////////
+///      Additive API
+//////////////////////////////
+
+/*
+ * Class:     io.sqreen.powerwaf.Additive
+ * Method:    initAdditive
+ * Signature: (Ljava/lang/String;)Lio/sqreen/powerwaf/Additive;
+ */
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
+  (JNIEnv *, jclass, jstring);
+
+/*
+ * Class:     io.sqreen.powerwaf.Additive
+ * Method:    runAdditive
+ * Signature: (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ */
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
+  (JNIEnv *, jclass, jobject, jobject);
+
+/*
+ * Class:     io.sqreen.powerwaf.Additive
+ * Method:    clearAdditive
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Additive_clearAdditive
+  (JNIEnv *, jobject);
+
 #ifdef __cplusplus
 }
 #endif

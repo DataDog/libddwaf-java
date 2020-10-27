@@ -7,7 +7,7 @@ steps:
     clean: true
     submodules: recursive
   - task: CMake@1
-    displayName: Create Build Directory for PowerWAF
+    displayName: Create Build Directory for libsqreen
     inputs:
       cmakeArgs: "-E make_directory $(Agent.TempDirectory)/buildPW"
   - task: CMake@1
@@ -27,21 +27,21 @@ steps:
       modifyEnvironment: true
 
   - task: CMake@1
-    displayName: Generate Build Scripts for PowerWAF
+    displayName: Generate Build Scripts for libsqreen
     inputs:
       workingDirectory: "$(Agent.TempDirectory)/buildPW"
       cmakeArgs: >
         -DCMAKE_BUILD_TYPE=${{parameters.buildType}}
         -DCMAKE_INSTALL_PREFIX=$(Agent.TempDirectory)/out
         -G "${{parameters.generator}}"
-        $(Build.SourcesDirectory)/PowerWAF
+        $(Build.SourcesDirectory)/libsqreen
   - task: CMake@1
-    displayName: Build Binaries for PowerWAF
+    displayName: Build Binaries for libsqreen
     inputs:
       workingDirectory: "$(Agent.TempDirectory)/buildPW"
       cmakeArgs: --build .
   - task: CMake@1
-    displayName: Install Binaries for PowerWAF
+    displayName: Install Binaries for libsqreen
     inputs:
       workingDirectory: "$(Agent.TempDirectory)/buildPW"
       cmakeArgs: --build . --target install
@@ -52,7 +52,7 @@ steps:
       workingDirectory: "$(Agent.TempDirectory)/buildAG"
       cmakeArgs: >
         -DCMAKE_BUILD_TYPE=${{parameters.buildType}}
-        -DCMAKE_PREFIX_PATH='$(Agent.TempDirectory)/out/share/cmake/powerwaf/'
+        -DCMAKE_PREFIX_PATH='$(Agent.TempDirectory)/out/share/cmake/libsqreen/'
         -G "${{parameters.generator}}"
         $(Build.SourcesDirectory)
   - task: CMake@1
@@ -86,8 +86,8 @@ steps:
       workingDirectory: "$(Agent.TempDirectory)/buildAG"
       cmakeArgs: >
         -E copy
-        ${{parameters.shlib_prefix}}powerwaf_jni.${{parameters.shlib_ext}}
-        ${{parameters.shlib_prefix}}powerwaf_jni.${{parameters.debug_ext}}
+        ${{parameters.shlib_prefix}}sqreen_jni.${{parameters.shlib_ext}}
+        ${{parameters.shlib_prefix}}sqreen_jni.${{parameters.debug_ext}}
         $(Agent.TempDirectory)/packages
   - task: CMake@1
     displayName: Copy JNI binding binaries to native_libs (testing)
@@ -95,8 +95,8 @@ steps:
       workingDirectory: "$(Agent.TempDirectory)/buildAG"
       cmakeArgs: >
         -E copy
-        ${{parameters.shlib_prefix}}powerwaf_jni.${{parameters.shlib_ext}}
-        ${{parameters.shlib_prefix}}powerwaf_jni.${{parameters.debug_ext}}
+        ${{parameters.shlib_prefix}}sqreen_jni.${{parameters.shlib_ext}}
+        ${{parameters.shlib_prefix}}sqreen_jni.${{parameters.debug_ext}}
         $(Build.SourcesDirectory)/native_libs/${{parameters.libdir}}
   - task: CacheBeta@0
     displayName: Restore Gradle Cache
@@ -110,6 +110,7 @@ steps:
       script: |
         set -ex
         cd '$(Build.SourcesDirectory)'
+        export LIBSQREEN_INSTALL_PREFIX='$(Agent.TempDirectory)/out'
         ./gradlew --build-cache check --info -PuseReleaseBinaries
         ./gradlew --stop
 
@@ -117,5 +118,5 @@ steps:
     displayName: Save Artifacts
     inputs:
       pathtoPublish: "$(Agent.TempDirectory)/packages"
-      artifactName: "powerwaf_jni_${{parameters.artifactsuff}}"
+      artifactName: "libsqreen_jni_${{parameters.artifactsuff}}"
 
