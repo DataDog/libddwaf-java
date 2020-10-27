@@ -238,6 +238,7 @@ static bool _saw_object(JNIEnv *env, jobject id_hm, jobject needle)
         jthrowable thr = JNI(ExceptionOccurred);
         JNI(ExceptionClear);
         JAVA_LOG_THR(PWL_WARN, thr, "Error looking up IdentityHashMap");
+        JNI(DeleteLocalRef, thr);
         return false;
     }
 
@@ -252,6 +253,7 @@ static void _mark_object_seen(JNIEnv *env, jobject id_hm, jobject obj)
         jthrowable thr = JNI(ExceptionOccurred);
         JNI(ExceptionClear);
         JAVA_LOG_THR(PWL_WARN, thr, "Error adding value to IdentityHashMap");
+        JNI(DeleteLocalRef, thr);
     }
 }
 
@@ -529,6 +531,7 @@ static void _convert_slow_call_checked(JNIEnv *env, jobject jsc,
             args[i] = perf2_argb_new();
             perf2_argb_add_string(args[i], "<error during conversion>",
                                   sizeof("<error during conversion>") - 1);
+            JNI(DeleteLocalRef, thr);
         }
     }
     JNI(DeleteLocalRef, jargs);
