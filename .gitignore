@@ -17,3 +17,4 @@
 /.idea/
 /static_analysis/
 *.iml
+/compile_commands.json
