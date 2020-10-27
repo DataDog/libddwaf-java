@@ -485,7 +485,14 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
             action_obj = _action_block;
             break;
         case PW_ERR_TIMEOUT:
+            if (run_budget == 0) {
+                // pw_runAdditive doesn't take ownership in this case
+                pw_freeArg(&input);
+            }
             goto freeRet;
+        case PW_ERR_INVALID_CALL:
+            pw_freeArg(&input);
+            // break intentionally missing
         default: {
             // any errors or unknown statuses
             jobject exc = JNI(CallStaticObjectMethod,
