@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.0.5";
+    public static final String LIB_VERSION = "1.0.6";
 
     private static final Logger LOGGER = LoggerFactory.get(Powerwaf.class);
 
