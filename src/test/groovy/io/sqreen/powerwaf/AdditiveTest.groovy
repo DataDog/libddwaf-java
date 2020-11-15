@@ -153,4 +153,29 @@ class AdditiveTest implements ReactiveTrait {
         Additive additive = Additive.initAdditive('test')
         additive.runAdditive([:], null)
     }
+
+    @Test
+    void 'Should MONITOR attack with data in array'() {
+        def rule = ARACHNI_ATOM
+
+        def params = [
+                'server.request.body': [
+                        'attack': ['o:1:"ee":1:{}'].toArray(),
+                        'PassWord': ['12345'].toArray()
+                ]
+        ]
+
+        Additive additive
+        def ctx = new PowerwafContext('test', ['rule': rule])
+        try {
+            additive = ctx.openAdditive('rule')
+            def awd = additive.run(params, limits)
+            assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        } finally {
+            if (additive != null) {
+                additive.close()
+            }
+            ctx.close()
+        }
+    }
 }

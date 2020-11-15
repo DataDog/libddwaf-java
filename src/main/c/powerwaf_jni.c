@@ -87,6 +87,8 @@ jclass *iterable_cls = &iterable_iterator.class_glob;
 struct j_method iterator_next;
 struct j_method iterator_hasNext;
 
+struct j_method class_is_array;
+
 static int64_t pw_run_timeout;
 
 static bool _init_ok;
@@ -839,6 +841,14 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
+    if (!java_meth_init_checked(
+            env, &class_is_array,
+            "java/lang/Class", "isArray",
+            "()Z",
+            JMETHOD_VIRTUAL)) {
+        goto error;
+    }
+
     return true;
 error:
     return false;
@@ -862,6 +872,7 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     DESTROY_METH(iterable_iterator)
     DESTROY_METH(iterator_next)
     DESTROY_METH(iterator_hasNext)
+    DESTROY_METH(class_is_array)
 }
 
 
@@ -948,8 +959,50 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
 
     PWArgs result = _pwinput_invalid;
 
+    jboolean is_array = JNI_FALSE;
+    if (obj != NULL) {
+        jclass clazz = JNI(GetObjectClass, obj);
+        is_array = JNI(CallBooleanMethod, clazz, class_is_array.meth_id);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
+        JNI(DeleteLocalRef, clazz);
+    }
+
     if (JNI(IsSameObject, obj, NULL)) {
         result = pw_createMap(); // replace NULLs with empty maps
+    } else if (is_array == JNI_TRUE) {
+        result = pw_createArray();
+
+        if (rec_level >= lims->max_depth) {
+            JAVA_LOG(PWL_DEBUG,
+                     "Leaving array empty because max depth of %d "
+                     "has been reached",
+                     lims->max_depth);
+            goto early_return;
+        }
+
+        jsize len = JNI(GetArrayLength, obj);
+
+        for (int i=0; i<len; i++) {
+
+            if (lims->max_elements <= 0) {
+                JAVA_LOG(PWL_DEBUG, "Interrupting iterating array due to "
+                                    "the max of elements being reached");
+                break;
+            }
+
+            jobject element = JNI(GetObjectArrayElement, obj, i);
+
+            PWArgs value =
+                    _convert_checked(env, element, lims, rec_level + 1);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+            pw_addArray(&result, value);
+
+            JNI(DeleteLocalRef, element);
+        }
     } else if (JNI(IsInstanceOf, obj, *map_cls)) {
         result = pw_createMap();
         if (rec_level >= lims->max_depth) {
