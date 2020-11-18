@@ -34,4 +34,6 @@ extern jclass *iterable_cls;
 extern struct j_method iterator_next;
 extern struct j_method iterator_hasNext;
 
+extern struct j_method class_is_array;
+
 #endif

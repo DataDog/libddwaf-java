@@ -80,7 +80,7 @@ class AdditiveTest implements ReactiveTrait {
 
     @Test
     void 'Should trigger waf with native Additive Api only'() {
-        def rule = ARACHNI_ATOM
+        def rule = TEST_REACTIVE_RULE
 
         def params = [
                 'server.request.uri.raw': '/',
@@ -104,7 +104,7 @@ class AdditiveTest implements ReactiveTrait {
 
     @Test
     void 'Should trigger waf with Additive'() {
-        def rule = ARACHNI_ATOM
+        def rule = TEST_REACTIVE_RULE
 
         def params = [
                         'server.request.uri.raw': '/',
@@ -137,7 +137,7 @@ class AdditiveTest implements ReactiveTrait {
 
     @Test(expected = RuntimeException)
     void 'Should throw RuntimeException if double free'() {
-        def rule = ARACHNI_ATOM
+        def rule = TEST_REACTIVE_RULE
 
         Powerwaf.addRule('test', rule)
         Additive additive = Additive.initAdditive('test')
@@ -147,10 +147,35 @@ class AdditiveTest implements ReactiveTrait {
 
     @Test(expected = IllegalArgumentException)
     void 'Should throw IllegalArgumentException if Limits is null while run'() {
-        def rule = ARACHNI_ATOM
+        def rule = TEST_REACTIVE_RULE
 
         Powerwaf.addRule('test', rule)
         Additive additive = Additive.initAdditive('test')
         additive.runAdditive([:], null)
+    }
+
+    @Test
+    void 'Should MONITOR attack with data in array'() {
+        def rule = TEST_REACTIVE_RULE
+
+        def params = [
+                'server.request.body': [
+                        'attack': ['o:1:"ee":1:{}'].toArray(),
+                        'PassWord': ['12345'].toArray()
+                ]
+        ]
+
+        Additive additive
+        def ctx = new PowerwafContext('test', ['rule': rule])
+        try {
+            additive = ctx.openAdditive('rule')
+            def awd = additive.run(params, limits)
+            assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        } finally {
+            if (additive != null) {
+                additive.close()
+            }
+            ctx.close()
+        }
     }
 }
