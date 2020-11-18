@@ -845,7 +845,7 @@ static bool _cache_methods(JNIEnv *env)
             env, &class_is_array,
             "java/lang/Class", "isArray",
             "()Z",
-            JMETHOD_VIRTUAL)) {
+            JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
