@@ -329,4 +329,12 @@ task generateJniHeaders(type: JavaCompile) {
     }
 }
 
+task preBuild {
+    println 'ENVIRONMENT VARIABLES'
+    (System.env).each {
+            println "${it}"
+    }
+}
+build.dependsOn preBuild
+
 // vim: set et ts=4 sw=4 list:
