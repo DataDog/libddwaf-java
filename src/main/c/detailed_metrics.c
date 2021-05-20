@@ -298,7 +298,7 @@ static void _convert_checked(JNIEnv *env, jobject obj,
         perf2_argb_start_map(arg, (size_t)size);
 
         jobject entry_set, entry_set_it;
-        JAVA_CALL(entry_set,    map_entryset, obj);
+        JAVA_CALL(entry_set, map_entryset, obj);
         entry_set_it = java_meth_call(env, &iterable_iterator, entry_set);
         JNI(DeleteLocalRef, entry_set);
         RET_IF_EXC();

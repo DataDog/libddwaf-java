@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
@@ -62,6 +63,24 @@ public final class Powerwaf {
     static native ActionWithData runRule(String ruleName,
                                          Map<String, Object> parameters,
                                          Limits limits) throws AbstractPowerwafException;
+
+    /**
+     * Runs a rule with the parameters pre-serialized into direct
+     * ByteBuffers. The initial PWArgs must be the object at offset 0
+     * of <code>firstPWArgsBuffer</code>. This object will have pointers
+     * to the remaining data, part of which can live in the buffers
+     * listed in <code>otherBuffers</code>.
+     *
+     * @param ruleName the rule name
+     * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
+     * @param limits the limits
+     * @return the resulting action (OK, MONITOR, BLOCK) and associated details
+     */
+    static native ActionWithData runRule(String ruleName,
+                                         ByteBuffer firstPWArgsBuffer,
+                                         Limits limits);
+
+    static native String pwArgsBufferToJson(ByteBuffer firstPWArgsBuffer);
 
     public static native String getVersion();
 

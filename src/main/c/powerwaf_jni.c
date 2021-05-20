@@ -238,14 +238,10 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRule(
     free(rule_name_c);
 }
 
-/*
- * Class:     io.sqreen.powerwaf.Powerwaf
- * Method:    runRule
- * Signature: (Ljava/lang/String;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
- */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
-        JNIEnv *env, jclass clazz,
-        jstring rule_name, jobject parameters, jobject limits_obj)
+// runRule overloads
+static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
+                                jstring rule_name, jobject parameters,
+                                jobject limits_obj)
 {
     jobject result = NULL;
     char *rule_name_c = NULL;
@@ -272,25 +268,43 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRule(
         goto end;
     }
 
-    input = _convert_checked(env, parameters, &limits, 0);
-    if (JNI(ExceptionCheck)) {
-        goto end;
-    }
-    struct timespec conv_end;
-    if (!_get_time_checked(env, &conv_end)) {
-        goto end;
-    }
-
-    int64_t rem_gen_budget_in_us = get_remaining_budget(start, conv_end, &limits);
-    if (rem_gen_budget_in_us == 0) {
-        JAVA_LOG(PWL_INFO, "General budget of %" PRId64 " us exhausted after "
-                           "native conversion", limits.general_budget_in_us);
-        jobject exc = JNI(CallStaticObjectMethod, clazz,
-                          _create_exception_mid, PW_ERR_TIMEOUT);
-        if (!JNI(ExceptionCheck)) {
-            JNI(Throw, exc);
+    int64_t rem_gen_budget_in_us;
+    if (is_byte_buffer) {
+        void *input_p = JNI(GetDirectBufferAddress, parameters);
+        if (!input_p) {
+            JNI(ThrowNew, jcls_rte, "Not a DirectBuffer passed");
+            goto end;
         }
-        goto end;
+        jlong capacity = JNI(GetDirectBufferCapacity, parameters);
+        if (capacity < (jlong) sizeof(input)) {
+            JNI(ThrowNew, jcls_rte, "Capacity of DirectBuffer is insufficient");
+            goto end;
+        }
+        memcpy(&input, input_p, sizeof input);
+        // let's pretend nothing we did till now took time
+        rem_gen_budget_in_us = limits.general_budget_in_us;
+    } else {
+        struct timespec conv_end;
+        input = _convert_checked(env, parameters, &limits, 0);
+        if (JNI(ExceptionCheck)) {
+            goto end;
+        }
+        if (!_get_time_checked(env, &conv_end)) {
+            goto end;
+        }
+        rem_gen_budget_in_us = get_remaining_budget(start, conv_end, &limits);
+        if (rem_gen_budget_in_us == 0) {
+            JAVA_LOG(PWL_INFO,
+                     "General budget of %" PRId64 " us exhausted after "
+                     "native conversion",
+                     limits.general_budget_in_us);
+            jobject exc = JNI(CallStaticObjectMethod, clazz,
+                              _create_exception_mid, PW_ERR_TIMEOUT);
+            if (!JNI(ExceptionCheck)) {
+                JNI(Throw, exc);
+            }
+            goto end;
+        }
     }
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
@@ -343,9 +357,40 @@ freeRet:
     pw_freeReturn(ret);
 end:
     free(rule_name_c);
-    pw_freeArg(&input);
+    if (!is_byte_buffer) {
+        pw_freeArg(&input);
+    }
 
     return result;
+}
+
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    runRule
+ * Signature: (Ljava/lang/String;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ */
+JNIEXPORT jobject JNICALL
+Java_io_sqreen_powerwaf_Powerwaf_runRule__Ljava_lang_String_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
+        JNIEnv *env, jclass clazz, jstring rule_name, jobject parameters,
+        jobject limits_obj)
+{
+    return _run_rule_common(false, env, clazz, rule_name, parameters,
+                            limits_obj);
+}
+
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    runRule
+ * Signature:
+ * (Ljava/lang/String;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ */
+JNIEXPORT jobject JNICALL
+Java_io_sqreen_powerwaf_Powerwaf_runRule__Ljava_lang_String_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
+        JNIEnv *env, jclass clazz, jstring rule_name, jobject main_byte_buffer,
+        jobject limits_obj)
+{
+    return _run_rule_common(true, env, clazz, rule_name, main_byte_buffer,
+                            limits_obj);
 }
 
 /*
@@ -555,7 +600,6 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Additive_clearAdditive
 
     _set_additive_context(env, this, 0);
 }
-
 
 static bool _check_init(JNIEnv *env)
 {

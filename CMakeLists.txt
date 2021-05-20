@@ -30,6 +30,8 @@ if(NOT(MSVC))
 endif()
 
 set(SOURCE_FILES
+    src/main/c/byte_buffer.c
+    src/main/c/debug_helpers.c
     src/main/c/detailed_metrics.c
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c

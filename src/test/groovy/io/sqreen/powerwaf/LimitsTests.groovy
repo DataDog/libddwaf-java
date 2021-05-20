@@ -1,8 +1,6 @@
 package io.sqreen.powerwaf
 
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail

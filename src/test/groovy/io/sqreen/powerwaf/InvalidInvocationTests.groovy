@@ -1,16 +1,12 @@
 package io.sqreen.powerwaf
 
 import io.sqreen.powerwaf.exception.NoRulePowerwafException
-import io.sqreen.powerwaf.exception.TimeoutPowerwafException
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException
 import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.containsString
-import static org.hamcrest.Matchers.hasItem
-import static org.hamcrest.Matchers.is
-import static org.hamcrest.Matchers.isOneOf
 
 class InvalidInvocationTests implements PowerwafTrait {
 

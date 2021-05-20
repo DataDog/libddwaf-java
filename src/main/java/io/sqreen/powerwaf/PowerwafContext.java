@@ -1,6 +1,7 @@
 package io.sqreen.powerwaf;
 
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
+import io.sqreen.powerwaf.exception.TimeoutPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * Represents a collection of PowerWAF rules, allocated and deallocated together.
  */
 public class PowerwafContext implements Closeable {
+    private final static boolean POWERWAF_ENABLE_BYTE_BUFFERS;
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final String uniqueName;
@@ -25,6 +27,11 @@ public class PowerwafContext implements Closeable {
 
     private final Lock writeLock;
     private final Lock readLock;
+
+    static {
+        String bb = System.getProperty("POWERWAF_ENABLE_BYTE_BUFFERS", "true");
+        POWERWAF_ENABLE_BYTE_BUFFERS = !bb.equalsIgnoreCase("false") && !bb.equals("0");
+    }
 
     PowerwafContext(String uniqueName, Map<String, String> rules) throws AbstractPowerwafException {
         this.logger.debug("Creating PowerWAF context {}", uniqueName);
@@ -68,7 +75,24 @@ public class PowerwafContext implements Closeable {
                     fullRuleName, limits);
 
             Powerwaf.ActionWithData res;
-            res = Powerwaf.runRule(fullRuleName, parameters, limits);
+            if (POWERWAF_ENABLE_BYTE_BUFFERS) {
+                ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
+                long before = System.nanoTime();
+                try (ByteBufferSerializer.ArenaLease lease = serializer.serialize(parameters)) {
+                    long elapsedNs = System.nanoTime() - before;
+                    Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
+                    if (newLimits.generalBudgetInUs == 0L) {
+                        this.logger.debug(
+                                "Budget exhausted after serialization; not running rule {}",
+                                fullRuleName);
+                        throw new TimeoutPowerwafException();
+                    }
+                    res = Powerwaf.runRule(fullRuleName, lease.getFirstPWArgsByteBuffer(),
+                            limits);
+                }
+            } else {
+                res = Powerwaf.runRule(fullRuleName, parameters, limits);
+            }
 
             this.logger.debug("Rule {} ran successfully with return {}", fullRuleName, res);
 
@@ -77,6 +101,35 @@ public class PowerwafContext implements Closeable {
             throw new UnclassifiedPowerwafException(
                     "Error calling PowerWAF's runRule for rule " + fullRuleName +
                     ": " + rte.getMessage(), rte);
+        } finally {
+            this.readLock.unlock();
+        }
+    }
+
+    public Powerwaf.ActionWithData runRuleJavaSerialization(
+            String ruleName,
+            Map<String, Object> parameters,
+            Powerwaf.Limits limits) throws AbstractPowerwafException {
+        String fullRuleName = getFullRuleName(ruleName);
+
+
+
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            this.logger.debug("Running rule {} with limits {}",
+                    fullRuleName, limits);
+
+            Powerwaf.ActionWithData res;
+            res = Powerwaf.runRule(fullRuleName, parameters, limits);
+
+            this.logger.debug("Rule {} ran successfully with return {}", fullRuleName, res);
+
+            return res;
+        } catch (RuntimeException rte) {
+            throw new UnclassifiedPowerwafException(
+                    "Error calling PowerWAF's runRule for rule " + fullRuleName +
+                            ": " + rte.getMessage(), rte);
         } finally {
             this.readLock.unlock();
         }

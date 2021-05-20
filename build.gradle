@@ -298,6 +298,14 @@ task testgc(type: Test) {
 }
 check.dependsOn testgc
 
+task testNoByteBuffers(type: Test) {
+    description = 'Tests that the library can be unloaded'
+    group = 'verification'
+
+    jvmArgs += ['-DPOWERWAF_ENABLE_BYTE_BUFFERS=0']
+}
+check.dependsOn testNoByteBuffers
+
 tasks.withType(Test).each {
     it.jvmArgs += ['-Xcheck:jni', '-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG']
     if (project.hasProperty('useReleaseBinaries')) {
