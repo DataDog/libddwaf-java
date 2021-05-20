@@ -106,35 +106,6 @@ public class PowerwafContext implements Closeable {
         }
     }
 
-    public Powerwaf.ActionWithData runRuleJavaSerialization(
-            String ruleName,
-            Map<String, Object> parameters,
-            Powerwaf.Limits limits) throws AbstractPowerwafException {
-        String fullRuleName = getFullRuleName(ruleName);
-
-
-
-        this.readLock.lock();
-        try {
-            checkIfOnline();
-            this.logger.debug("Running rule {} with limits {}",
-                    fullRuleName, limits);
-
-            Powerwaf.ActionWithData res;
-            res = Powerwaf.runRule(fullRuleName, parameters, limits);
-
-            this.logger.debug("Rule {} ran successfully with return {}", fullRuleName, res);
-
-            return res;
-        } catch (RuntimeException rte) {
-            throw new UnclassifiedPowerwafException(
-                    "Error calling PowerWAF's runRule for rule " + fullRuleName +
-                            ": " + rte.getMessage(), rte);
-        } finally {
-            this.readLock.unlock();
-        }
-    }
-
     public Additive openAdditive(String ruleName) throws AbstractPowerwafException {
         return Additive.createAdditive(getFullRuleName(ruleName));
     }

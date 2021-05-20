@@ -111,6 +111,7 @@ task buildNativeLibDebug(type: Exec) {
 }
 
 jacocoTestReport {
+    executionData fileTree(project.buildDir.absolutePath).include("jacoco/*.exec")
     reports {
         html.enabled true
         xml.enabled true
