@@ -1,19 +1,16 @@
 package io.sqreen.powerwaf;
 
-import com.google.common.base.Joiner;
-import io.sqreen.logging.Logger;
-import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
+import io.sqreen.powerwaf.util.Joiner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
 
-import static com.google.common.io.ByteStreams.copy;
-import static com.google.common.io.Files.createTempDir;
-
 public class NativeLibLoader {
 
-    private static final Logger LOGGER = LoggerFactory.get(NativeLibLoader.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(NativeLibLoader.class);
     private static final String LINUX_JVM_PROC_MAP = "/proc/self/maps";
 
     public static void load() throws IOException, UnsupportedVMException {
@@ -26,10 +23,12 @@ public class NativeLibLoader {
     private static File extractLib() throws UnsupportedVMException, IOException {
         ClassLoader cl = NativeLibLoader.class.getClassLoader();
         List<String> nativeLibs = getNativeLibs(getOsType());
-        LOGGER.debug("Native libs to copy: %s",  Joiner.on(", ").join(nativeLibs));
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Native libs to copy: {}", Joiner.on(", ").join(nativeLibs));
+        }
 
         File tempDir = createTempDir();
-        LOGGER.debug("Created temporary directory %s", tempDir);
+        LOGGER.debug("Created temporary directory {}", tempDir);
 
         File jniLib = null;
         for (String p: nativeLibs) {
@@ -43,7 +42,7 @@ public class NativeLibLoader {
             if (dest.getName().contains("_jni")) {
                 jniLib = dest;
             }
-            LOGGER.debug("Copying resource %s to %s", clPath, dest);
+            LOGGER.debug("Copying resource {} to {}", clPath, dest);
 
             try {
                 copyToFile(input, dest);
@@ -139,5 +138,42 @@ public class NativeLibLoader {
                 os.close();
             }
         }
+    }
+
+    private static final int TEMP_DIR_ATTEMPTS = 1000;
+    // originally com.google.common.io.Files.createTempDir()
+    private static File createTempDir() {
+        File baseDir = new File(System.getProperty("java.io.tmpdir"));
+        String baseName = System.currentTimeMillis() + "-";
+
+        for (int counter = 0; counter < TEMP_DIR_ATTEMPTS; counter++) {
+            File tempDir = new File(baseDir, baseName + counter);
+            if (tempDir.mkdir()) {
+                return tempDir;
+            }
+        }
+        throw new IllegalStateException(
+                "Failed to create directory within "
+                        + TEMP_DIR_ATTEMPTS
+                        + " attempts (tried "
+                        + baseName
+                        + "0 to "
+                        + baseName
+                        + (TEMP_DIR_ATTEMPTS - 1)
+                        + ')');
+    }
+
+    private static long copy(InputStream from, OutputStream to) throws IOException {
+        byte[] buf = new byte[8192];
+        long total = 0;
+        while (true) {
+            int r = from.read(buf);
+            if (r == -1) {
+                break;
+            }
+            to.write(buf, 0, r);
+            total += r;
+        }
+        return total;
     }
 }

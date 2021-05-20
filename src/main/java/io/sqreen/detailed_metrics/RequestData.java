@@ -1,15 +1,14 @@
 package io.sqreen.detailed_metrics;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.Lists;
-
+import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 
 public class RequestData {
     public String route;
     public String overtimeCallback;
-    public final List<Measurement> measurements = Lists.newLinkedList();
-    public final List<SlowCall> slowCalls = Lists.newLinkedList();
+    public final List<Measurement> measurements = new LinkedList<>();
+    public final List<SlowCall> slowCalls = new LinkedList<>();
 
     public static class Measurement {
         public String callback;
@@ -17,10 +16,11 @@ public class RequestData {
 
         @Override
         public String toString() {
-            return MoreObjects.toStringHelper(this)
-                    .add("callback", callback)
-                    .add("timing", timing)
-                    .toString();
+            final StringBuilder sb = new StringBuilder("Measurement{");
+            sb.append("callback='").append(callback).append('\'');
+            sb.append(", timing=").append(timing);
+            sb.append('}');
+            return sb.toString();
         }
     }
 
@@ -31,21 +31,23 @@ public class RequestData {
 
         @Override
         public String toString() {
-            return MoreObjects.toStringHelper(this)
-                    .add("callback", callback)
-                    .add("timing", timing)
-                    .add("arguments", arguments)
-                    .toString();
+            final StringBuilder sb = new StringBuilder("SlowCall{");
+            sb.append("callback='").append(callback).append('\'');
+            sb.append(", timing=").append(timing);
+            sb.append(", arguments=").append(Arrays.toString(arguments));
+            sb.append('}');
+            return sb.toString();
         }
     }
 
     @Override
     public String toString() {
-        return MoreObjects.toStringHelper(this)
-                .add("route", route)
-                .add("overtimeCallback", overtimeCallback)
-                .add("measurements", measurements)
-                .add("slowCalls", slowCalls)
-                .toString();
+        final StringBuilder sb = new StringBuilder("RequestData{");
+        sb.append("route='").append(route).append('\'');
+        sb.append(", overtimeCallback='").append(overtimeCallback).append('\'');
+        sb.append(", measurements=").append(measurements);
+        sb.append(", slowCalls=").append(slowCalls);
+        sb.append('}');
+        return sb.toString();
     }
 }
