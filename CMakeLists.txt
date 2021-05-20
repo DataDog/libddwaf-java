@@ -1,5 +1,5 @@
 project(libsqreen_java)
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 2.8.12)
 
 include(FindJNI)
 if (JNI_FOUND)
