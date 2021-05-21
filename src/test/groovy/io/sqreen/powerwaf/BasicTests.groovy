@@ -31,6 +31,22 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
+    void 'test with array of string lists'() {
+        def atom = ARACHNI_ATOM
+
+        ctx = Powerwaf.createContext('test', [test_atom: atom])
+
+        def data = [
+            attack: ['o:1:"ee":1:{}'],
+            PassWord: ['Arachni'],
+        ]
+        ActionWithData awd = ctx.runRule('test_atom',
+                Collections.unmodifiableMap(
+                        ["#._server['HTTP_USER_AGENT']": data]), limits)
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+    }
+
+    @Test
     void 'test null argument'() {
         def atom = ARACHNI_ATOM
 

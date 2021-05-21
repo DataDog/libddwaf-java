@@ -1,19 +1,19 @@
 package io.sqreen.powerwaf;
 
-import com.google.common.base.MoreObjects;
-import io.sqreen.logging.Logger;
-import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
     public static final String LIB_VERSION = "1.0.6";
 
-    private static final Logger LOGGER = LoggerFactory.get(Powerwaf.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
 
     private static boolean triedInitializing;
     private static boolean initialized;
@@ -39,7 +39,7 @@ public final class Powerwaf {
                 NativeLibLoader.load();
             }
         } catch (IOException e) {
-            LOGGER.error(e, "Failure loading native library: %s", e.getMessage());
+            LOGGER.error("Failure loading native library", e);
             throw new RuntimeException("Error loading native lib", e);
         }
         initialized = true;
@@ -63,6 +63,24 @@ public final class Powerwaf {
     static native ActionWithData runRule(String ruleName,
                                          Map<String, Object> parameters,
                                          Limits limits) throws AbstractPowerwafException;
+
+    /**
+     * Runs a rule with the parameters pre-serialized into direct
+     * ByteBuffers. The initial PWArgs must be the object at offset 0
+     * of <code>firstPWArgsBuffer</code>. This object will have pointers
+     * to the remaining data, part of which can live in the buffers
+     * listed in <code>otherBuffers</code>.
+     *
+     * @param ruleName the rule name
+     * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
+     * @param limits the limits
+     * @return the resulting action (OK, MONITOR, BLOCK) and associated details
+     */
+    static native ActionWithData runRule(String ruleName,
+                                         ByteBuffer firstPWArgsBuffer,
+                                         Limits limits);
+
+    static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
     public static native String getVersion();
 
@@ -129,15 +147,24 @@ public final class Powerwaf {
             this.runBudgetInUs = runBudgetInUs;
         }
 
+        public Limits reduceBudget(long amountInUs) {
+            long newBudget = generalBudgetInUs - amountInUs;
+            if (newBudget < 0) {
+                newBudget = 0;
+            }
+            return new Limits(maxDepth, maxElements, maxStringSize, newBudget, runBudgetInUs);
+        }
+
         @Override
         public String toString() {
-            return MoreObjects.toStringHelper(this)
-                    .add("maxDepth", maxDepth)
-                    .add("maxElements", maxElements)
-                    .add("maxStringSize", maxStringSize)
-                    .add("generalBudgetInUs", generalBudgetInUs)
-                    .add("runBudgetInUs", runBudgetInUs)
-                    .toString();
+            final StringBuilder sb = new StringBuilder("Limits{");
+            sb.append("maxDepth=").append(maxDepth);
+            sb.append(", maxElements=").append(maxElements);
+            sb.append(", maxStringSize=").append(maxStringSize);
+            sb.append(", generalBudgetInUs=").append(generalBudgetInUs);
+            sb.append(", runBudgetInUs=").append(runBudgetInUs);
+            sb.append('}');
+            return sb.toString();
         }
     }
 }

@@ -209,6 +209,7 @@ void java_utf16_to_utf8_checked(JNIEnv *env,
     size_t out_cap = (size_t)length + 3; // not including NUL
     size_t out_len = 0;
 
+    // Cannot overflow (jsize is an int)
     uint8_t *out = malloc(out_cap + 1);
     if (!out) {
         JNI(ThrowNew, jcls_rte, "out of memory");
@@ -260,7 +261,12 @@ jstring java_utf8_to_jstring_checked(JNIEnv *env,
     size_t out_cap = in_len; // not including NUL
     size_t out_len = 0;
 
-    jchar *out = malloc((out_cap + 1) * sizeof(*out));
+    jchar *out;
+    if (out_cap > ((size_t)-1) / sizeof(*out) - 1) {
+        JNI(ThrowNew, jcls_rte, "string is too large");
+        return NULL;
+    }
+    out = malloc((out_cap + 1) * sizeof(*out));
     if (!out) {
         JNI(ThrowNew, jcls_rte, "out of memory");
         return NULL;

@@ -1,7 +1,5 @@
 package io.sqreen.powerwaf.exception;
 
-import com.google.common.base.Throwables;
-
 public abstract class AbstractPowerwafException extends Exception {
     public final int code;
 

@@ -40,13 +40,32 @@ static const char *_remove_path(const char *path);
 static JNIEnv *_attach_vm_checked(bool *attached);
 static void _detach_vm(void);
 
-#define LOGGING_LEVEL_DESCR "Lio/sqreen/logging/Level;"
+struct slf4j_strings {
+    const char *level, *level_descr, *logger_factory, *get_logger_descr,
+            *info_to_dbg_descr, *log_descr, *is_loggable_descr;
+};
+static const struct slf4j_strings slf4j_strings_org = {
+        .level = "org/slf4j/event/Level",
+        .level_descr = "Lorg/slf4j/event/Level;",
+        .logger_factory = "org/slf4j/LoggerFactory",
+        .get_logger_descr = "(Ljava/lang/String;)Lorg/slf4j/Logger;",
+        .info_to_dbg_descr = "(Lorg/slf4j/Logger;)V",
+        .log_descr = "(Lorg/slf4j/event/Level;Ljava/lang/Throwable;"
+                     "Ljava/lang/String;[Ljava/lang/Object;)V",
+        .is_loggable_descr = "(Lorg/slf4j/event/Level;)Z",
+};
+static const struct slf4j_strings slf4j_strings_ddog = {
+        .level = "datadog/slf4j/event/Level",
+        .level_descr = "Ldatadog/slf4j/event/Level;",
+        .logger_factory = "datadog/slf4j/LoggerFactory",
+        .get_logger_descr = "(Ljava/lang/String;)Ldatadog/slf4j/Logger;",
+        .info_to_dbg_descr = "(Ldatadog/slf4j/Logger;)V",
+        .log_descr = "(Ldatadog/slf4j/event/Level;Ljava/lang/Throwable;"
+                     "Ljava/lang/String;[Ljava/lang/Object;)V",
+        .is_loggable_descr = "(Ldatadog/slf4j/event/Level;)Z",
+};
+static const struct slf4j_strings *slf4j_active = &slf4j_strings_org;
 
-/* this holds a strong reference to the Logger class, which is generally
- * loaded by the same classloader that loads the JNI library. As such
- * this is the remaining circular reference that prevents the library
- * from being garbage collected without calling the deinitialize() method
- */
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
     char *loc = memrchr(__FILE__, DIR_SEP, strlen(__FILE__));
@@ -64,9 +83,16 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
 
     _vm = vm;
 
-    level_cls = JNI(FindClass, "io/sqreen/logging/Level");
+    level_cls = JNI(FindClass, slf4j_active->level);
     if (!level_cls) {
-        goto error;
+        JNI(ExceptionClear);
+        slf4j_active = &slf4j_strings_ddog;
+        level_cls = JNI(FindClass, slf4j_active->level);
+        if (!level_cls) {
+            java_wrap_exc("Could find slf4j Level neither at %s, nor at %s",
+                          slf4j_strings_org.level, slf4j_strings_ddog.level);
+            goto error;
+        }
     }
 
     object_cls_local = JNI(FindClass, "java/lang/Object");
@@ -80,7 +106,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
 
 #define FETCH_FIELD(var, name) do { \
         var = java_static_field_checked(env, level_cls, \
-                                        name, LOGGING_LEVEL_DESCR); \
+                                        name, slf4j_active->level_descr); \
         if (!var) { goto error; } \
     } while (0)
 
@@ -91,52 +117,61 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     FETCH_FIELD(_error, "ERROR");
 
     if (!java_meth_init_checked(
-            env, &fact_get, "io/sqreen/logging/LoggerFactory",
-            "get", "(Ljava/lang/String;)Lio/sqreen/logging/Logger;",
+            env, &fact_get, slf4j_active->logger_factory,
+            "getLogger", slf4j_active->get_logger_descr,
             JMETHOD_STATIC)) {
         goto error;
     }
 
-    if (!java_meth_init_checked(
-            env, &wrapper_log_init, "io/sqreen/powerwaf/logging/InfoToDebugLogger",
-            "<init>", "(Lio/sqreen/logging/Logger;)V",
-            JMETHOD_CONSTRUCTOR)) {
+    if (!java_meth_init_checked(env, &wrapper_log_init,
+                                "io/sqreen/powerwaf/logging/InfoToDebugLogger",
+                                "<init>", slf4j_active->info_to_dbg_descr,
+                                JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
 
     logger_name = JNI(NewStringUTF, LOGGER_NAME);
+    if (!logger_name) {
+        goto error;
+    }
     logger_local = java_meth_call(env, &fact_get, NULL, logger_name);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
 
     wrapper_local = java_meth_call(env, &wrapper_log_init, NULL, logger_local);
-    if (!wrapper_local) {
+    if (JNI(ExceptionCheck)) {
         goto error;
     }
 
+    /* This will prevent garbage collection of the classloader without
+     * calling Powerwaf.deinitialize(). This is because the InfoToDebugLogger
+     * class will likely have been loaded by the same classloader that is
+     * loading this JNI library */
     _logger = JNI(NewGlobalRef, wrapper_local);
     if (!_logger) {
         goto error;
     }
 
     str_pattern_local = JNI(NewStringUTF, LOGGING_PATTERN);
+    if (!str_pattern_local) {
+        goto error;
+    }
     _log_pattern = JNI(NewGlobalRef, str_pattern_local);
     if (!_log_pattern) {
         goto error;
     }
 
     if (!java_meth_init_checked(
-                env, &_log_meth, "io/sqreen/logging/Logger",
-                "log", "(Lio/sqreen/logging/Level;Ljava/lang/Throwable;"
-                "Ljava/lang/String;[Ljava/lang/Object;)V", JMETHOD_VIRTUAL)) {
+                env, &_log_meth, "io/sqreen/powerwaf/logging/InfoToDebugLogger",
+                "log", slf4j_active->log_descr, JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
     if (!java_meth_init_checked(
-                env, &_is_loggable, "io/sqreen/logging/Logger",
-                "isLoggable", "(Lio/sqreen/logging/Level;)Z",
-                JMETHOD_VIRTUAL)) {
+                env, &_is_loggable, "io/sqreen/powerwaf/logging/InfoToDebugLogger",
+                "isLoggable", slf4j_active->is_loggable_descr,
+                JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 

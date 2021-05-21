@@ -1,5 +1,5 @@
 project(libsqreen_java)
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 2.8.12)
 
 include(FindJNI)
 if (JNI_FOUND)
@@ -30,6 +30,8 @@ if(NOT(MSVC))
 endif()
 
 set(SOURCE_FILES
+    src/main/c/byte_buffer.c
+    src/main/c/debug_helpers.c
     src/main/c/detailed_metrics.c
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c
@@ -53,7 +55,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -Wno-documentation -Wno-nullability-extension -Wno-zero-length-array
         -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-switch
         -Wno-gnu-statement-expression -Wno-reserved-id-macro
-        -Wno-atomic-implicit-seq-cst
+        -Wno-atomic-implicit-seq-cst -Wno-covered-switch-default
         -Wno-switch-enum)
 endif()
 

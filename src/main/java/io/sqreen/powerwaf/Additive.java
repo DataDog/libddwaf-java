@@ -1,9 +1,9 @@
 package io.sqreen.powerwaf;
 
-import io.sqreen.logging.Logger;
-import io.sqreen.logging.LoggerFactory;
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.util.Map;
@@ -11,7 +11,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public final class Additive implements Closeable {
-    private final Logger logger = LoggerFactory.get(getClass());
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     /**
      *  The ptr field holds the pointer to PWAddContext and managed by PowerWAF
@@ -57,7 +57,7 @@ public final class Additive implements Closeable {
      * @param ruleName      related rule name
      */
     private Additive(long ptr, String ruleName) {
-        this.logger.debug("Creating PowerWAF Additive for rule %s", ruleName);
+        this.logger.debug("Creating PowerWAF Additive for rule {}", ruleName);
         ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
         this.readLock = rwLock.readLock();
         this.writeLock = rwLock.writeLock();
@@ -112,7 +112,7 @@ public final class Additive implements Closeable {
         this.writeLock.lock();
         try {
             clearAdditive();
-            this.logger.debug("Closed Additive for rule %s", this.ruleName);
+            this.logger.debug("Closed Additive for rule {}", this.ruleName);
         } finally {
             this.writeLock.unlock();
         }
@@ -125,7 +125,7 @@ public final class Additive implements Closeable {
         try {
             if (this.ptr != 0) {
                 this.logger.warn(
-                        "Additive for rule %s had not been properly cleared", this.ruleName);
+                        "Additive for rule {} had not been properly cleared", this.ruleName);
                 close();
             }
         } finally {
