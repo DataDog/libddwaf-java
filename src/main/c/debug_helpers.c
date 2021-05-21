@@ -17,6 +17,9 @@ typedef struct {
 
 #define INITIAL_CAPACITY ((size_t)16)
 
+JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToJson(
+    JNIEnv *, jclass, jobject);
+
 static void _hstring_write_pwargs(hstring *str, size_t depth,
                                   const PWArgs *pwargs);
 
@@ -28,6 +31,7 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
 JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToJson(
     JNIEnv *env, jclass clazz, jobject byte_buffer)
 {
+    (void) clazz;
     void *input_p = JNI(GetDirectBufferAddress, byte_buffer);
     if (!input_p) {
         JNI(ThrowNew, jcls_rte, "Not a DirectBuffer passed");
@@ -139,7 +143,7 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         char scratch[sizeof("-9223372036854775808")];
         int len = snprintf(scratch, sizeof(scratch), "%" PRId64,
                            pwargs->intValue);
-        if (len < sizeof scratch) {
+        if ((size_t) len < sizeof scratch) {
             _hstring_append(str, scratch, (size_t) len);
         } // else should never happen
         HSTRING_APPEND_CONST(str, "\n");
@@ -150,7 +154,7 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         char scratch[sizeof("18446744073709551615")];
         int len = snprintf(scratch, sizeof(scratch), "%" PRIu64,
                            pwargs->uintValue);
-        if (len < sizeof scratch) {
+        if ((size_t) len < sizeof scratch) {
             _hstring_append(str, scratch, (size_t) len);
         } // else should never happen
         HSTRING_APPEND_CONST(str, "\n");
