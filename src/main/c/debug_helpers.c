@@ -17,19 +17,19 @@ typedef struct {
 
 #define INITIAL_CAPACITY ((size_t)16)
 
-JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToJson(
-    JNIEnv *, jclass, jobject);
+JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
+        JNIEnv *, jclass, jobject);
 
 static void _hstring_write_pwargs(hstring *str, size_t depth,
                                   const PWArgs *pwargs);
 
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
- * Method:    pwArgsBufferToJson
+ * Method:    pwArgsBufferToString
  * Signature: (Ljava/nio/ByteBuffer;)Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToJson(
-    JNIEnv *env, jclass clazz, jobject byte_buffer)
+JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
+        JNIEnv *env, jclass clazz, jobject byte_buffer)
 {
     (void) clazz;
     void *input_p = JNI(GetDirectBufferAddress, byte_buffer);

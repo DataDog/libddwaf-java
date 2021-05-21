@@ -80,7 +80,7 @@ public final class Powerwaf {
                                          ByteBuffer firstPWArgsBuffer,
                                          Limits limits);
 
-    static native String pwArgsBufferToJson(ByteBuffer firstPWArgsBuffer);
+    static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
     public static native String getVersion();
 
