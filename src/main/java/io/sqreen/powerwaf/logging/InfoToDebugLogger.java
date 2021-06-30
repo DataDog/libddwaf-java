@@ -68,6 +68,11 @@ public class InfoToDebugLogger extends ForwardLogger {
     }
 
     @Override
+    public boolean isInfoEnabled() {
+        return delegate.isDebugEnabled();
+    }
+
+    @Override
     public boolean isInfoEnabled(Marker marker) {
         return delegate.isDebugEnabled(marker);
     }
