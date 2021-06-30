@@ -11,6 +11,9 @@ public class InfoToDebugLogger extends ForwardLogger {
 
     // these simplify calls from JNI
     public void log(Level level, Throwable t, String fmt, Object[] args) {
+        if (!isLoggable(level)) {
+            return;
+        }
         String msg = String.format(fmt, args);
         switch (level) {
             case ERROR:
@@ -65,6 +68,11 @@ public class InfoToDebugLogger extends ForwardLogger {
                 return isTraceEnabled();
         }
         return false; // unreachable
+    }
+
+    @Override
+    public boolean isInfoEnabled() {
+        return delegate.isDebugEnabled();
     }
 
     @Override

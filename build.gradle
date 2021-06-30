@@ -1,6 +1,8 @@
 import com.amazonaws.AmazonClientException
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
 import com.amazonaws.auth.profile.*
+import com.amazonaws.services.s3.*
+import com.amazonaws.services.s3.model.*
 
 buildscript {
     repositories {
@@ -8,6 +10,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.amazonaws:aws-java-sdk-core:1.11.25'
+        classpath 'com.amazonaws:aws-java-sdk-s3:1.11.25'
     }
 }
 
@@ -27,7 +30,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '2.0'
+version '2.0.1'
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
@@ -187,28 +190,28 @@ task packageDebugSymbols(type: Zip) {
     dependsOn checkForNativeLibs
 }
 
+def creds = null
+try {
+    //looks in AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY) and AWS_SECRET_KEY
+    // (or AWS_SECRET_ACCESS_KEY) environment variables.
+    creds = new EnvironmentVariableCredentialsProvider().credentials
+} catch (AmazonClientException e) {
+    logger.warn 'No AWS credentials in env variables'
+    try {
+        // creds can be in env variables or ~/.aws/{credentials,config}
+        creds = new ProfileCredentialsProvider('mfa').credentials
+    } catch (IllegalArgumentException ee) {
+        logger.warn 'No AWS credentials in ~/.aws/credentials'
+    } catch (NullPointerException npe) {
+        logger.warn 'No AWS credentials in ~/.aws/credentials'
+    }
+}
+
 publishing {
     repositories {
         ivy {
             artifactPattern 's3://sqreen-ci-java/jars/[organisation]/[artifact]-[revision](-[classifier]).[ext]'
             ivyPattern 's3://sqreen-ci-java/jars/[organisation]/[module]-[revision].xml'
-
-            def creds = null
-            try {
-                //looks in AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY) and AWS_SECRET_KEY
-                // (or AWS_SECRET_ACCESS_KEY) environment variables.
-                creds = new EnvironmentVariableCredentialsProvider().credentials
-            } catch (AmazonClientException e) {
-                logger.warn 'No AWS credentials in env variables'
-                try {
-                    // creds can be in env variables or ~/.aws/{credentials,config}
-                    creds = new ProfileCredentialsProvider('mfa').credentials
-                } catch (IllegalArgumentException ee) {
-                    logger.warn 'No AWS credentials in ~/.aws/credentials'
-                } catch (NullPointerException npe) {
-                    logger.warn 'No AWS credentials in ~/.aws/credentials'
-                }
-            }
 
             if (creds) {
                 credentials(AwsCredentials) {
@@ -237,6 +240,20 @@ publishing {
             }
         }
     }
+}
+
+task fixS3Permissions {
+    doLast {
+        def bucket = 'sqreen-ci-java'
+        def s3 = new AmazonS3Client(creds)
+        ObjectListing listing = s3.listObjects(bucket,
+                "jars/io.sqreen/libsqreen-${project.version}")
+        for (S3ObjectSummary summary: listing.objectSummaries) {
+            logger.info "Setting ACL for ${summary.key}"
+            s3.setObjectAcl(bucket, summary.key, CannedAccessControlList.PublicRead)
+        }
+    }
+    publish.finalizedBy it
 }
 
 task copyNativeLibs(type: Copy) {
