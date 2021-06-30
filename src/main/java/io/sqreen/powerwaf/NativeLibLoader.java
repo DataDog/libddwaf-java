@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class NativeLibLoader {
@@ -27,7 +29,7 @@ public class NativeLibLoader {
             LOGGER.debug("Native libs to copy: {}", Joiner.on(", ").join(nativeLibs));
         }
 
-        File tempDir = createTempDir();
+        Path tempDir = Files.createTempDirectory("pwaf");
         LOGGER.debug("Created temporary directory {}", tempDir);
 
         File jniLib = null;
@@ -38,7 +40,7 @@ public class NativeLibLoader {
                 throw new UnsupportedVMException("Not found: " + clPath);
             }
 
-            File dest = new File(tempDir, new File(clPath).getName());
+            File dest = new File(tempDir.toFile(), new File(clPath).getName());
             if (dest.getName().contains("_jni")) {
                 jniLib = dest;
             }
@@ -138,29 +140,6 @@ public class NativeLibLoader {
                 os.close();
             }
         }
-    }
-
-    private static final int TEMP_DIR_ATTEMPTS = 1000;
-    // originally com.google.common.io.Files.createTempDir()
-    private static File createTempDir() {
-        File baseDir = new File(System.getProperty("java.io.tmpdir"));
-        String baseName = System.currentTimeMillis() + "-";
-
-        for (int counter = 0; counter < TEMP_DIR_ATTEMPTS; counter++) {
-            File tempDir = new File(baseDir, baseName + counter);
-            if (tempDir.mkdir()) {
-                return tempDir;
-            }
-        }
-        throw new IllegalStateException(
-                "Failed to create directory within "
-                        + TEMP_DIR_ATTEMPTS
-                        + " attempts (tried "
-                        + baseName
-                        + "0 to "
-                        + baseName
-                        + (TEMP_DIR_ATTEMPTS - 1)
-                        + ')');
     }
 
     private static long copy(InputStream from, OutputStream to) throws IOException {
