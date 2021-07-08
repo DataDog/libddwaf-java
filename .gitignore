@@ -18,3 +18,7 @@
 /static_analysis/
 *.iml
 /compile_commands.json
+/.project
+/.settings
+/bin
+/.classpath
