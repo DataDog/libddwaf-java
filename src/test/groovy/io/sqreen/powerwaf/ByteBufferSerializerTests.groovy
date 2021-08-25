@@ -10,9 +10,14 @@ import static org.hamcrest.Matchers.*
 class ByteBufferSerializerTests implements PowerwafTrait {
 
     @Lazy
-    ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
+    ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
 
     ByteBufferSerializer.ArenaLease lease
+
+    @After
+    void after() {
+        lease?.close()
+    }
 
     @Test
     void 'can serialize a string'() {
@@ -39,7 +44,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
 
     @Test
     void 'can serialize a big int as a long'() {
-        BigInteger bi = new BigInteger("18446744073709551623").toLong() // 2^64 + 7
+        BigInteger bi = 18446744073709551623.toLong() // 2^64 + 7
         lease = serializer.serialize([my_key: bi])
         String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
         def exp = p '''
@@ -109,14 +114,14 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     @Test
     void 'iteration yields fewer elements the second time'() {
         def list = [1, 2]
-        def first = true;
+        def first = true
         def iterable = [
                 iterator: { ->
                     if (first) {
                         first = false
                         list.iterator()
                     } else {
-                        [1].iterator();
+                        [1].iterator()
                     }
                 }
         ] as Iterable
@@ -162,10 +167,10 @@ class ByteBufferSerializerTests implements PowerwafTrait {
 
     @Test
     void 'force creation of new string segment'() {
-        maxStringSize = Integer.MAX_VALUE;
+        maxStringSize = Integer.MAX_VALUE
 
         def size = ByteBufferSerializer.STRINGS_MIN_SEGMENTS_SIZE + 1
-        def str = 'x' * size;
+        def str = 'x' * size
         2.times {
             serializer.serialize([key1: str, key2: 42]).withCloseable { lease ->
                 String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
@@ -250,10 +255,5 @@ class ByteBufferSerializerTests implements PowerwafTrait {
 
     private static String p(String s) {
         s.stripIndent()[1..-1]
-    }
-
-    @After
-    void after() {
-        lease?.close()
     }
 }

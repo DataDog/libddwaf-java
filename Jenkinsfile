@@ -12,8 +12,8 @@ node 'docker_build', {
         sh 'ci/jenkins_run.sh build_docker_image'
     }
 
-    stage 'Build Libsqreen', {
-        sh 'ci/jenkins_run.sh build_libsqreen'
+    stage 'Build libddwaf', {
+        sh 'ci/jenkins_run.sh build_libddwaf'
     }
 
     stage 'Build and test Java wrapper', {

@@ -1,6 +1,5 @@
-FROM quay.io/pypa/manylinux2010_x86_64
+FROM quay.io/pypa/manylinux2010_x86_64@sha256:4e92ea10ee57db150ccc9ab264f9cfd889db788adb10b3478f77b1c6c75db684
 
-RUN yum install -y centos-release-scl
 RUN yum install -y \
 	git \
 	java-1.8.0-openjdk-devel

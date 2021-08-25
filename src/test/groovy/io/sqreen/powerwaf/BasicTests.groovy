@@ -15,45 +15,44 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test running basic rule'() {
-        def atom = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM
 
-        ctx = Powerwaf.createContext('test', [test_atom: atom])
+        ctx = Powerwaf.createContext('test', ruleSet)
 
-        ActionWithData awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": 'Arachni'], limits)
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
         def json = slurper.parseText(awd.data)
         assert json.ret_code == [1]
         assert json.flow == ['arachni_detection']
-        assert json.step == ['start']
-        assert json.rule == ['1']
+        assert json.rule == ['arachni_rule']
     }
 
     @Test
     void 'test with array of string lists'() {
-        def atom = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM
 
-        ctx = Powerwaf.createContext('test', [test_atom: atom])
+        ctx = Powerwaf.createContext('test', ruleSet)
 
         def data = [
             attack: ['o:1:"ee":1:{}'],
             PassWord: ['Arachni'],
         ]
-        ActionWithData awd = ctx.runRule('test_atom',
-                Collections.unmodifiableMap(
-                        ["#._server['HTTP_USER_AGENT']": data]), limits)
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 
     @Test
     void 'test null argument'() {
-        def atom = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM
 
-        ctx = Powerwaf.createContext('test', [test_atom: atom])
+        ctx = Powerwaf.createContext('test', ruleSet)
 
-        ActionWithData awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": [null, 'Arachni']], limits)
+        def data = [null, 'Arachni']
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 }

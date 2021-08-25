@@ -22,6 +22,7 @@ extern "C" {
  */
 JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_ByteBufferSerializer_getByteBufferAddress
   (JNIEnv *, jclass, jobject);
+
 #ifdef __cplusplus
 }
 #endif

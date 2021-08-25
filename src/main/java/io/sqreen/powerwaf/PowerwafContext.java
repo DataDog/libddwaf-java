@@ -7,21 +7,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.HashSet;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Represents a collection of PowerWAF rules, allocated and deallocated together.
+ * Represents a PowerWAF rule, ensuring that no runs happen after the rule
+ * is destroyed and that the rule is not destroyed during runs.
  */
 public class PowerwafContext implements Closeable {
     private final static boolean POWERWAF_ENABLE_BYTE_BUFFERS;
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final String uniqueName;
-    private final Set<String> ruleNames;
+    final PowerwafHandle handle;
 
     private boolean offline;
 
@@ -33,46 +34,31 @@ public class PowerwafContext implements Closeable {
         POWERWAF_ENABLE_BYTE_BUFFERS = !bb.equalsIgnoreCase("false") && !bb.equals("0");
     }
 
-    PowerwafContext(String uniqueName, Map<String, String> rules) throws AbstractPowerwafException {
+    PowerwafContext(String uniqueName, Map<String, Object> definition) throws AbstractPowerwafException {
         this.logger.debug("Creating PowerWAF context {}", uniqueName);
         ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
         this.readLock = rwLock.readLock();
         this.writeLock = rwLock.writeLock();
 
-        this.ruleNames = new HashSet<>();
         this.uniqueName = uniqueName;
-        for (Map.Entry<String, String> entry : rules.entrySet()) {
-            String fullRuleName = addRule(entry.getKey(), entry.getValue());
-            this.ruleNames.add(fullRuleName);
+
+        if (!definition.containsKey("version") ||
+                !definition.containsKey("events")) {
+            throw new IllegalStateException(
+                    "Invalid definition. Expected keys 'version' and 'events' to exist");
         }
+        this.handle = Powerwaf.addRules(definition);
 
         this.logger.debug("Successfully create PowerWAF context {}", uniqueName);
     }
 
-    private String addRule(String ruleName, String ruleDefinition) throws AbstractPowerwafException {
-        String fullRuleName = getFullRuleName(ruleName);
-        this.logger.debug("Adding rule {}", fullRuleName);
-        boolean result = Powerwaf.addRule(fullRuleName, ruleDefinition);
-        if (!result) {
-            throw new UnclassifiedPowerwafException("Failed adding PowerWAF rule " + ruleName
-                    + " for context named " + this.uniqueName);
-        }
-        return fullRuleName;
-    }
-
-    private String getFullRuleName(String ruleName) {
-        return this.uniqueName + '.' + ruleName;
-    }
-
-    public Powerwaf.ActionWithData runRule(String ruleName,
-                                           Map<String, Object> parameters,
-                                           Powerwaf.Limits limits) throws AbstractPowerwafException {
-        String fullRuleName = getFullRuleName(ruleName);
+    public Powerwaf.ActionWithData runRules(Map<String, Object> parameters,
+                                            Powerwaf.Limits limits) throws AbstractPowerwafException {
         this.readLock.lock();
         try {
             checkIfOnline();
-            this.logger.debug("Running rule {} with limits {}",
-                    fullRuleName, limits);
+            this.logger.debug("Running rule for context {} with limits {}",
+                    this, limits);
 
             Powerwaf.ActionWithData res;
             if (POWERWAF_ENABLE_BYTE_BUFFERS) {
@@ -83,31 +69,31 @@ public class PowerwafContext implements Closeable {
                     Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
                     if (newLimits.generalBudgetInUs == 0L) {
                         this.logger.debug(
-                                "Budget exhausted after serialization; not running rule {}",
-                                fullRuleName);
+                                "Budget exhausted after serialization; " +
+                                        "not running rule of context {}",
+                                this);
                         throw new TimeoutPowerwafException();
                     }
-                    res = Powerwaf.runRule(fullRuleName, lease.getFirstPWArgsByteBuffer(),
-                            limits);
+                    res = Powerwaf.runRules(this.handle, lease.getFirstPWArgsByteBuffer(), limits);
                 }
             } else {
-                res = Powerwaf.runRule(fullRuleName, parameters, limits);
+                res = Powerwaf.runRules(this.handle, parameters, limits);
             }
 
-            this.logger.debug("Rule {} ran successfully with return {}", fullRuleName, res);
+            this.logger.debug("Rule of context {} ran successfully with return {}", this, res);
 
             return res;
         } catch (RuntimeException rte) {
             throw new UnclassifiedPowerwafException(
-                    "Error calling PowerWAF's runRule for rule " + fullRuleName +
+                    "Error calling PowerWAF's runRule for rule in context " + this +
                     ": " + rte.getMessage(), rte);
         } finally {
             this.readLock.unlock();
         }
     }
 
-    public Additive openAdditive(String ruleName) throws AbstractPowerwafException {
-        return Additive.createAdditive(getFullRuleName(ruleName));
+    public Additive openAdditive() throws AbstractPowerwafException {
+        return new Additive(this);
     }
 
     private void checkIfOnline() {
@@ -116,6 +102,21 @@ public class PowerwafContext implements Closeable {
         }
     }
 
+    public <T> T withReadLock(Callable<T> callable) {
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            return callable.call();
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            } else {
+                throw new UndeclaredThrowableException(e);
+            }
+        } finally {
+            this.readLock.unlock();
+        }
+    }
 
     @Override
     public void close() {
@@ -123,9 +124,7 @@ public class PowerwafContext implements Closeable {
         this.writeLock.lock();
         try {
             checkIfOnline();
-            for (String rule : this.ruleNames) {
-                Powerwaf.clearRule(rule);
-            }
+            Powerwaf.clearRules(this.handle);
             this.offline = true;
         } finally {
             this.writeLock.unlock();
@@ -145,5 +144,13 @@ public class PowerwafContext implements Closeable {
         } finally {
             this.writeLock.unlock();
         }
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("PowerwafContext{");
+        sb.append(uniqueName);
+        sb.append('}');
+        return sb.toString();
     }
 }

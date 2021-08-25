@@ -9,7 +9,7 @@ else()
     message(FATAL_ERROR "Found JNI: failed")
 endif()
 
-find_package(libsqreen REQUIRED)
+find_package(libddwaf REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -32,7 +32,6 @@ endif()
 set(SOURCE_FILES
     src/main/c/byte_buffer.c
     src/main/c/debug_helpers.c
-    src/main/c/detailed_metrics.c
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c
     src/main/c/utf16_utf8.c
@@ -64,14 +63,14 @@ set_target_properties(sqreen_jni PROPERTIES
 
 target_include_directories(sqreen_jni PRIVATE ${JNI_INCLUDE_DIRS})
 if(MSVC)
-    set(SQREEN_TARGET SqreenStatic)
+    set(LIBDDWAF_TARGET libddwaf_static)
 else()
-    set(SQREEN_TARGET Sqreen)
+    set(LIBDDWAF_TARGET libddwaf_shared)
 endif()
 if(NOT (CMAKE_CXX_COMPILER_ID MATCHES MSVC OR APPLE))
     target_link_libraries(sqreen_jni PRIVATE rt)
 endif()
-target_link_libraries(sqreen_jni PRIVATE ${SQREEN_TARGET} ${JAVA_JVM_LIBRARY})
+target_link_libraries(sqreen_jni PRIVATE ${LIBDDWAF_TARGET} ${JAVA_JVM_LIBRARY})
 
 if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
     if(APPLE)

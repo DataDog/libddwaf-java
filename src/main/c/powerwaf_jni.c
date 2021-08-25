@@ -1,10 +1,10 @@
-#include "io_sqreen_powerwaf_Powerwaf.h"
+#include "jni/io_sqreen_powerwaf_Powerwaf.h"
+#include "jni/io_sqreen_powerwaf_Additive.h"
 #include "common.h"
 #include "java_call.h"
 #include "utf16_utf8.h"
 #include "logging.h"
 #include "compat.h"
-#include "detailed_metrics.h"
 #include <PowerWAF.h>
 #include <assert.h>
 #include <string.h>
@@ -35,6 +35,7 @@ static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
 static int64_t _get_pw_run_timeout_checked(JNIEnv *env);
 static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limits);
 static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits);
+static PWHandle _get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj);
 
 static const PWArgs _pwinput_invalid = { .type = PWI_INVALID };
 
@@ -67,12 +68,16 @@ static jfieldID _additive_ptr;
 jclass string_cls;
 struct j_method to_string;
 
-static struct j_method _additive_init;
+static struct j_method _pwaf_handle_init;
+static jfieldID _pwaf_handle_native_handle;
 
 struct j_method number_longValue;
 struct j_method number_doubleValue;
 // weak, but assumed never to be gced
 jclass *number_cls = &number_longValue.class_glob;
+
+static struct j_method _boolean_booleanValue;
+static jclass *_boolean_cls = &_boolean_booleanValue.class_glob;
 
 struct j_method map_entryset;
 struct j_method map_size;
@@ -88,6 +93,7 @@ struct j_method iterator_next;
 struct j_method iterator_hasNext;
 
 struct j_method class_is_array;
+static struct j_method _class_get_name;
 
 static int64_t pw_run_timeout;
 
@@ -130,15 +136,6 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
         goto error;
     }
 
-    bool detailed_metrics_ok = detailed_metrics_cache_global_references(env);
-    if (!detailed_metrics_ok) {
-        if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_rte, "Library initialization failed"
-                                    "(detailed_metrics_cache_global_references)");
-        }
-        goto error;
-    }
-
     pw_run_timeout = _get_pw_run_timeout_checked(env);
     if (JNI(ExceptionCheck)) {
         goto error;
@@ -176,52 +173,49 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_deinitialize(
 
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
- * Method:    addRule
- * Signature: (Ljava/lang/String;Ljava/lang/String;)Z
+ * Method:    addRules
+ * Signature: (Ljava/util/Map;)Lio/sqreen/powerwaf/PowerWAFHandle
  */
-JNIEXPORT jboolean JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRule(
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules(
         JNIEnv *env, jclass clazz,
-        jstring rule_name, jstring rule_def)
+        jobject rule_def)
 {
     UNUSED(clazz);
 
     if (!_check_init(env)) {
-        return JNI_FALSE;
+        return NULL;
     }
 
-    jboolean result = JNI_FALSE;
-    char *rule_name_c = NULL;
-    char *rule_def_c = NULL;
-
-    rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
-    if (!rule_name_c) {
-        goto end;
-    }
-    rule_def_c = java_to_utf8_checked(env, rule_def, NULL);
-    if (!rule_def_c) {
-        goto end;
+    struct _limits limits = {
+        .max_depth = 20,
+        .max_elements = 1000000,
+        .max_string_size = 1000000,
+    };
+    PWArgs input = _convert_checked(env, rule_def, &limits, 0);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
     }
 
-    char * errors = NULL;
-    result = pw_init(rule_name_c, rule_def_c, &_pw_config, &errors);
+    PWHandle nativeHandle = pw_initH(input, &_pw_config);
+    pw_freeArg(&input);
 
-    if (!result && errors != NULL)
-        JAVA_LOG(PWL_WARN, "PowerWAF init error: '%s'", errors);
+    if (!nativeHandle) {
+        JAVA_LOG(PWL_WARN, "call to pw_initH failed");
+        JNI(ThrowNew, jcls_iae, "Call to pw_initH failed");
+        return NULL;
+    }
 
-end:
-    free(rule_name_c);
-    free(rule_def_c);
-
-    return result;
+    return java_meth_call(env, &_pwaf_handle_init, NULL,
+                          (jlong)(intptr_t) nativeHandle);
 }
 
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
- * Method:    clearRule
- * Signature: (Ljava/lang/String;)V
+ * Method:    clearRules
+ * Signature: (Lio/sqreen/powerwaf/PowerWAFHandle;)V
  */
-JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRule(
-        JNIEnv *env, jclass clazz, jstring rule_name)
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRules(
+        JNIEnv *env, jclass clazz, jobject handle_obj)
 {
     UNUSED(clazz);
 
@@ -229,22 +223,20 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRule(
         return;
     }
 
-    char *rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
-    if (!rule_name_c) {
+    PWHandle nat_handle;
+    if (!(nat_handle = _get_pwaf_handle_checked(env, handle_obj))) {
         return;
     }
 
-    pw_clearRule(rule_name_c);
-    free(rule_name_c);
+    pw_clearRuleH(nat_handle);
 }
 
 // runRule overloads
 static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
-                                jstring rule_name, jobject parameters,
+                                jobject handle_obj, jobject parameters,
                                 jobject limits_obj)
 {
     jobject result = NULL;
-    char *rule_name_c = NULL;
     PWArgs input = { .type = PWI_INVALID };
     struct _limits limits;
     PWRet ret;
@@ -263,9 +255,9 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         return NULL;
     }
 
-    rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
-    if (!rule_name_c) {
-        goto end;
+    PWHandle pwhandle;
+    if (!(pwhandle = _get_pwaf_handle_checked(env, handle_obj))) {
+        return NULL;
     }
 
     int64_t rem_gen_budget_in_us;
@@ -309,7 +301,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
-    ret = pw_run(rule_name_c, input, run_budget);
+    ret = pw_runH(pwhandle, input, run_budget);
 
     jobject action_obj;
     switch (ret.action) {
@@ -356,7 +348,6 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 freeRet:
     pw_freeReturn(ret);
 end:
-    free(rule_name_c);
     if (!is_byte_buffer) {
         pw_freeArg(&input);
     }
@@ -366,30 +357,27 @@ end:
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
- * Method:    runRule
- * Signature: (Ljava/lang/String;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * Method:    runRules
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
  */
 JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Powerwaf_runRule__Ljava_lang_String_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
-        JNIEnv *env, jclass clazz, jstring rule_name, jobject parameters,
+Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
+        JNIEnv *env, jclass clazz, jobject handle_obj, jobject parameters,
         jobject limits_obj)
 {
-    return _run_rule_common(false, env, clazz, rule_name, parameters,
+    return _run_rule_common(false, env, clazz, handle_obj, parameters,
                             limits_obj);
 }
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
- * Method:    runRule
- * Signature:
- * (Ljava/lang/String;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * Method:    runRules
+ * Signature: (Lio/sqreen/powerwaf/PowerWAFHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
  */
-JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Powerwaf_runRule__Ljava_lang_String_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
-        JNIEnv *env, jclass clazz, jstring rule_name, jobject main_byte_buffer,
-        jobject limits_obj)
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2
+  (JNIEnv *env, jclass clazz, jobject handle_obj, jobject main_byte_buffer, jobject limits_obj)
 {
-    return _run_rule_common(true, env, clazz, rule_name, main_byte_buffer,
+    return _run_rule_common(true, env, clazz, handle_obj, main_byte_buffer,
                             limits_obj);
 }
 
@@ -422,43 +410,36 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion(
 /*
  * Class:     io.sqreen.powerwaf.Additive
  * Method:    initAdditive
- * Signature: (Ljava/lang/String;)Ljava/lang/Object;
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)J
  */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
-        (JNIEnv *env, jobject clazz, jstring rule_name)
+JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive(
+        JNIEnv *env, jclass clazz, jobject handle_obj)
 {
-    UNUSED(env);
     UNUSED(clazz);
 
-    PWAddContext *context = NULL;
-    char *rule_name_c = NULL;
-
-    if (rule_name == NULL) {
-            JNI(ThrowNew, jcls_iae, "ruleName should not be null");
-        return NULL;
+    PWHandle nat_handle;
+    if (!(nat_handle = _get_pwaf_handle_checked(env, handle_obj))) {
+        return 0L;
     }
 
-    rule_name_c = java_to_utf8_checked(env, rule_name, NULL);
-    if (rule_name_c == NULL) {
-        return NULL;
+    PWAddContext *context = pw_initAdditiveH(nat_handle);
+    if (!context) {
+        JNI(ThrowNew, jcls_rte, "pw_initAdditiveH failed");
+        return 0L;
     }
 
-    context = pw_initAdditive(rule_name_c);
-    if (context == NULL) {
-        return NULL;
-    }
-
-    return java_meth_call(env, &_additive_init, NULL, (jlong) context, rule_name);
+    return (jlong)(intptr_t) context;
 }
 
 /*
- * Class:     io.sqreen.powerwaf.Additive
- * Method:    runAdditive
- * Signature: (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * Class:     io_sqreen_powerwaf_Additive
+ * Method:    runAdditiveInternal
+ * Signature:
+ * (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
  */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive
-        (JNIEnv *env, jobject this, jobject parameters, jobject limits_obj) {
-
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditiveInternal(
+        JNIEnv *env, jobject this, jobject parameters, jobject limits_obj)
+{
     jobject result = NULL;
     PWAddContext context = NULL;
     PWArgs input;
@@ -627,8 +608,6 @@ static void _deinitialize(JNIEnv *env)
 //        jcls_rte = NULL;
 //    }
 
-    detailed_metrics_deinitialize(env);
-
     pw_clearAll();
     pw_setupLogging(NULL, PWL_ERROR);
 
@@ -744,6 +723,21 @@ error:
     return ret;
 }
 
+static bool _fetch_native_handle_field(JNIEnv *env)
+{
+    jclass cls = JNI(FindClass, "io/sqreen/powerwaf/PowerwafHandle");
+    if (!cls) {
+        java_wrap_exc("Could not find class io.sqreen.powerwaf.PowerWAFHandle");
+        return false;
+    }
+
+    _pwaf_handle_native_handle = JNI(GetFieldID, cls, "nativeHandle", "J");
+    bool ret = _pwaf_handle_native_handle != 0;
+
+    JNI(DeleteLocalRef, cls);
+    return ret;
+}
+
 static void _dispose_of_action_enums(JNIEnv *env)
 {
     if (_action_ok) {
@@ -783,35 +777,28 @@ static bool _cache_single_class_weak(JNIEnv *env,
 
 static bool _cache_classes(JNIEnv *env)
 {
-  return _cache_single_class_weak(env, "java/lang/RuntimeException",
-                                  &jcls_rte) &&
-         _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
-                                  &jcls_iae) &&
-         _cache_single_class_weak(env, "java/lang/String", &string_cls);
+    return _cache_single_class_weak(env, "java/lang/RuntimeException",
+                                    &jcls_rte) &&
+           _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
+                                    &jcls_iae) &&
+           _cache_single_class_weak(env, "java/lang/String", &string_cls);
 }
 
 static void _dispose_of_weak_classes(JNIEnv *env)
 {
-#define DESTROY_CLASS_REF(jcls) \
-    if (jcls) { \
-        JNI(DeleteWeakGlobalRef, jcls); \
-        jcls = NULL; \
+#define DESTROY_CLASS_REF(jcls)                                                \
+    if (jcls) {                                                                \
+        JNI(DeleteWeakGlobalRef, jcls);                                        \
+        jcls = NULL;                                                           \
     }
 
-  DESTROY_CLASS_REF(string_cls)
+    DESTROY_CLASS_REF(jcls_iae)
+    DESTROY_CLASS_REF(string_cls)
     // leave jcls_rte for last in OnUnload; we might still need it
 }
 
 static bool _cache_methods(JNIEnv *env)
 {
-    if (!java_meth_init_checked(
-            env, &_additive_init,
-            "io/sqreen/powerwaf/Additive", "<init>",
-            "(JLjava/lang/String;)V",
-            JMETHOD_CONSTRUCTOR)) {
-        goto error;
-    }
-
     if (!java_meth_init_checked(env, &to_string, "java/lang/Object", "toString",
                                 "()Ljava/lang/String;", JMETHOD_VIRTUAL)) {
         goto error;
@@ -832,11 +819,23 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
+    if (!java_meth_init_checked(env, &_boolean_booleanValue,
+                                "java/lang/Boolean", "booleanValue", "()Z",
+                                JMETHOD_NON_VIRTUAL)) {
+        goto error;
+    }
+
     if (!java_meth_init_checked(
                 env, &_action_with_data_init,
                 "io/sqreen/powerwaf/Powerwaf$ActionWithData", "<init>",
                 "(Lio/sqreen/powerwaf/Powerwaf$Action;Ljava/lang/String;)V",
                 JMETHOD_CONSTRUCTOR)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &_pwaf_handle_init,
+                                "io/sqreen/powerwaf/PowerwafHandle", "<init>",
+                                "(J)V", JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
 
@@ -893,6 +892,12 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
+    if (!java_meth_init_checked(env, &_class_get_name, "java/lang/Class",
+                                "getName", "()Ljava/lang/String;",
+                                JMETHOD_NON_VIRTUAL)) {
+        goto error;
+    }
+
     return true;
 error:
     return false;
@@ -905,10 +910,11 @@ static void _dispose_of_cached_methods(JNIEnv *env)
         java_meth_destroy(env, &(var)); \
     }
 
-    DESTROY_METH(_additive_init)
     DESTROY_METH(to_string)
     DESTROY_METH(number_longValue)
+    DESTROY_METH(_boolean_booleanValue)
     DESTROY_METH(_action_with_data_init)
+    DESTROY_METH(_pwaf_handle_init)
     DESTROY_METH(map_entryset)
     DESTROY_METH(map_size)
     DESTROY_METH(entry_key)
@@ -917,6 +923,7 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     DESTROY_METH(iterator_next)
     DESTROY_METH(iterator_hasNext)
     DESTROY_METH(class_is_array)
+    DESTROY_METH(_class_get_name)
 }
 
 
@@ -945,6 +952,10 @@ static bool _cache_references(JNIEnv *env)
     }
 
     if (!_fetch_limit_fields(env)) {
+        goto error;
+    }
+
+    if (!_fetch_native_handle_field(env)) {
         goto error;
     }
 
@@ -1165,6 +1176,48 @@ static PWArgs _convert_checked(JNIEnv *env, jobject obj,
         }
 
         result = pw_createInt(lval);
+    } else if (JNI(IsInstanceOf, obj, *_boolean_cls)) {
+        jboolean bval = JNI(CallNonvirtualBooleanMethod, obj,
+                            _boolean_booleanValue.class_glob,
+                            _boolean_booleanValue.meth_id);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
+
+        // PWArgs has no boolean type
+        // PowerWAF expects this to be a string for match_regex > case_sensitive
+        if (bval) {
+            result = pw_createStringWithLength("true", sizeof("true") - 1);
+        } else {
+            result = pw_createStringWithLength("false", sizeof("false") - 1);
+        }
+    } else {
+        jclass cls = JNI(GetObjectClass, obj);
+        jobject name = java_meth_call(env, &_class_get_name, cls);
+        static char unknown[] = "<unknown class>";
+        static const size_t unknown_len = sizeof(unknown) - 1;
+        char *name_c;
+        size_t name_len;
+        if (JNI(ExceptionCheck)) {
+            JNI(ExceptionClear);
+            name_c = unknown;
+            name_len = unknown_len;
+        } else {
+            name_c = java_to_utf8_checked(env, (jstring) name, &name_len);
+            if (JNI(ExceptionCheck)) {
+                JNI(ExceptionClear);
+                name_c = unknown;
+                name_len = unknown_len;
+            }
+        }
+
+        JAVA_LOG(PWL_DEBUG,
+                 "Could not convert object of type %.*s; "
+                 "encoding as invalid",
+                 (int) name_len /* should be safe */, name_c);
+        if (name_c != unknown) {
+            free(name_c);
+        }
     }
 
     // having lael here so if we add cleanup in the future we don't forget
@@ -1332,4 +1385,21 @@ static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limit
     }
 
     return run_budget;
+}
+
+static PWHandle _get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj)
+{
+    if (JNI(IsSameObject, handle_obj, NULL)) {
+        JNI(ThrowNew, jcls_iae, "Passed null PowerwafHandle");
+        return NULL;
+    }
+
+    PWHandle handle = (PWHandle)(intptr_t) JNI(GetLongField, handle_obj,
+                                               _pwaf_handle_native_handle);
+    if (!handle) {
+        JNI(ThrowNew, jcls_iae, "Passed invalid (NULL) PowerwafHandle");
+        return NULL;
+    }
+
+    return handle;
 }

@@ -1,17 +1,18 @@
 package io.sqreen.powerwaf
 
-import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException
 import org.junit.Test
 
 class BadRuleTests implements PowerwafTrait {
 
-    @Test(expected = UnclassifiedPowerwafException)
-    void 'json of the atom is bogus'() {
-        ctx = Powerwaf.createContext('test', [test_atom: '{}}'])
+    @Test(expected = IllegalArgumentException)
+    void 'no events'() {
+        ctx = Powerwaf.createContext('test', [version: '0.0', events: []])
     }
 
-    @Test(expected = UnclassifiedPowerwafException)
-    void 'json of the atom is not an object'() {
-        ctx = Powerwaf.createContext('test', [test_atom: '[]'])
+    @Test(expected = IllegalArgumentException)
+    void 'version is not a string'() {
+        def rules = [:] + ARACHNI_ATOM
+        rules['version'] = 99
+        ctx = Powerwaf.createContext('test', rules)
     }
 }

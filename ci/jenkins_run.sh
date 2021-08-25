@@ -10,10 +10,10 @@ function main {
 
   if [[ $arg = 'build_docker_image' ]]; then
     build_docker_image
-  elif [[ $arg = 'build_libsqreen' ]]; then
-    build_libsqreen
-  elif [[ $arg = 'build_libsqreen_docker' ]]; then
-    build_libsqreen_docker
+  elif [[ $arg = 'build_libddwaf' ]]; then
+    build_libddwaf
+  elif [[ $arg = 'build_libddwaf_docker' ]]; then
+    build_libddwaf_docker
   elif [[ $arg = 'test_java' ]]; then
     test_java
   elif [[ $arg = 'test_java_docker' ]]; then
@@ -68,20 +68,20 @@ function run_in_docker_no_copy {
     bash -e -c "$new_cmd"
 }
 
-function build_libsqreen {
+function build_libddwaf {
   cd "$PROJ_DIR"
-  rm -rf libsqreen/Debug
-  run_in_docker /tmp/AgentJavaNative/ci/jenkins_run.sh build_libsqreen_docker
+  rm -rf libddwaf/Debug
+  run_in_docker /tmp/AgentJavaNative/ci/jenkins_run.sh build_libddwaf_docker
 }
-function build_libsqreen_docker {
-  cd "/tmp/AgentJavaNative/libsqreen"
+function build_libddwaf_docker {
+  cd "/tmp/AgentJavaNative/libddwaf"
   rm -rf Debug
   mkdir Debug
   cd Debug
-  cmake .. -DCMAKE_BUILD_TYPE=Debug
-  make -j Sqreen VERBOSE=1
+  cmake .. -DCMAKE_BUILD_TYPE=Debug -DLIBDDWAF_BUILD_STATIC=0
+  make -j libddwaf_shared VERBOSE=1
   DESTDIR=out make install
-  docker_epilogue libsqreen/Debug
+  docker_epilogue libddwaf/Debug
 }
 
 function test_java {
