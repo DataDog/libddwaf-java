@@ -6,10 +6,8 @@ import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
-import java.lang.reflect.UndeclaredThrowableException;
 import java.util.Map;
-import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -17,7 +15,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * Represents a PowerWAF rule, ensuring that no runs happen after the rule
  * is destroyed and that the rule is not destroyed during runs.
  */
-public class PowerwafContext implements Closeable {
+public class PowerwafContext {
     private final static boolean POWERWAF_ENABLE_BYTE_BUFFERS;
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -28,6 +26,8 @@ public class PowerwafContext implements Closeable {
 
     private final Lock writeLock;
     private final Lock readLock;
+
+    private final AtomicInteger refcount = new AtomicInteger(1);
 
     static {
         String bb = System.getProperty("POWERWAF_ENABLE_BYTE_BUFFERS", "true");
@@ -92,8 +92,14 @@ public class PowerwafContext implements Closeable {
         }
     }
 
-    public Additive openAdditive() throws AbstractPowerwafException {
-        return new Additive(this);
+    public Additive openAdditive() {
+        addReference();
+        try {
+            return new Additive(this);
+        } catch (RuntimeException | Error e) {
+            delReference();
+            throw e;
+        }
     }
 
     private void checkIfOnline() {
@@ -102,44 +108,53 @@ public class PowerwafContext implements Closeable {
         }
     }
 
-    public <T> T withReadLock(Callable<T> callable) {
+    private void addReference() {
+        // read lock to prevent concurrent destruction, which uses a write lock
         this.readLock.lock();
         try {
             checkIfOnline();
-            return callable.call();
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
-            } else {
-                throw new UndeclaredThrowableException(e);
-            }
+            this.refcount.incrementAndGet();
         } finally {
             this.readLock.unlock();
         }
     }
 
-    @Override
-    public void close() {
-        // use lock to avoid clearing rules while they're still being run
-        this.writeLock.lock();
-        try {
-            checkIfOnline();
-            Powerwaf.clearRules(this.handle);
-            this.offline = true;
-        } finally {
-            this.writeLock.unlock();
+    public void delReference() {
+        int curRefcount = this.refcount.get();
+        if (curRefcount <= 1) {
+            // possible destruction, unless a reference is added in the interim
+            this.writeLock.lock();
+            boolean success;
+            try {
+                checkIfOnline();
+                success = this.refcount.compareAndSet(curRefcount, curRefcount - 1);
+                if (success) {
+                    Powerwaf.clearRules(this.handle);
+                    this.offline = true;
+                    logger.debug("Deleted WAF context {}", this);
+                }
+            } finally {
+                this.writeLock.unlock();
+            }
+            if (!success) {
+                delReference(); // try again
+            }
+        } else {
+            boolean success = this.refcount.compareAndSet(curRefcount, curRefcount - 1);
+            if (!success) {
+                delReference(); // try again
+            }
         }
-        this.logger.debug("Closed context {}", this.uniqueName);
     }
 
     @Override
     protected void finalize() {
-        // last-resort! close() should be called instead
+        // last-resort! delReference() should be called instead
         this.writeLock.lock();
         try {
             if (!this.offline) {
                 this.logger.warn("Context {} had not been properly closed", this.uniqueName);
-                close();
+                Powerwaf.clearRules(this.handle);
             }
         } finally {
             this.writeLock.unlock();

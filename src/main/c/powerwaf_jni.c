@@ -433,11 +433,11 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive(
 
 /*
  * Class:     io_sqreen_powerwaf_Additive
- * Method:    runAdditiveInternal
+ * Method:    runAdditive
  * Signature:
- * (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
  */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditiveInternal(
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive(
         JNIEnv *env, jobject this, jobject parameters, jobject limits_obj)
 {
     jobject result = NULL;

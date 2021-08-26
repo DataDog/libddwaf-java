@@ -48,7 +48,7 @@ class AdditiveTest implements ReactiveTrait {
         '''
 
         ctx = new PowerwafContext('test', new JsonSlurper().parseText(rule))
-        additive = new Additive(ctx)
+        additive = ctx.openAdditive()
 
         Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits)
         LOGGER.debug('ActionWithData after 1st runAdditive: {}', awd)
@@ -69,7 +69,7 @@ class AdditiveTest implements ReactiveTrait {
     @Test(expected = RuntimeException)
     void 'Should throw RuntimeException if double free'() {
         ctx = new PowerwafContext('test', ARACHNI_ATOM)
-        additive = new Additive(ctx)
+        additive = ctx.openAdditive()
         additive.close()
         try {
             additive.close()
@@ -81,19 +81,23 @@ class AdditiveTest implements ReactiveTrait {
     @Test(expected = IllegalArgumentException)
     void 'Should throw IllegalArgumentException if Limits is null while run'() {
         ctx = new PowerwafContext('test', ARACHNI_ATOM)
-        additive = new Additive(ctx)
+        additive = ctx.openAdditive()
         additive.runAdditive([:], null)
     }
 
     @Test
-    void 'should fail if the context is closed'() {
+    void 'should defer context destruction if the context is closed'() {
         ctx = new PowerwafContext('test', ARACHNI_ATOM)
-        additive = new Additive(ctx)
-        ctx.close()
+        additive = ctx.openAdditive()
+        assert ctx.refcount.get() == 2
+        ctx.delReference()
+        additive.runAdditive([:], limits)
+        assert ctx.refcount.get() == 1
+        additive.close()
+        assert ctx.refcount.get() == 0
+
+        /* prevent @After hooks from trying to close them */
         ctx = null
-        def exc = shouldFail(IllegalStateException) {
-            additive.runAdditive([:], null)
-        }
-        assert exc.message == 'This context is already offline'
+        additive = null
     }
 }

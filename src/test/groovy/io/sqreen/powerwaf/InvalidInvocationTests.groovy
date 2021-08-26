@@ -11,7 +11,7 @@ class InvalidInvocationTests implements PowerwafTrait {
     @Test
     void 'rule is run on closed context'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM)
-        ctx.close()
+        ctx.delReference()
         def exc = shouldFail(UnclassifiedPowerwafException) {
             ctx.runRules([:], limits)
         }
