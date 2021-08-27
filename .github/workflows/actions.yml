@@ -38,6 +38,7 @@ jobs:
     - name: Generate Build Scripts for libddwaf
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
+          -DLIBDDWAF_BUILD_STATIC=0 \
           -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
           -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
       working-directory: ${{ env.tempdir }}/buildPW
@@ -203,7 +204,7 @@ jobs:
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
             mkdir buildPW && cd buildPW &&
-            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_STATIC=0 &&
             make -j && make install &&
             mkdir ../buildAG && cd ../buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
@@ -249,7 +250,7 @@ jobs:
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
             mkdir buildPW && cd buildPW &&
-            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_STATIC=0 &&
             make -j && make install &&
             mkdir ../buildAG && cd ../buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
