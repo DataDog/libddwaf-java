@@ -69,6 +69,18 @@ static jfieldID _limit_run_budget_in_us;
 
 static jfieldID _additive_ptr;
 
+jclass charSequence_cls;
+struct j_method charSequence_length;
+struct j_method charSequence_subSequence;
+
+jclass buffer_cls;
+struct j_method buffer_position;
+struct j_method buffer_limit;
+
+jclass charBuffer_cls;
+struct j_method charBuffer_hasArray;
+struct j_method charBuffer_array;
+
 jclass string_cls;
 struct j_method to_string;
 
@@ -831,11 +843,17 @@ static bool _cache_single_class_weak(JNIEnv *env,
 
 static bool _cache_classes(JNIEnv *env)
 {
-    return _cache_single_class_weak(env, "java/lang/RuntimeException",
-                                    &jcls_rte) &&
-           _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
-                                    &jcls_iae) &&
-           _cache_single_class_weak(env, "java/lang/String", &string_cls);
+  return _cache_single_class_weak(env, "java/lang/RuntimeException",
+                                  &jcls_rte) &&
+         _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
+                                  &jcls_iae) &&
+         _cache_single_class_weak(env, "java/lang/CharSequence",
+                                  &charSequence_cls) &&
+         _cache_single_class_weak(env, "java/nio/Buffer",
+                                  &buffer_cls) &&
+         _cache_single_class_weak(env, "java/nio/CharBuffer",
+                                  &charBuffer_cls) &&
+         _cache_single_class_weak(env, "java/lang/String", &string_cls);
 }
 
 static void _dispose_of_weak_classes(JNIEnv *env)
@@ -848,6 +866,9 @@ static void _dispose_of_weak_classes(JNIEnv *env)
 
     DESTROY_CLASS_REF(jcls_iae)
     DESTROY_CLASS_REF(string_cls)
+    DESTROY_CLASS_REF(charSequence_cls)
+    DESTROY_CLASS_REF(buffer_cls)
+    DESTROY_CLASS_REF(charBuffer_cls)
     // leave jcls_rte for last in OnUnload; we might still need it
 }
 
@@ -863,6 +884,36 @@ static bool _cache_methods(JNIEnv *env)
 
     if (!java_meth_init_checked(env, &to_string, "java/lang/Object", "toString",
                                 "()Ljava/lang/String;", JMETHOD_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &charSequence_length, "java/lang/CharSequence", "length",
+                                "()I", JMETHOD_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &charSequence_subSequence, "java/lang/CharSequence", "subSequence",
+                                "(II)Ljava/lang/CharSequence;", JMETHOD_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &buffer_position, "java/nio/Buffer", "position",
+                                "()I", JMETHOD_NON_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &buffer_limit, "java/nio/Buffer", "limit",
+                                "()I", JMETHOD_NON_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &charBuffer_hasArray, "java/nio/CharBuffer", "hasArray",
+                                "()Z", JMETHOD_NON_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &charBuffer_array, "java/nio/CharBuffer", "array",
+                                "()[C", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
@@ -973,6 +1024,12 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     }
 
     DESTROY_METH(_create_exception)
+    DESTROY_METH(charSequence_length)
+    DESTROY_METH(charSequence_subSequence)
+    DESTROY_METH(charBuffer_hasArray)
+    DESTROY_METH(charBuffer_array)
+    DESTROY_METH(buffer_position)
+    DESTROY_METH(buffer_limit)
     DESTROY_METH(to_string)
     DESTROY_METH(number_longValue)
     DESTROY_METH(_boolean_booleanValue)
@@ -1243,6 +1300,92 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
         if (!success) {
             JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
             goto error;
+        }
+
+    } else if (JNI(IsInstanceOf, obj, charSequence_cls)) {
+
+        size_t len;
+        jsize utf16_len;
+        uint8_t *out = NULL;
+        int max_len = lims->max_string_size;
+
+        jboolean is_char_buffer = JNI(IsInstanceOf, obj, charBuffer_cls);
+        jboolean has_array = JNI(CallNonvirtualBooleanMethod, obj, charBuffer_hasArray.class_glob, charBuffer_hasArray.meth_id);
+        // Most of CharSequence implementations are CharBuffer
+        // try to read data from array
+        if (is_char_buffer && has_array) {
+
+            jcharArray utf16_arr = JNI(CallNonvirtualObjectMethod, obj, charBuffer_array.class_glob, charBuffer_array.meth_id);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+
+            jint pos = JNI(CallNonvirtualIntMethod, obj, buffer_position.class_glob, buffer_position.meth_id);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+
+            jint limit = JNI(CallNonvirtualIntMethod, obj, buffer_limit.class_glob, buffer_limit.meth_id);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+
+            utf16_len = limit - pos;
+            if (utf16_len > max_len) {
+                utf16_len = max_len;
+            }
+
+            jchar *elems = JNI(GetCharArrayElements, utf16_arr, JNI_FALSE);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+
+            java_utf16_to_utf8_checked(env, (jchar*)(elems + pos), (int)utf16_len, &out, &len);
+            JNI(ReleaseCharArrayElements, utf16_arr, elems, 0);
+
+            if (out == NULL || len == 0 || JNI(ExceptionCheck)) {
+                goto error;
+            }
+
+            bool success = !!ddwaf_object_stringl(&result, (char*)out, len);
+            free(out);
+            if (!success) {
+                JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
+                goto error;
+            }
+
+        } else {
+
+            // Try to read data from CharSequence
+            utf16_len = JNI(CallIntMethod, obj, charSequence_length.meth_id);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+
+            if (utf16_len > max_len) {
+                obj = JNI(CallObjectMethod, obj, charSequence_subSequence.meth_id, 0, max_len);
+                if (JNI(ExceptionCheck)) {
+                    goto error;
+                }
+            }
+            jstring str = (jstring)JNI(CallObjectMethod, obj, to_string.meth_id);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+
+            char* utf8_out = java_to_utf8_checked(env, str, &len);
+
+            if (!utf8_out) {
+                goto error;
+            }
+
+            //result = pw_createStringWithLength(utf8_out, len);
+            bool success = !!ddwaf_object_stringl(&result, utf8_out, len);
+            free(utf8_out);
+            if (!success) {
+                JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
+                goto error;
+            }
         }
     } else if (JNI(IsInstanceOf, obj, *number_cls)) {
         jlong lval = JNI(CallLongMethod, obj, number_longValue.meth_id);

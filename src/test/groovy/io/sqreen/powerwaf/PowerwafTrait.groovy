@@ -37,7 +37,7 @@ trait PowerwafTrait extends JNITrait {
     int maxElements = 20
     int maxStringSize = 100
     long timeoutInUs = 200000 // 200 ms
-    long runBudget = 0; // unspecified
+    long runBudget = 0 // unspecified
 
     Powerwaf.Limits getLimits() {
         new Powerwaf.Limits(
