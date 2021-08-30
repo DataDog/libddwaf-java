@@ -29,43 +29,44 @@ jobs:
         submodules: recursive
         token: ${{ secrets.GH_TOKEN }}
         clean: true
-    - name: Create Build Directory for libsqreen
+    - name: Create Build Directory for libddwaf
       run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
     - name: Create Build Directory for JNI binding
       run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
     - name: Create Packages Directory
       run: cmake -E make_directory ${{ env.tempdir }}/packages
-    - name: Generate Build Scripts for libsqreen
+    - name: Generate Build Scripts for libddwaf
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
+          -DLIBDDWAF_BUILD_STATIC=0 \
           -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
-          -G '${{ env.generator }}' '${{ github.workspace }}/libsqreen'
+          -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
       working-directory: ${{ env.tempdir }}/buildPW
-    - name: Build Binaries for libsqreen
+    - name: Build Binaries for libddwaf
       run: cmake --build .
       working-directory: ${{ env.tempdir }}/buildPW
-    - name: Install Binaries for libsqreen
+    - name: Install Binaries for libddwaf
       run: cmake --build . --target install
       working-directory: ${{ env.tempdir }}/buildPW
     - name: Generate Build Scripts for JNI binding
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
-          -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libsqreen/' \
+          -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
           -G "${{ env.generator }}" ${{ github.workspace }}
       working-directory: ${{ env.tempdir }}/buildAG
     - name: Build Binaries for JNI Binding
       run: cmake --build .
       working-directory: ${{ env.tempdir }}/buildAG
-    - name: Copy libSqreen binding binaries to packages
+    - name: Copy libddwaf binaries to packages
       run: |
-        cmake -E copy ${{ env.shlib_prefix }}Sqreen.${{ env.shlib_ext }} \
-          ${{ env.shlib_prefix }}Sqreen.${{ env.debug_ext }} \
+        cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
+          ${{ env.shlib_prefix }}ddwaf.${{ env.debug_ext }} \
           ${{ env.tempdir }}/packages
       working-directory: ${{ env.tempdir }}/buildPW
-    - name: Copy libSqreen binding binaries to native_libs (testing)
+    - name: Copy libddwaf binding binaries to native_libs (testing)
       run: |
-        cmake -E copy ${{ env.shlib_prefix }}Sqreen.${{ env.shlib_ext }} \
-          ${{ env.shlib_prefix }}Sqreen.${{ env.debug_ext }} \
+        cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
+          ${{ env.shlib_prefix }}ddwaf.${{ env.debug_ext }} \
           ${{ github.workspace }}/native_libs/${{ env.libdir }}
       working-directory: ${{ env.tempdir }}/buildPW
     - name: Copy JNI binding binaries to packages
@@ -93,7 +94,7 @@ jobs:
       run: |
         set -ex
         cd '${{ github.workspace }}'
-        export LIBSQREEN_INSTALL_PREFIX='${{ env.tempdir }}/out'
+        export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
         ./gradlew --build-cache check --info -PuseReleaseBinaries
         ./gradlew --stop
       shell: bash
@@ -127,25 +128,25 @@ jobs:
         with:
           toolset: 14.16
           arch: amd64
-      - name: Create Build Directory for libsqreen
+      - name: Create Build Directory for libddwaf
         run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
       - name: Create Build Directory for JNI binding
         run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
       - name: Create Packages Directory
         run: cmake -E make_directory ${{ env.tempdir }}/packages
-      - name: Generate Build Scripts for libsqreen
+      - name: Generate Build Scripts for libddwaf
         run: |
-          cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_INSTALL_PREFIX="${{ env.tempdir }}/out" -G "${{ env.generator }}" "${{ github.workspace }}/libsqreen"
+          cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_SHARED=0 -DCMAKE_INSTALL_PREFIX="${{ env.tempdir }}/out" -G "${{ env.generator }}" "${{ github.workspace }}/libddwaf"
         working-directory: ${{ env.tempdir }}/buildPW
-      - name: Build Binaries for libsqreen
-        run: cmake --build .
+      - name: Build Binaries for libddwaf
+        run: cmake --build . --target libddwaf_static
         working-directory: ${{ env.tempdir }}/buildPW
-      - name: Install Binaries for libsqreen
+      - name: Install Binaries for libddwaf
         run: cmake --build . --target install
         working-directory: ${{ env.tempdir }}/buildPW
       - name: Generate Build Scripts for JNI binding
         run: |
-          cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_PREFIX_PATH="${{ env.tempdir }}/out/share/cmake/libsqreen/" -G "${{ env.generator }}" "${{ github.workspace }}"
+          cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_PREFIX_PATH="${{ env.tempdir }}/out/share/cmake/libddwaf/" -G "${{ env.generator }}" "${{ github.workspace }}"
         working-directory: ${{ env.tempdir }}/buildAG
       - name: Build Binaries for JNI Binding
         run: cmake --build .
@@ -171,7 +172,7 @@ jobs:
         run: |
           set -ex
           cd '${{ github.workspace }}'
-          export LIBSQREEN_INSTALL_PREFIX='${{ env.tempdir }}/out'
+          export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
           ./gradlew --build-cache check --info -PuseReleaseBinaries
           ./gradlew --stop
         shell: bash
@@ -201,9 +202,9 @@ jobs:
       - name: Build and test with release binaries
         run: |
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBSQREEN_INSTALL_PREFIX=/;
+            export LIBDDWAF_INSTALL_PREFIX=/;
             mkdir buildPW && cd buildPW &&
-            cmake ${{ github.workspace }}/libsqreen -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_STATIC=0 &&
             make -j && make install &&
             mkdir ../buildAG && cd ../buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
@@ -217,8 +218,8 @@ jobs:
           sudo chown -R $(whoami) "${{ env.tempdir }}"
           mkdir ${{ env.tempdir }}/packages
           cd ${{ env.tempdir }}/packages
-          docker cp pwaf_java_build:/buildPW/libSqreen.so .
-          docker cp pwaf_java_build:/buildPW/libSqreen.so.debug .
+          docker cp pwaf_java_build:/buildPW/libddwaf.so .
+          docker cp pwaf_java_build:/buildPW/libddwaf.so.debug .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
@@ -247,9 +248,9 @@ jobs:
       - name: Build and test with release binaries
         run: |
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBSQREEN_INSTALL_PREFIX=/;
+            export LIBDDWAF_INSTALL_PREFIX=/;
             mkdir buildPW && cd buildPW &&
-            cmake ${{ github.workspace }}/libsqreen -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_STATIC=0 &&
             make -j && make install &&
             mkdir ../buildAG && cd ../buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
@@ -263,8 +264,8 @@ jobs:
           sudo chown -R $(whoami) ${{ env.tempdir }}
           mkdir ${{ env.tempdir }}/packages
           cd ${{ env.tempdir }}/packages
-          docker cp pwaf_java_build:/buildPW/libSqreen.so .
-          docker cp pwaf_java_build:/buildPW/libSqreen.so.debug .
+          docker cp pwaf_java_build:/buildPW/libddwaf.so .
+          docker cp pwaf_java_build:/buildPW/libddwaf.so.debug .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
@@ -294,10 +295,10 @@ jobs:
         sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-9 100
         sudo update-alternatives --set c++ /usr/bin/g++-9
       shell: bash
-    - name: Build libsqreen
+    - name: Build libddwaf
       run: |
         set -ex
-        cd libsqreen
+        cd libddwaf
         mkdir Debug && cd Debug
         cmake .. -DCMAKE_BUILD_TYPE=Debug \
           -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=leak" \

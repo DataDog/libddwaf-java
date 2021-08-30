@@ -52,17 +52,23 @@ public final class Powerwaf {
      * @return the new context
      */
     public static PowerwafContext createContext(
-            String uniqueId, Map<String, String> ruleDefinitions) throws AbstractPowerwafException {
+            String uniqueId, Map<String, Object> ruleDefinitions) throws AbstractPowerwafException {
         return new PowerwafContext(uniqueId, ruleDefinitions);
     }
 
-    // maps to powerwaf_initializePowerWAF
-    static native boolean addRule(String ruleName, String definition);
-    static native void clearRule(String ruleName);
+    /**
+     * Creates a rule given its definition.
+     *
+     * See also pw_initH.
+     *
+     * @param definition map with keys version and events
+     * @return a non-null native handle
+     * @throws IllegalArgumentException
+     */
+    static native PowerwafHandle addRules(Map<String, Object> definition);
 
-    static native ActionWithData runRule(String ruleName,
-                                         Map<String, Object> parameters,
-                                         Limits limits) throws AbstractPowerwafException;
+    /* pw_clearRuleH */
+    static native void clearRules(PowerwafHandle handle);
 
     /**
      * Runs a rule with the parameters pre-serialized into direct
@@ -71,14 +77,20 @@ public final class Powerwaf {
      * to the remaining data, part of which can live in the buffers
      * listed in <code>otherBuffers</code>.
      *
-     * @param ruleName the rule name
+     * See pw_runH.
+     *
+     * @param handle the PowerWAF rule handle
      * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
      * @param limits the limits
      * @return the resulting action (OK, MONITOR, BLOCK) and associated details
      */
-    static native ActionWithData runRule(String ruleName,
-                                         ByteBuffer firstPWArgsBuffer,
-                                         Limits limits);
+    static native ActionWithData runRules(PowerwafHandle handle,
+                                          ByteBuffer firstPWArgsBuffer,
+                                          Limits limits);
+
+    static native ActionWithData runRules(PowerwafHandle handle,
+                                          Map<String, Object> parameters,
+                                          Limits limits);
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
@@ -94,6 +106,7 @@ public final class Powerwaf {
      */
     public static native void deinitialize();
 
+    // called from JNI
     private static AbstractPowerwafException createException(int retCode) {
         return AbstractPowerwafException.createFromErrorCode(retCode);
     }

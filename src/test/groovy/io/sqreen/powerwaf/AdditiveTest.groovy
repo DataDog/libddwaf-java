@@ -1,181 +1,103 @@
 package io.sqreen.powerwaf
 
+import groovy.json.JsonSlurper
 import org.junit.Test
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
-import static org.hamcrest.Matchers.nullValue
 
 class AdditiveTest implements ReactiveTrait {
 
-    /**
-     * This is reference sample from PowerWAF converted to java
-     * see: https://github.com/sqreen/PowerWAF#implementation-using-the-additive-api
-     */
+    private final static Logger LOGGER = LoggerFactory.getLogger(AdditiveTest)
+
     @Test
     void 'Reference sample should pass'() {
         def rule = '''
-            {
-                "manifest": {
-                    "arg1": {
-                        "inherit_from": "arg1",
-                        "run_on_value": true,
-                        "run_on_key": false
-                    },
-                    "arg2": {
-                        "inherit_from": "arg2",
-                        "run_on_value": true,
-                        "run_on_key": false
+          {
+            "version": "0.0",
+            "events": [
+              {
+                "id": "arachni_rule",
+                "name": "Arachni",
+                "conditions": [
+                  {
+                    "operation": "match_regex",
+                    "parameters": {
+                      "inputs": ["arg1"],
+                      "regex": ".*"
                     }
-                },
-                "rules": [
-                    {
-                        "rule_id": "1",
-                        "filters": [
-                            {
-                                "operator": "@rx",
-                                "targets": [
-                                    "arg1"
-                                ],
-                                "value": ".*"
-                            },
-                            {
-                                "operator": "@rx",
-                                "targets": [
-                                    "arg2"
-                                ],
-                                "value": ".*"
-                            }
-                        ]
+                  },
+                  {
+                    "operation": "match_regex",
+                    "parameters": {
+                      "inputs": ["arg2"],
+                      "regex": ".*"
                     }
+                  }
                 ],
-                "flows": [
-                    {
-                        "name": "flow1",
-                        "steps": [
-                            {
-                                "id": "start",
-                                "rule_ids": [
-                                    "1"
-                                ],
-                                "on_match": "exit_block"
-                            }
-                        ]
-                    }
-                ]
-            }
+                "tags": {
+                  "type": "flow1"
+                },
+                "action": "record"
+              }
+            ]
+          }
         '''
 
-        Powerwaf.addRule('test', rule)
-        def additive = Additive.initAdditive('test')
+        ctx = new PowerwafContext('test', new JsonSlurper().parseText(rule))
+        additive = ctx.openAdditive()
 
-        Powerwaf.ActionWithData awd = additive.runAdditive([arg1: 'string 1'], limits)
+        Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits)
+        LOGGER.debug('ActionWithData after 1st runAdditive: {}', awd)
         assertThat awd.action, is(Powerwaf.Action.OK)
 
-        awd = additive.runAdditive([arg2: 'string 2'], limits)
-        assertThat awd.action, is(Powerwaf.Action.BLOCK)
-
-        additive.clearAdditive()
-        Powerwaf.clearRule('test')
+        awd = additive.run([arg2: 'string 2'], limits)
+        LOGGER.debug('ActionWithData after 2nd runAdditive: {}', awd)
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 
     @Test
-    void 'Should trigger waf with native Additive Api only'() {
-        def rule = TEST_REACTIVE_RULE
-
-        def params = [
-                'server.request.uri.raw': '/',
-                'server.request.headers.no_cookies': [
-                        'accept': '*/*',
-                        'user-agent': 'Arachni/v1',
-                        'host': 'localhost:8080'
-                ],
-        ]
-
-        Powerwaf.ActionWithData awd
-
-        Powerwaf.addRule('test', rule)
-        Additive additive = Additive.initAdditive('test')
-        awd = additive.runAdditive(params, limits)
-        additive.clearAdditive()
-        Powerwaf.clearRule('test')
-
-        assertThat awd.action, is(Powerwaf.Action.BLOCK)
-    }
-
-    @Test
-    void 'Should trigger waf with Additive'() {
-        def rule = TEST_REACTIVE_RULE
-
-        def params = [
-                        'server.request.uri.raw': '/',
-                        'server.request.headers.no_cookies': [
-                                'accept': '*/*',
-                                'user-agent': 'Arachni/v1',
-                                'host': 'localhost:8080'
-                        ],
-                     ]
-
-        Additive additive
-        def ctx = new PowerwafContext('test', ['rule': rule])
-        try {
-            additive = ctx.openAdditive('rule')
-            def awd = additive.run(params, limits)
-            assertThat awd.action, is(Powerwaf.Action.BLOCK)
-        } finally {
-            if (additive != null) {
-                additive.close()
-            }
-            ctx.close()
+    void 'constructor throws if given a null context'() {
+        shouldFail(NullPointerException) {
+            new Additive(null)
         }
-    }
-
-    @Test
-    void 'Should return null if no rule found'() {
-        Additive additive = Additive.initAdditive('nonexistent_rule')
-        assertThat additive, nullValue()
     }
 
     @Test(expected = RuntimeException)
     void 'Should throw RuntimeException if double free'() {
-        def rule = TEST_REACTIVE_RULE
-
-        Powerwaf.addRule('test', rule)
-        Additive additive = Additive.initAdditive('test')
-        additive.clearAdditive()
-        additive.clearAdditive()
+        ctx = new PowerwafContext('test', ARACHNI_ATOM)
+        additive = ctx.openAdditive()
+        additive.close()
+        try {
+            additive.close()
+        } finally {
+            additive = null
+        }
     }
 
     @Test(expected = IllegalArgumentException)
     void 'Should throw IllegalArgumentException if Limits is null while run'() {
-        def rule = TEST_REACTIVE_RULE
-
-        Powerwaf.addRule('test', rule)
-        Additive additive = Additive.initAdditive('test')
+        ctx = new PowerwafContext('test', ARACHNI_ATOM)
+        additive = ctx.openAdditive()
         additive.runAdditive([:], null)
     }
 
     @Test
-    void 'Should MONITOR attack with data in array'() {
-        def rule = TEST_REACTIVE_RULE
+    void 'should defer context destruction if the context is closed'() {
+        ctx = new PowerwafContext('test', ARACHNI_ATOM)
+        additive = ctx.openAdditive()
+        assert ctx.refcount.get() == 2
+        ctx.delReference()
+        additive.runAdditive([:], limits)
+        assert ctx.refcount.get() == 1
+        additive.close()
+        assert ctx.refcount.get() == 0
 
-        def params = [
-                'server.request.body': [
-                        'attack': ['o:1:"ee":1:{}'].toArray(),
-                        'PassWord': ['12345'].toArray()
-                ]
-        ]
-
-        Additive additive
-        def ctx = new PowerwafContext('test', ['rule': rule])
-        try {
-            additive = ctx.openAdditive('rule')
-            def awd = additive.run(params, limits)
-            assertThat awd.action, is(Powerwaf.Action.MONITOR)
-        } finally {
-            if (additive != null) {
-                additive.close()
-            }
-            ctx.close()
-        }
+        /* prevent @After hooks from trying to close them */
+        ctx = null
+        additive = null
     }
 }

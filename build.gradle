@@ -19,6 +19,7 @@ plugins {
     id 'groovy'
     id 'jacoco'
     id 'ivy-publish'
+    id 'codenarc'
 }
 
 repositories {
@@ -30,10 +31,10 @@ repositories {
 }
 
 group 'io.sqreen'
-version '2.0.1'
+version '3.0.0'
 
-sourceCompatibility = 1.7
-targetCompatibility = 1.7
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 
@@ -41,15 +42,15 @@ task cmakeNativeLibDebug(type: Exec) {
     outputs.upToDateWhen { false }
     description = 'Runs cmake in a debug configuration'
 
-    def pwafConfDir = project.hasProperty('libsqreenConfig') ?
-            project.libSqreenConfig :
-            "$projectDir/libsqreen/Debug/out/usr/local/share/cmake/libsqreen"
+    def pwafConfDir = project.hasProperty('libddwafConfig') ?
+            project.libddwafConfig :
+            "$projectDir/libddwaf/Debug/out/usr/local/share/cmake/libddwaf"
 
     doFirst {
-        def f = file("$pwafConfDir/libsqreenConfig.cmake")
+        def f = file("$pwafConfDir/libddwaf-config-debug.cmake")
         if (!f.exists()) {
-            logger.warn("The file $f does not exist. libsqreen debug must be installed globally. " +
-                    "Run with -PlibsqreenConfig=/path/to/dir/of/libsqreenConfig-debug.cmake to override")
+            logger.warn("The file $f does not exist. libddwaf debug must be installed globally. " +
+                    "Run with -PlibddwafConfig=/path/to/dir/of/libddwaf-config-debug.cmake to override")
         }
 
         file("$buildDir/Debug").mkdirs()
@@ -266,12 +267,11 @@ task copyNativeLibs(type: Copy) {
             true
         }
     }
-    def directories = [['linux_64_glibc/libsqreen_jni.so', 'linux_64_glibc/libSqreen.so'],
-                       ['linux_64_musl/libsqreen_jni.so', 'linux_64_musl/libSqreen.so'],
-                       ['solaris_64/libsqreen_jni.so', 'solaris_64/libSqreen.so'],
-                       ['osx_64/libsqreen_jni.dylib', 'osx_64/libSqreen.dylib.dwarf'],
+    def directories = [['linux_64_glibc/libsqreen_jni.so', 'linux_64_glibc/libddwaf.so'],
+                       ['linux_64_musl/libsqreen_jni.so', 'linux_64_musl/libddwaf.so'],
+                       ['solaris_64/libsqreen_jni.so', 'solaris_64/libddwaf.so'],
+                       ['osx_64/libsqreen_jni.dylib', 'osx_64/libddwaf.dylib.dwarf'],
                        ['windows_64/sqreen_jni.dll']]
-
 
     doFirst {
         if (!directories.any { files -> files.every(existsLib) }) {
@@ -338,6 +338,8 @@ tasks.withType(Test).each {
     it.outputs.upToDateWhen { false }
 }
 
+// the headers are incorrect wrt inner classes
+// see https://bugs.openjdk.java.net/browse/JDK-8145897
 task generateJniHeaders(type: JavaCompile) {
     classpath = sourceSets.main.compileClasspath
     destinationDir file("${buildDir}/generated/jni")
@@ -353,6 +355,10 @@ task generateJniHeaders(type: JavaCompile) {
     doLast {
         delete file("${buildDir}/generated/jni-tmp")
     }
+}
+
+codenarc {
+    configFile = file("${project.projectDir}/gradle/codenarc.groovy")
 }
 
 // vim: set et ts=4 sw=4 list:

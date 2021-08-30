@@ -18,19 +18,23 @@ public final class Additive implements Closeable {
      */
     private final long ptr;     // KEEP THIS FIELD!
 
-    private final String ruleName;
+    private final PowerwafContext ctx;
 
     private final Lock writeLock;
     private final Lock readLock;
 
-    /**
-     * Create new Additive in native code
-     *
-     * @param ruleName                      related rule name
-     * @return                              additive object or null if rule with given name doesn't exist
-     * @throws IllegalArgumentException     if ruleName is null
-     */
-    static native Additive initAdditive(String ruleName);
+    Additive(PowerwafContext ctx) {
+        this.logger.debug("Creating PowerWAF Additive for {}", ctx);
+        ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+        this.readLock = rwLock.readLock();
+        this.writeLock = rwLock.writeLock();
+
+        this.ctx = ctx;
+        this.ptr = initAdditive(ctx.handle);
+    }
+
+    // see pw_initAdditiveH
+    static native long initAdditive(PowerwafHandle handle);
 
     /**
      * Push to PowerWAF existing params and returns execution result
@@ -40,7 +44,8 @@ public final class Additive implements Closeable {
      * @throws IllegalArgumentException     if Additive or Limits is null
      * @throws RuntimeException             if Additive has already been cleared
      */
-    native Powerwaf.ActionWithData runAdditive(Map<String, Object> parameters, Powerwaf.Limits limits);
+    private native Powerwaf.ActionWithData runAdditive(
+            Map<String, Object> parameters, Powerwaf.Limits limits);
 
     /**
      * Clear given Additive (free PWAddContext in PowerWAF)
@@ -48,40 +53,7 @@ public final class Additive implements Closeable {
      * @throws IllegalArgumentException     if Additive is null
      * @throws RuntimeException             if Additive has already been cleared (double free)
      */
-    native void clearAdditive();
-
-    /**
-     * This constructor called by PowerWAF only
-     *
-     * @param ptr           pointer to PWAddContext inside the PowerWAF
-     * @param ruleName      related rule name
-     */
-    private Additive(long ptr, String ruleName) {
-        this.logger.debug("Creating PowerWAF Additive for rule {}", ruleName);
-        ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
-        this.readLock = rwLock.readLock();
-        this.writeLock = rwLock.writeLock();
-
-        this.ptr = ptr;
-        this.ruleName = ruleName;
-    }
-
-    /**
-     * Wrapper function to create Additive object
-     * Will call Additive.<init> from native code to create Additive
-     *
-     * @param ruleName      related rule name
-     * @return              additive object or null if rule with given name doesn't exist
-     */
-    static Additive createAdditive(String ruleName) throws AbstractPowerwafException {
-        try {
-            return initAdditive(ruleName);
-        } catch (RuntimeException rte) {
-            throw new UnclassifiedPowerwafException(
-                    "Error creating PowerWAF's Additive for rule " + ruleName +
-                            ": " + rte.getMessage(), rte);
-        }
-    }
+    private native void clearAdditive();
 
     /**
      * Push params to PowerWAF with given limits
@@ -99,7 +71,7 @@ public final class Additive implements Closeable {
             return runAdditive(parameters, limits);
         } catch (RuntimeException rte) {
             throw new UnclassifiedPowerwafException(
-                    "Error run PowerWAF's Additive for rule " + ruleName +
+                    "Error running PowerWAF's Additive for rule context " + ctx +
                             ": " + rte.getMessage(), rte);
         } finally {
             this.readLock.unlock();
@@ -108,14 +80,15 @@ public final class Additive implements Closeable {
 
     @Override
     public void close() {
-        // use lock to avoid clearing rules while they're still being run
+        // use lock to avoid clearing additive while they're still being run
         this.writeLock.lock();
         try {
             clearAdditive();
-            this.logger.debug("Closed Additive for rule {}", this.ruleName);
+            this.logger.debug("Closed Additive for rule context {}", this.ctx);
         } finally {
             this.writeLock.unlock();
         }
+        this.ctx.delReference();
     }
 
     @Override
@@ -125,8 +98,9 @@ public final class Additive implements Closeable {
         try {
             if (this.ptr != 0) {
                 this.logger.warn(
-                        "Additive for rule {} had not been properly cleared", this.ruleName);
+                        "Additive for rule context {} had not been properly cleared", this.ctx);
                 close();
+                this.ctx.delReference();
             }
         } finally {
             this.writeLock.unlock();

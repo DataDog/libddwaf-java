@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "common.h"
-#include "io_sqreen_powerwaf_ByteBufferSerializer.h"
+#include "jni/io_sqreen_powerwaf_ByteBufferSerializer.h"
 
 JNIEXPORT jlong JNICALL
 Java_io_sqreen_powerwaf_ByteBufferSerializer_getByteBufferAddress(JNIEnv *env,

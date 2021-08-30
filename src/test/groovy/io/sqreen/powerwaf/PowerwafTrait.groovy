@@ -4,49 +4,33 @@ import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
 import io.sqreen.jni.JNITrait
 import org.junit.After
-import org.junit.BeforeClass
 
 @CompileStatic
 trait PowerwafTrait extends JNITrait {
 
-    static final String ARACHNI_ATOM = '''
+    static final Map ARACHNI_ATOM = (Map) new JsonSlurper().parseText('''
         {
-          "manifest": {
-            "#._server['HTTP_USER_AGENT']": {
-              "inherit_from": "#._server['HTTP_USER_AGENT']",
-              "run_on_value": true,
-              "run_on_key": true
-            }
-          },
-          "rules":[
+          "version": "0.0",
+          "events": [
             {
-              "rule_id":"1",
-              "filters":[
+              "id": "arachni_rule",
+              "name": "Arachni",
+              "conditions": [
                 {
-                  "operator":"@rx",
-                  "targets":[
-                    "#._server['HTTP_USER_AGENT']"
-                  ],
-                  "value":"Arachni"
+                  "operation": "match_regex",
+                  "parameters": {
+                    "inputs": ["server.request.headers.no_cookies:user-agent"],
+                    "regex": "Arachni"
+                  }
                 }
-              ]
-            }
-          ],
-          "flows":[
-            {
-              "name":"arachni_detection",
-              "steps":[
-                {
-                  "id":"start",
-                  "rule_ids":[
-                    "1"
-                  ],
-                  "on_match":"exit_monitor"
-                }
-              ]
+              ],
+              "tags": {
+                "type": "arachni_detection"
+              },
+              "action": "record"
             }
           ]
-        }'''
+        }''')
 
     int maxDepth = 5
     int maxElements = 20
@@ -66,7 +50,16 @@ trait PowerwafTrait extends JNITrait {
     @After
     void after() {
         if (ctx) {
-            ctx.close()
+            ctx.delReference()
         }
+    }
+
+    @SuppressWarnings('UnnecessaryCast')
+    Powerwaf.ActionWithData runRules(Object data) {
+        ctx.runRules([
+                'server.request.headers.no_cookies': [
+                        'user-agent': data
+                ]
+        ] as Map<String, Object>, limits)
     }
 }

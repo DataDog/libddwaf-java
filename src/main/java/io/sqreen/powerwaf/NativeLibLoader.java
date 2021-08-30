@@ -112,16 +112,16 @@ public class NativeLibLoader {
         switch(type) {
             case LINUX_64_GLIBC:
                 return Arrays.asList("linux_64_glibc/libsqreen_jni.so",
-                        "linux_64_glibc/libSqreen.so");
+                        "linux_64_glibc/libddwaf.so");
             case LINUX_64_MUSL:
                 return Arrays.asList("linux_64_musl/libsqreen_jni.so",
-                        "linux_64_musl/libSqreen.so");
+                        "linux_64_musl/libddwaf.so");
             case MAC_OS_64:
                 return Arrays.asList("osx_64/libsqreen_jni.dylib",
-                        "osx_64/libSqreen.dylib");
+                        "osx_64/libddwaf.dylib");
             case SUN_OS_64:
                 return Arrays.asList("solaris_64/libsqreen_jni.so",
-                        "solaris_64/libSqreen.so");
+                        "solaris_64/libddwaf.so");
             case WINDOWS_64:
                 return Collections.singletonList("windows_64/sqreen_jni.dll");
             default:

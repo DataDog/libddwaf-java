@@ -1,5 +1,6 @@
 package io.sqreen.powerwaf
 
+import groovy.json.JsonSlurper
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException
 import org.junit.Test
 
@@ -13,48 +14,42 @@ class LimitsTests implements PowerwafTrait {
 
     @Lazy
     PowerwafContext ctxWithArachniAtom =
-            Powerwaf.createContext('test', [test_atom: ARACHNI_ATOM])
+            Powerwaf.createContext('test', ARACHNI_ATOM)
 
     @Test
     void 'maxDepth is respected'() {
         ctx = ctxWithArachniAtom
-        maxDepth = 2
+        maxDepth = 3
 
-        Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": ['Arachni']], limits)
+        Powerwaf.ActionWithData awd = runRules(['Arachni'])
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
-        awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": [['Arachni']]], limits)
+        awd = runRules([['Arachni']])
         assertThat awd.action, is(Powerwaf.Action.OK)
     }
 
     @Test
     void 'maxDepth is respected — map variant'() {
         ctx = ctxWithArachniAtom
-        maxDepth = 2
+        maxDepth = 3
 
-        Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": [a: 'Arachni']], limits)
+        Powerwaf.ActionWithData awd = runRules([a: 'Arachni'])
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
-        awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": [a: [a:'Arachni']]], limits)
+        awd = runRules([a: [a: 'Arachni']])
         assertThat awd.action, is(Powerwaf.Action.OK)
     }
 
     @Test
     void 'maxElements is respected'() {
         ctx = ctxWithArachniAtom
-        maxElements = 4
+        maxElements = 5
 
-        Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": ['a', 'Arachni']], limits)
+        Powerwaf.ActionWithData awd = runRules(['a', 'Arachni'])
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
         // the map and list count as elements
-        awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": ['a', 'b', 'Arachni']], limits)
+        awd = runRules(['a', 'b', 'Arachni'])
         assertThat awd.action, is(Powerwaf.Action.OK)
     }
 
@@ -63,13 +58,10 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxStringSize = 100
 
-        Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": ' ' * 93 + 'Arachni'], limits)
+        Powerwaf.ActionWithData awd = runRules(' ' * 93 + 'Arachni')
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
-        // the map and list count as elements
-        awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": ' ' * 94 + 'Arachni'], limits)
+        awd = runRules(' ' * 94 + 'Arachni')
         assertThat awd.action, is(Powerwaf.Action.OK)
     }
 
@@ -78,13 +70,13 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxStringSize = 100
 
-        Powerwaf.ActionWithData awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": [(' ' * 93 + 'Arachni'): 'a']], limits)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ActionWithData awd = runRules([(' ' * 93 + 'Arachni'): 'a'])
+        // expected failure: running on keys is not possible now on libddwaf
+        shouldFail(AssertionError) {
+            assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        }
 
-        // the map and list count as elements
-        awd = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": [(' ' * 94 + 'Arachni'): 'a']], limits)
+        awd = runRules([(' ' * 94 + 'Arachni'): 'a'])
         assertThat awd.action, is(Powerwaf.Action.OK)
     }
 
@@ -94,72 +86,60 @@ class LimitsTests implements PowerwafTrait {
         timeoutInUs = 5
 
         shouldFail(TimeoutPowerwafException) {
-            ctx.runRule('test_atom',
-                    ["#._server['HTTP_USER_AGENT']": [['Arachni']]], limits)
+            runRules([['Arachni']])
         }
     }
 
     @Test
     void 'runBudgetInUs is observed'() {
-        def atom = '''
-            {
-              "manifest": {
-                "#._server['HTTP_USER_AGENT']": {
-                  "inherit_from": "#._server['HTTP_USER_AGENT']",
-                  "run_on_value": true,
-                  "run_on_key": false
-                }
-              },
-              "rules":[
-                {
-                  "rule_id":"1",
-                  "filters":[
-                    {
-                      "operator":"@rx",
-                      "targets":[
-                        "#._server['HTTP_USER_AGENT']"
-                      ],
-                      "value":"Arachni"
+        def atom = new JsonSlurper().parseText('''
+          {
+            "version": "0.0",
+            "events": [
+              {
+                "id": "arachni_rule1",
+                "name": "Arachni",
+                "conditions": [
+                  {
+                    "operation": "match_regex",
+                    "parameters": {
+                      "inputs": ["server.request.headers.no_cookies:user-agent"],
+                      "regex": "Arachni"
                     }
-                  ]
-                }
-              ],
-              "flows":[
-                {
-                  "name":"arachni_detection",
-                  "steps":[
-                    {
-                      "id":"start",
-                      "rule_ids":[
-                        "1"
-                      ],
-                      "on_match":"exit_monitor"
-                    }
-                  ]
+                  }
+                ],
+                "tags": {
+                  "type": "arachni_detection1"
                 },
-                {
-                  "name":"arachni_detection2",
-                  "steps":[
-                    {
-                      "id":"start",
-                      "rule_ids":[
-                        "1"
-                      ],
-                      "on_match":"exit_monitor"
+                "action": "record"
+              },
+              {
+                "id": "arachni_rule2",
+                "name": "Arachni",
+                "conditions": [
+                  {
+                    "operation": "match_regex",
+                    "parameters": {
+                      "inputs": ["server.request.headers.no_cookies:user-agent"],
+                      "regex": "Arachni"
                     }
-                  ]
-                }
-              ]
-            }'''
-        ctx = Powerwaf.createContext('test', [test_atom: atom])
+                  }
+                ],
+                "tags": {
+                  "type": "arachni_detection2"
+                },
+                "action": "record"
+              }
+            ]
+          }''')
+
+        ctx = Powerwaf.createContext('test', atom)
 
         timeoutInUs = 10000000 // 10 sec
         runBudget = 10 // 10 microseconds
         maxStringSize = Integer.MAX_VALUE
 
-        def res = ctx.runRule('test_atom',
-                ["#._server['HTTP_USER_AGENT']": 'Arachni' * 9000],
-                limits)
+        def res = runRules('Arachni' * 9000)
         assertThat res.action, isOneOf(
                 Powerwaf.Action.MONITOR,
                 Powerwaf.Action.OK) // depending if it happened on first or 2nd rule

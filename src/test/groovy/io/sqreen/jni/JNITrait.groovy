@@ -1,6 +1,5 @@
 package io.sqreen.jni
 
-
 import groovy.transform.CompileStatic
 import io.sqreen.powerwaf.Powerwaf
 import org.junit.BeforeClass
