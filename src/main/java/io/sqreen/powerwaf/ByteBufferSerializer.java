@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.lang.reflect.Array;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -91,7 +92,11 @@ public class ByteBufferSerializer {
             return;
         }
 
-        if (value instanceof String) {
+        if (value == null) {
+            if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
+                throw new RuntimeException("Error writing empty map for null value");
+            }
+        } else if (value instanceof String) {
             String svalue = (String) value;
             if (svalue.length() > limits.maxStringSize) {
                 LOGGER.debug("Truncating string from size {} to size {}",
@@ -109,6 +114,11 @@ public class ByteBufferSerializer {
             int size = Math.min(((Collection<?>) value).size(), remainingElements[0]);
 
             Iterator<?> iterator = ((Collection<?>) value).iterator();
+            serializeIterable(
+                    arena, pwargsSlot, parameterName, remainingElements, depthRemaining, iterator, size);
+        } else if (value.getClass().isArray()) {
+            int size = Math.min(Array.getLength(value), remainingElements[0]);
+            Iterator<?> iterator = new GenericArrayIterator(value);
             serializeIterable(
                     arena, pwargsSlot, parameterName, remainingElements, depthRemaining, iterator, size);
         } else if (value instanceof Iterable) {
@@ -145,6 +155,11 @@ public class ByteBufferSerializer {
             }
             if (i != size) {
                 throw new ConcurrentModificationException("i=" + i + ", size=" + size);
+            }
+        } else if (value instanceof Boolean) {
+            String svalue = ((Boolean) value).toString();
+            if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
+                throw new RuntimeException("Could not write string");
             }
         } else {
             // unknown value; write empty map
@@ -568,4 +583,25 @@ public class ByteBufferSerializer {
         return slice;
     }
 
+    private static class GenericArrayIterator implements Iterator<Object> {
+        final Object array;
+        final int length;
+        int pos = 0;
+
+        private GenericArrayIterator(Object array) {
+            this.array = array;
+            this.length = Array.getLength(array);
+        }
+
+
+        @Override
+        public boolean hasNext() {
+            return pos < length;
+        }
+
+        @Override
+        public Object next() {
+            return Array.get(this.array, pos++);
+        }
+    }
 }

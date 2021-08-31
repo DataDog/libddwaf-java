@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include <PowerWAF.h>
+#include <ddwaf.h>
 #include "common.h"
 #include "utf16_utf8.h"
 
@@ -21,7 +21,7 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
         JNIEnv *, jclass, jobject);
 
 static void _hstring_write_pwargs(hstring *str, size_t depth,
-                                  const PWArgs *pwargs);
+                                  const ddwaf_object *pwargs);
 
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
@@ -38,7 +38,7 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
         return NULL;
     }
 
-    PWArgs root;
+    ddwaf_object root;
     memcpy(&root, input_p, sizeof root);
     hstring str = {
         .buffer = malloc(INITIAL_CAPACITY),
@@ -123,7 +123,7 @@ static void _hstring_repeat(hstring *str, char c, size_t repeat_times)
 }
 
 static void _hstring_write_pwargs(hstring *str, size_t depth,
-                                  const PWArgs *pwargs)
+                                  const ddwaf_object *pwargs)
 {
     if (depth > 25) { // arbitrary cutoff to avoid stackoverflows
         return;
@@ -135,10 +135,10 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         HSTRING_APPEND_CONST(str, ": ");
     }
     switch (pwargs->type) {
-    case PWI_INVALID:
+    case DDWAF_OBJ_INVALID:
         HSTRING_APPEND_CONST(str, "<INVALID>\n");
         break;
-    case PWI_SIGNED_NUMBER: {
+    case DDWAF_OBJ_SIGNED: {
         HSTRING_APPEND_CONST(str, "<SIGNED> ");
         char scratch[sizeof("-9223372036854775808")];
         int len = snprintf(scratch, sizeof(scratch), "%" PRId64,
@@ -149,7 +149,7 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         HSTRING_APPEND_CONST(str, "\n");
         break;
     }
-    case PWI_UNSIGNED_NUMBER: {
+    case DDWAF_OBJ_UNSIGNED: {
         HSTRING_APPEND_CONST(str, "<UNSIGNED> ");
         char scratch[sizeof("18446744073709551615")];
         int len = snprintf(scratch, sizeof(scratch), "%" PRIu64,
@@ -160,18 +160,18 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         HSTRING_APPEND_CONST(str, "\n");
         break;
     }
-    case PWI_STRING:
+    case DDWAF_OBJ_STRING:
         HSTRING_APPEND_CONST(str, "<STRING> ");
         _hstring_append(str, pwargs->stringValue, pwargs->nbEntries);
         HSTRING_APPEND_CONST(str, "\n");
         break;
-    case PWI_ARRAY: {
+    case DDWAF_OBJ_ARRAY: {
         HSTRING_APPEND_CONST(str, "<ARRAY>\n");
         for (size_t i = 0; i < pwargs->nbEntries; i++) {
             _hstring_write_pwargs(str, depth + 1, pwargs->array + i);
         }
         break;
-    case PWI_MAP: {
+    case DDWAF_OBJ_MAP: {
         HSTRING_APPEND_CONST(str, "<MAP>\n");
         for (size_t i = 0; i < pwargs->nbEntries; i++) {
             _hstring_write_pwargs(str, depth + 1, pwargs->array + i);

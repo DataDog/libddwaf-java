@@ -55,8 +55,36 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
-    void 'can serialize arrays'() {
+    void 'can serialize a boolean as a string'() {
+        lease = serializer.serialize([my_key: [true, false]])
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <ARRAY>
+            <STRING> true
+            <STRING> false
+        '''
+        assertThat res, is(exp)
+    }
+
+    @Test
+    void 'can serialize lists'() {
         def arr = [1, 2, 3]
+        lease = serializer.serialize([my_key: arr])
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <ARRAY>
+            <SIGNED> 1
+            <SIGNED> 2
+            <SIGNED> 3
+        '''
+        assertThat res, is(exp)
+    }
+
+    @Test
+    void 'can serialize arrays'() {
+        def arr = [1, 2, 3] as byte[]
         lease = serializer.serialize([my_key: arr])
         String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
         def exp = p '''

@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include <PowerWAF.h>
+#include <ddwaf.h>
 
 #include "logging.h"
 #include "common.h"
@@ -29,15 +29,15 @@ static JavaVM *_vm;
 
 static int file_strip_idx;
 
-static bool _get_min_log_level(JNIEnv *env, PW_LOG_LEVEL *level);
-static void _powerwaf_logging_c(
-        PW_LOG_LEVEL level, const char *function, const char *file, int line,
-        const char *message, uint64_t message_len);
+static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level);
+static void _powerwaf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
+                                const char *file, unsigned line,
+                                const char *message, uint64_t message_len);
 static void _powerwaf_logging_c_throwable(
-        PW_LOG_LEVEL level, const char *function, const char *file, int line,
+        DDWAF_LOG_LEVEL level, const char *function, const char *file, int line,
         const char *message, uint64_t message_len, jthrowable throwable);
 static const char *_remove_path(const char *path);
-static JNIEnv *_attach_vm_checked(bool *attached);
+static JNIEnv *_attach_vm(bool *attached);
 static void _detach_vm(void);
 
 struct slf4j_strings {
@@ -175,13 +175,13 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-    PW_LOG_LEVEL min_level;
+    DDWAF_LOG_LEVEL min_level;
     if (!_get_min_log_level(env, &min_level)) {
         java_wrap_exc("Could not determine minimum log level");
         goto error;
     }
 
-    pw_setupLogging(_powerwaf_logging_c, min_level);
+    ddwaf_set_log_cb(_powerwaf_logging_c, min_level);
 
     retval = true;
 
@@ -244,7 +244,7 @@ void java_log_shutdown(JNIEnv *env)
     java_meth_destroy(env, &_is_loggable);
 }
 
-void java_log(PW_LOG_LEVEL level, const char *function, const char *file,
+void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
               int line, jthrowable throwable, const char *fmt, ...)
 {
     char *message = NULL;
@@ -261,7 +261,7 @@ void java_log(PW_LOG_LEVEL level, const char *function, const char *file,
     free(message);
 }
 
-static bool _get_min_log_level(JNIEnv *env, PW_LOG_LEVEL *level)
+static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level)
 {
 #define TEST_LEVEL(jobj, pwl_level) do { \
         if (JNI(CallBooleanMethod, _logger, _is_loggable.meth_id, jobj)) { \
@@ -273,48 +273,52 @@ static bool _get_min_log_level(JNIEnv *env, PW_LOG_LEVEL *level)
         } \
     } while (0)
 
-    TEST_LEVEL(_trace, PWL_TRACE);
-    TEST_LEVEL(_debug, PWL_DEBUG);
-    TEST_LEVEL(_info, PWL_INFO);
-    TEST_LEVEL(_warn, PWL_WARN);
-    *level = PWL_ERROR;
+    TEST_LEVEL(_trace, DDWAF_LOG_TRACE);
+    TEST_LEVEL(_debug, DDWAF_LOG_DEBUG);
+    TEST_LEVEL(_info, DDWAF_LOG_INFO);
+    TEST_LEVEL(_warn, DDWAF_LOG_WARN);
+    *level = DDWAF_LOG_ERROR;
     return true;
 }
-static jobject _lvl_api_to_java(PW_LOG_LEVEL api_lvl)
+static jobject _lvl_api_to_java(DDWAF_LOG_LEVEL api_lvl)
 {
     switch (api_lvl) {
-    case PWL_TRACE:
+    case DDWAF_LOG_TRACE:
         return _trace;
-    case PWL_DEBUG:
+    case DDWAF_LOG_DEBUG:
         return _debug;
-    case PWL_INFO:
+    case DDWAF_LOG_INFO:
         return _info;
-    case PWL_WARN:
+    case DDWAF_LOG_WARN:
         return _warn;
-    case PWL_ERROR:
+    case DDWAF_LOG_ERROR:
         return _error;
     }
     // should not be reached
     return _debug;
 }
-
-static void _powerwaf_logging_c(PW_LOG_LEVEL level, const char *function,
-                                const char *file, int line, const char *message,
-                                uint64_t message_len)
+static void _powerwaf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
+                                const char *file, unsigned line,
+                                const char *message, uint64_t message_len)
 {
-    _powerwaf_logging_c_throwable(level, function, file, line,
-                                  message, message_len, NULL);
+    _powerwaf_logging_c_throwable(level, function, file, (int) line, message,
+                                  message_len, NULL);
 }
 static void _powerwaf_logging_c_throwable(
-        PW_LOG_LEVEL level, const char *function, const char *file, int line,
+        DDWAF_LOG_LEVEL level, const char *function, const char *file, int line,
         const char *message, uint64_t message_len, jthrowable throwable)
 {
     UNUSED(message_len);
 
     bool attached = false;
-    JNIEnv *env = _attach_vm_checked(&attached);
-    if (JNI(ExceptionCheck)) {
+    JNIEnv *env = _attach_vm(&attached);
+    if (!env) {
         return;
+    }
+
+    jthrowable prev_thr = JNI(ExceptionOccurred);
+    if (prev_thr) {
+        JNI(ExceptionClear);
     }
 
     jstring message_jstr = NULL;
@@ -386,12 +390,18 @@ error:
         JNI(DeleteLocalRef, args_arr);
     }
 
+    if (prev_thr) {
+        JNI(Throw, prev_thr);
+        JNI(DeleteLocalRef, prev_thr);
+    }
+
     if (attached) {
         _detach_vm();
     }
 }
 
-static JNIEnv *_attach_vm_checked(bool *attached) {
+static JNIEnv *_attach_vm(bool *attached)
+{
     JNIEnv *env;
     *attached = false;
     jint res = (*_vm)->GetEnv(_vm, (void**)&env, JNI_VERSION_1_6);
@@ -402,11 +412,9 @@ static JNIEnv *_attach_vm_checked(bool *attached) {
             *attached = true;
             return env;
         } else {
-            JNI(ThrowNew, jcls_rte, "Failed attaching thread");
             return NULL;
         }
     } else { // res == JNI_EVERSION
-        JNI(ThrowNew, jcls_rte, "Unsupported JNI version");
         return NULL;
     }
 }

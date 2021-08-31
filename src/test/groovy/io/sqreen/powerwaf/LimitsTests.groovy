@@ -29,6 +29,18 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
+    void 'maxDepth is respected — array variant'() {
+        ctx = ctxWithArachniAtom
+        maxDepth = 3
+
+        Powerwaf.ActionWithData awd = runRules(['Arachni'] as String[])
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+
+        awd = runRules([['Arachni'] as String[]] as Object[])
+        assertThat awd.action, is(Powerwaf.Action.OK)
+    }
+
+    @Test
     void 'maxDepth is respected — map variant'() {
         ctx = ctxWithArachniAtom
         maxDepth = 3
@@ -50,6 +62,32 @@ class LimitsTests implements PowerwafTrait {
 
         // the map and list count as elements
         awd = runRules(['a', 'b', 'Arachni'])
+        assertThat awd.action, is(Powerwaf.Action.OK)
+    }
+
+    @Test
+    void 'maxElements is respected — array variant'() {
+        ctx = ctxWithArachniAtom
+        maxElements = 5
+
+        Powerwaf.ActionWithData awd = runRules(['a', 'Arachni'] as String[])
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+
+        // the map and list count as elements
+        awd = runRules(['a', 'b', 'Arachni'] as String[])
+        assertThat awd.action, is(Powerwaf.Action.OK)
+    }
+
+    @Test
+    void 'maxElements is respected — map variant'() {
+        ctx = ctxWithArachniAtom
+        maxElements = 5
+
+        Powerwaf.ActionWithData awd = runRules([a: 'a', b: 'Arachni'])
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+
+        // the map and list count as elements
+        awd = runRules([a: 'a', b: 'b', c: 'Arachni'] as String[])
         assertThat awd.action, is(Powerwaf.Action.OK)
     }
 
@@ -94,7 +132,7 @@ class LimitsTests implements PowerwafTrait {
     void 'runBudgetInUs is observed'() {
         def atom = new JsonSlurper().parseText('''
           {
-            "version": "0.0",
+            "version": "1.0",
             "events": [
               {
                 "id": "arachni_rule1",
@@ -145,6 +183,6 @@ class LimitsTests implements PowerwafTrait {
                 Powerwaf.Action.OK) // depending if it happened on first or 2nd rule
 
         def json = slurper.parseText(res.data)
-        assertThat json.ret_code, hasItem(is(-5))
+        assertThat json.ret_code, hasItem(is(new TimeoutPowerwafException().code))
     }
 }
