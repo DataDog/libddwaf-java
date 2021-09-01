@@ -24,17 +24,13 @@ public final class Additive implements Closeable {
      *  The ptr field holds the pointer to PWAddContext and managed by PowerWAF
      */
     private long ptr;     // KEEP THIS FIELD!
-    private boolean online = true;
+    private boolean online;
 
     Additive(PowerwafContext ctx) {
-        try {
-            this.logger.debug("Creating PowerWAF Additive for {}", ctx);
-            this.ctx = ctx;
-            this.ptr = initAdditive(ctx.handle, Powerwaf.ENABLE_BYTE_BUFFERS);
-        } catch (RuntimeException | Error t) {
-            online = false;
-            throw t;
-        }
+        this.logger.debug("Creating PowerWAF Additive for {}", ctx);
+        this.ctx = ctx;
+        this.ptr = initAdditive(ctx.handle, Powerwaf.ENABLE_BYTE_BUFFERS);
+        online = true;
     }
 
     private static native long initAdditive(PowerwafHandle handle, boolean powerwafEnableByteBuffers);
