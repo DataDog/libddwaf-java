@@ -245,6 +245,8 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                                 jobject handle_obj, jobject parameters,
                                 jobject limits_obj)
 {
+    UNUSED(clazz);
+
     jobject result = NULL;
     ddwaf_object input = _pwinput_invalid;
     ddwaf_context ctx = NULL;
