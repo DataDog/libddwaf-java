@@ -16,23 +16,17 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * is destroyed and that the rule is not destroyed during runs.
  */
 public class PowerwafContext {
-    private final static boolean POWERWAF_ENABLE_BYTE_BUFFERS;
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final String uniqueName;
     final PowerwafHandle handle;
 
-    private boolean offline;
+    private boolean online;
 
     private final Lock writeLock;
     private final Lock readLock;
 
     private final AtomicInteger refcount = new AtomicInteger(1);
-
-    static {
-        String bb = System.getProperty("POWERWAF_ENABLE_BYTE_BUFFERS", "true");
-        POWERWAF_ENABLE_BYTE_BUFFERS = !bb.equalsIgnoreCase("false") && !bb.equals("0");
-    }
 
     PowerwafContext(String uniqueName, Map<String, Object> definition) throws AbstractPowerwafException {
         this.logger.debug("Creating PowerWAF context {}", uniqueName);
@@ -49,6 +43,9 @@ public class PowerwafContext {
         }
         this.handle = Powerwaf.addRules(definition);
 
+        // online set to true must be after call to Powerwaf.addRules
+        // finalizer still runs even if the constructor threw
+        online = true;
         this.logger.debug("Successfully create PowerWAF context {}", uniqueName);
     }
 
@@ -61,10 +58,16 @@ public class PowerwafContext {
                     this, limits);
 
             Powerwaf.ActionWithData res;
-            if (POWERWAF_ENABLE_BYTE_BUFFERS) {
+            if (Powerwaf.ENABLE_BYTE_BUFFERS) {
                 ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
                 long before = System.nanoTime();
-                try (ByteBufferSerializer.ArenaLease lease = serializer.serialize(parameters)) {
+                ByteBufferSerializer.ArenaLease lease;
+                try {
+                    lease = serializer.serialize(parameters);
+                } catch (Exception e) {
+                    throw new RuntimeException("Exception encoding parameters", e);
+                }
+                try {
                     long elapsedNs = System.nanoTime() - before;
                     Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
                     if (newLimits.generalBudgetInUs == 0L) {
@@ -75,6 +78,8 @@ public class PowerwafContext {
                         throw new TimeoutPowerwafException();
                     }
                     res = Powerwaf.runRules(this.handle, lease.getFirstPWArgsByteBuffer(), limits);
+                } finally {
+                    lease.close();
                 }
             } else {
                 res = Powerwaf.runRules(this.handle, parameters, limits);
@@ -103,7 +108,7 @@ public class PowerwafContext {
     }
 
     private void checkIfOnline() {
-        if (this.offline) {
+        if (!this.online) {
             throw new IllegalStateException("This context is already offline");
         }
     }
@@ -129,8 +134,8 @@ public class PowerwafContext {
                 checkIfOnline();
                 success = this.refcount.compareAndSet(curRefcount, curRefcount - 1);
                 if (success) {
+                    this.online = false;
                     Powerwaf.clearRules(this.handle);
-                    this.offline = true;
                     logger.debug("Deleted WAF context {}", this);
                 }
             } finally {
@@ -152,9 +157,17 @@ public class PowerwafContext {
         // last-resort! delReference() should be called instead
         this.writeLock.lock();
         try {
-            if (!this.offline) {
+            if (this.online) {
                 this.logger.warn("Context {} had not been properly closed", this.uniqueName);
-                Powerwaf.clearRules(this.handle);
+                try {
+                    Powerwaf.clearRules(this.handle);
+                } finally {
+                    if (Powerwaf.EXIT_ON_LEAK) {
+                        this.logger.error("Context {} was not properly closed. " +
+                                "Exiting with exit code 2", this.uniqueName);
+                        System.exit(2);
+                    }
+                }
             }
         } finally {
             this.writeLock.unlock();

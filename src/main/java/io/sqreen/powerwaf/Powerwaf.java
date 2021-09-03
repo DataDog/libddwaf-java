@@ -11,12 +11,21 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.0.6";
+    public static final String LIB_VERSION = "1.0.7";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
+    final static boolean ENABLE_BYTE_BUFFERS;
+    final static boolean EXIT_ON_LEAK;
 
     private static boolean triedInitializing;
     private static boolean initialized;
+
+    static {
+        String bb = System.getProperty("POWERWAF_ENABLE_BYTE_BUFFERS", "true");
+        ENABLE_BYTE_BUFFERS = !bb.equalsIgnoreCase("false") && !bb.equals("0");
+        String exl = System.getProperty("POWERWAF_EXIT_ON_LEAK", "false");
+        EXIT_ON_LEAK = !exl.equalsIgnoreCase("false") && !bb.equals("0");
+    }
 
     private Powerwaf() {}
 
@@ -86,11 +95,11 @@ public final class Powerwaf {
      */
     static native ActionWithData runRules(PowerwafHandle handle,
                                           ByteBuffer firstPWArgsBuffer,
-                                          Limits limits);
+                                          Limits limits) throws AbstractPowerwafException;
 
     static native ActionWithData runRules(PowerwafHandle handle,
                                           Map<String, Object> parameters,
-                                          Limits limits);
+                                          Limits limits) throws AbstractPowerwafException;
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 

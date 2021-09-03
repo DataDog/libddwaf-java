@@ -45,12 +45,51 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
+    void 'test with array'() {
+        def ruleSet = ARACHNI_ATOM
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        def data = ['foo', 'Arachni'] as String[]
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+    }
+
+    @Test
     void 'test null argument'() {
         def ruleSet = ARACHNI_ATOM
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
         def data = [null, 'Arachni']
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+    }
+
+    @Test
+    void 'test boolean arguments'() {
+        def ruleSet = ARACHNI_ATOM
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        def data = [true, false, 'Arachni']
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+    }
+
+    @SuppressWarnings('EmptyClass')
+    static class MyClass { }
+
+    @Test
+    void 'test unencodable arguments'() {
+        def ruleSet = ARACHNI_ATOM
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        def data = [new MyClass(), 'Arachni']
         ActionWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)

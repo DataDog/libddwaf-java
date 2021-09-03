@@ -95,7 +95,6 @@ ruleset {
     ParameterReassignment
     PublicMethodsBeforeNonPublicMethods
     StaticFieldsBeforeInstanceFields
-    StaticMethodsBeforeInstanceMethods
     TernaryCouldBeElvis
     VectorIsObsolete
 

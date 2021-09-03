@@ -17,7 +17,7 @@ class AdditiveTest implements ReactiveTrait {
     void 'Reference sample should pass'() {
         def rule = '''
           {
-            "version": "0.0",
+            "version": "1.0",
             "events": [
               {
                 "id": "arachni_rule",

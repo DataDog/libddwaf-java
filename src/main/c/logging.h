@@ -3,7 +3,7 @@
 
 #include <jni.h>
 #include "common.h"
-#include <PowerWAF.h>
+#include <ddwaf.h>
 
 #ifdef _MSC_VER
 # define __attribute__(...)
@@ -20,7 +20,7 @@ void _java_wrap_exc_relay(JNIEnv *env,
     java_log(level, __FUNCTION__, __FILE__, __LINE__, NULL, fmt, ##__VA_ARGS__)
 #define JAVA_LOG_THR(level, thr, fmt, ...) \
     java_log(level, __FUNCTION__, __FILE__, __LINE__, thr, fmt, ##__VA_ARGS__)
-void java_log(PW_LOG_LEVEL level, const char *function, const char *file,
+void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
               int line, jthrowable throwable, const char *fmt, ...)
 __attribute__((format (printf, 6, 7)));
 

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.lang.reflect.Array;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -91,12 +92,16 @@ public class ByteBufferSerializer {
             return;
         }
 
-        if (value instanceof String) {
-            String svalue = (String) value;
+        if (value == null) {
+            if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
+                throw new RuntimeException("Error writing empty map for null value");
+            }
+        } else if (value instanceof CharSequence) {
+            CharSequence svalue = (CharSequence) value;
             if (svalue.length() > limits.maxStringSize) {
                 LOGGER.debug("Truncating string from size {} to size {}",
                         svalue.length(), limits.maxStringSize);
-                svalue = ((String) value).substring(0, limits.maxStringSize);
+                svalue = svalue.subSequence(0, limits.maxStringSize);
             }
             if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
                 throw new RuntimeException("Could not write string");
@@ -109,6 +114,11 @@ public class ByteBufferSerializer {
             int size = Math.min(((Collection<?>) value).size(), remainingElements[0]);
 
             Iterator<?> iterator = ((Collection<?>) value).iterator();
+            serializeIterable(
+                    arena, pwargsSlot, parameterName, remainingElements, depthRemaining, iterator, size);
+        } else if (value.getClass().isArray()) {
+            int size = Math.min(Array.getLength(value), remainingElements[0]);
+            Iterator<?> iterator = new GenericArrayIterator(value);
             serializeIterable(
                     arena, pwargsSlot, parameterName, remainingElements, depthRemaining, iterator, size);
         } else if (value instanceof Iterable) {
@@ -145,6 +155,11 @@ public class ByteBufferSerializer {
             }
             if (i != size) {
                 throw new ConcurrentModificationException("i=" + i + ", size=" + size);
+            }
+        } else if (value instanceof Boolean) {
+            String svalue = ((Boolean) value).toString();
+            if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
+                throw new RuntimeException("Could not write string");
             }
         } else {
             // unknown value; write empty map
@@ -231,10 +246,15 @@ public class ByteBufferSerializer {
          * @return the native pointer to the string and its size in bytes,
          *         or null if the string is too large
          */
-        WrittenString writeStringUnlimited(String s) {
+        WrittenString writeStringUnlimited(CharSequence s) {
             ByteBuffer bytes;
+
+            CharBuffer cb = s instanceof CharBuffer ?
+                    ((CharBuffer) s).duplicate() :
+                    CharBuffer.wrap(s);
+
             try {
-                bytes = CHARSET_ENCODER.encode(CharBuffer.wrap(s));
+                bytes = CHARSET_ENCODER.encode(cb);
             } catch (CharacterCodingException e) {
                 // should not happen
                 throw new UndeclaredThrowableException(e);
@@ -431,7 +451,7 @@ public class ByteBufferSerializer {
             this.buffer = buffer;
         }
 
-        boolean writeString(Arena arena, String parameterName, String value) {
+        boolean writeString(Arena arena, String parameterName, CharSequence value) {
             if (!putParameterName(arena, parameterName)) { // string too large
                 return false;
             }
@@ -568,4 +588,25 @@ public class ByteBufferSerializer {
         return slice;
     }
 
+    private static class GenericArrayIterator implements Iterator<Object> {
+        final Object array;
+        final int length;
+        int pos = 0;
+
+        private GenericArrayIterator(Object array) {
+            this.array = array;
+            this.length = Array.getLength(array);
+        }
+
+
+        @Override
+        public boolean hasNext() {
+            return pos < length;
+        }
+
+        @Override
+        public Object next() {
+            return Array.get(this.array, pos++);
+        }
+    }
 }

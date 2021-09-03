@@ -4,13 +4,14 @@ import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
 import io.sqreen.jni.JNITrait
 import org.junit.After
+import org.junit.AfterClass
 
 @CompileStatic
 trait PowerwafTrait extends JNITrait {
 
     static final Map ARACHNI_ATOM = (Map) new JsonSlurper().parseText('''
         {
-          "version": "0.0",
+          "version": "1.0",
           "events": [
             {
               "id": "arachni_rule",
@@ -36,7 +37,7 @@ trait PowerwafTrait extends JNITrait {
     int maxElements = 20
     int maxStringSize = 100
     long timeoutInUs = 200000 // 200 ms
-    long runBudget = 0; // unspecified
+    long runBudget = 0 // unspecified
 
     Powerwaf.Limits getLimits() {
         new Powerwaf.Limits(
@@ -52,6 +53,12 @@ trait PowerwafTrait extends JNITrait {
         if (ctx) {
             ctx.delReference()
         }
+    }
+
+    @AfterClass
+    @SuppressWarnings('ExplicitGarbageCollection')
+    static void afterClass() {
+        System.gc()
     }
 
     @SuppressWarnings('UnnecessaryCast')
