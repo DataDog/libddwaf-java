@@ -30,6 +30,14 @@ static void _dispose_of_action_enums(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
+struct char_buffer_info {
+    jchar *nat_array;
+    jcharArray javaArray;
+    int start;
+    int end;
+    bool call_release;
+};
+static bool _get_char_buffer_data(JNIEnv *env, jobject obj, struct char_buffer_info *info);
 static ddwaf_context _get_additive_context_checked(JNIEnv *env, jobject additive_obj);
 static bool _set_additive_context_checked(JNIEnv *env, jobject additive_obj, ddwaf_context ctx);
 static bool _get_time_checked(JNIEnv *env, struct timespec *time);
@@ -1303,84 +1311,72 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
         }
 
     } else if (JNI(IsInstanceOf, obj, charSequence_cls)) {
+        int utf16_len;
+        const int max_utf16_len = lims->max_string_size;
 
-        size_t len;
-        jsize utf16_len;
-        uint8_t *out = NULL;
-        int max_len = lims->max_string_size;
+        struct char_buffer_info cbi;
+        bool has_nat_arr = _get_char_buffer_data(env, obj, &cbi);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
 
-        jboolean is_char_buffer = JNI(IsInstanceOf, obj, charBuffer_cls);
-        jboolean has_array = JNI(CallNonvirtualBooleanMethod, obj, charBuffer_hasArray.class_glob, charBuffer_hasArray.meth_id);
-        // Most of CharSequence implementations are CharBuffer
-        // try to read data from array
-        if (is_char_buffer && has_array) {
+        if (has_nat_arr) {
+            utf16_len = cbi.end - cbi.start;
+            if (utf16_len > max_utf16_len) {
+                utf16_len = max_utf16_len;
+            }
 
-            jcharArray utf16_arr = JNI(CallNonvirtualObjectMethod, obj, charBuffer_array.class_glob, charBuffer_array.meth_id);
+            uint8_t *utf8_out;
+            size_t utf8_len;
+            java_utf16_to_utf8_checked(env, cbi.nat_array + cbi.start,
+                                       utf16_len, &utf8_out, &utf8_len);
+
+            if (cbi.call_release) {
+                JNI(ReleaseCharArrayElements, cbi.javaArray, cbi.nat_array,
+                    JNI_ABORT);
+                JNI(DeleteLocalRef, cbi.javaArray);
+            }
+
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
-            jint pos = JNI(CallNonvirtualIntMethod, obj, buffer_position.class_glob, buffer_position.meth_id);
-            if (JNI(ExceptionCheck)) {
-                goto error;
-            }
-
-            jint limit = JNI(CallNonvirtualIntMethod, obj, buffer_limit.class_glob, buffer_limit.meth_id);
-            if (JNI(ExceptionCheck)) {
-                goto error;
-            }
-
-            utf16_len = limit - pos;
-            if (utf16_len > max_len) {
-                utf16_len = max_len;
-            }
-
-            jchar *elems = JNI(GetCharArrayElements, utf16_arr, JNI_FALSE);
-            if (JNI(ExceptionCheck)) {
-                goto error;
-            }
-
-            java_utf16_to_utf8_checked(env, (jchar*)(elems + pos), (int)utf16_len, &out, &len);
-            JNI(ReleaseCharArrayElements, utf16_arr, elems, 0);
-
-            if (out == NULL || len == 0 || JNI(ExceptionCheck)) {
-                goto error;
-            }
-
-            bool success = !!ddwaf_object_stringl(&result, (char*)out, len);
-            free(out);
+            bool success = !!ddwaf_object_stringl(&result, (char *) utf8_out,
+                                                  utf8_len);
+            free(utf8_out);
             if (!success) {
                 JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
                 goto error;
             }
-
-        } else {
-
+        } else { // regular char sequence or non-direct CharBuffer w/out array
             // Try to read data from CharSequence
             utf16_len = JNI(CallIntMethod, obj, charSequence_length.meth_id);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
-            if (utf16_len > max_len) {
-                obj = JNI(CallObjectMethod, obj, charSequence_subSequence.meth_id, 0, max_len);
+            if (utf16_len > max_utf16_len) {
+                jobject new_obj = java_meth_call(env, &charSequence_subSequence,
+                                                 obj, 0, max_utf16_len);
                 if (JNI(ExceptionCheck)) {
                     goto error;
                 }
+                JNI(DeleteLocalRef, obj);
+                obj = new_obj;
             }
-            jstring str = (jstring)JNI(CallObjectMethod, obj, to_string.meth_id);
+
+            jstring str = java_meth_call(env, &to_string, obj);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
 
-            char* utf8_out = java_to_utf8_checked(env, str, &len);
-
+            size_t utf8_len;
+            char *utf8_out = java_to_utf8_checked(env, str, &utf8_len);
             if (!utf8_out) {
                 goto error;
             }
 
-            //result = pw_createStringWithLength(utf8_out, len);
-            bool success = !!ddwaf_object_stringl(&result, utf8_out, len);
+            bool success = !!ddwaf_object_stringl(&result, utf8_out, utf8_len);
             free(utf8_out);
             if (!success) {
                 JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
@@ -1456,6 +1452,65 @@ error:
     ddwaf_object_free(&result);
 
     return _pwinput_invalid;
+}
+
+// can return false with and without exception
+static bool _get_char_buffer_data(JNIEnv *env, jobject obj,
+                                   struct char_buffer_info *info)
+{
+    info->call_release = false;
+    jboolean is_char_buffer = JNI(IsInstanceOf, obj, charBuffer_cls);
+    if (!is_char_buffer) {
+        return false;
+    }
+
+    jint pos = JNI(CallNonvirtualIntMethod, obj, buffer_position.class_glob,
+                   buffer_position.meth_id);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+
+    jint limit = JNI(CallNonvirtualIntMethod, obj, buffer_limit.class_glob,
+                     buffer_limit.meth_id);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+
+    info->start = pos;
+    info->end = limit;
+
+    jboolean has_array =
+            JNI(CallNonvirtualBooleanMethod, obj,
+                charBuffer_hasArray.class_glob, charBuffer_hasArray.meth_id);
+    if (!JNI(ExceptionCheck)) {
+        return false;
+    }
+
+    if (has_array) {
+        info->javaArray =
+                JNI(CallNonvirtualObjectMethod, obj,
+                    charBuffer_array.class_glob, charBuffer_array.meth_id);
+        if (JNI(ExceptionCheck)) {
+            return false;
+        }
+
+        jchar *elems = JNI(GetCharArrayElements, info->javaArray, NULL);
+        if (JNI(ExceptionCheck)) {
+            JNI(DeleteLocalRef, info->javaArray);
+            return false;
+        }
+
+        info->nat_array = elems;
+        info->call_release = true;
+        return true;
+    } else {
+        void *addr = JNI(GetDirectBufferAddress, obj);
+        if (addr) {
+            info->nat_array = addr;
+            return true;
+        }
+        return false;
+    }
 }
 
 static ddwaf_context _get_additive_context_checked(JNIEnv *env,
