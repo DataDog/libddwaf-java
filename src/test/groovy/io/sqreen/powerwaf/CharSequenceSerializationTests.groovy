@@ -22,6 +22,7 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
         CharBuffer cs = CharBuffer.wrap(storedBody, 0, storedBody.length)
         Powerwaf.ActionWithData awd = testWithData(cs)     // pass HeapCharBuffer
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat cs.remaining(), is(storedBody.length)
     }
 
     @Test
@@ -31,6 +32,7 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
         cs.position(4)  // shift position on 4 bytes (break signature)
         Powerwaf.ActionWithData awd = testWithData(cs)     // pass HeapCharBuffer
         assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat cs.remaining(), is(storedBody.length - 4)
     }
 
     @Test

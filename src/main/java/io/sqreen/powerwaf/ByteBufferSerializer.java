@@ -249,7 +249,9 @@ public class ByteBufferSerializer {
         WrittenString writeStringUnlimited(CharSequence s) {
             ByteBuffer bytes;
 
-            CharBuffer cb = s instanceof CharBuffer ? (CharBuffer) s : CharBuffer.wrap(s);
+            CharBuffer cb = s instanceof CharBuffer ?
+                    ((CharBuffer) s).duplicate() :
+                    CharBuffer.wrap(s);
 
             try {
                 bytes = CHARSET_ENCODER.encode(cb);

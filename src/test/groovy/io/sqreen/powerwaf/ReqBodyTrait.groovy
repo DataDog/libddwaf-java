@@ -2,10 +2,9 @@ package io.sqreen.powerwaf
 
 import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
-import io.sqreen.jni.JNITrait
 
 @CompileStatic
-trait ReqBodyTrait extends JNITrait {
+trait ReqBodyTrait extends PowerwafTrait {
 
     static final Map REQ_BODY_ATOM = (Map) new JsonSlurper().parseText('''
         {
@@ -32,17 +31,6 @@ trait ReqBodyTrait extends JNITrait {
         }
         ''')
 
-    int maxDepth = 5
-    int maxElements = 20
-    int maxStringSize = 30
-    long timeoutInUs = 200000 // 200 ms
-    long runBudget = 0 // unspecified
-
-    Powerwaf.Limits getLimits() {
-        new Powerwaf.Limits(
-                maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
-    }
-
     Powerwaf.ActionWithData testWithData(Object data) {
         def rule = REQ_BODY_ATOM
 
@@ -50,7 +38,7 @@ trait ReqBodyTrait extends JNITrait {
                 'server.request.body.raw': data
         ]
 
-        def ctx = Powerwaf.createContext('test', rule)
+        ctx = ctx ?: Powerwaf.createContext('test', rule)
         ctx.runRules(params, limits)
     }
 }
