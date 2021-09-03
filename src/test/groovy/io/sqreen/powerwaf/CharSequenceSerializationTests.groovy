@@ -7,7 +7,7 @@ import java.nio.CharBuffer
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
-class SerializationTests implements ReqBodyTrait {
+class CharSequenceSerializationTests implements ReqBodyTrait {
 
     @Test
     void 'Should MONITOR with data passed as String'() {
