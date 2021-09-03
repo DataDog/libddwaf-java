@@ -150,6 +150,8 @@ public final class Additive implements Closeable {
                 close();
             } finally {
                 if (Powerwaf.EXIT_ON_LEAK) {
+                    this.logger.error("Additive for rule context {} was not properly closed. " +
+                            "Exiting with exit code 2", this.ctx);
                     System.exit(2);
                 }
             }

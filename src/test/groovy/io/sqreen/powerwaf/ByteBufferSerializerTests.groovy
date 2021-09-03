@@ -3,6 +3,8 @@ package io.sqreen.powerwaf
 import org.junit.After
 import org.junit.Test
 
+import java.nio.CharBuffer
+
 import static groovy.util.GroovyAssert.shouldFail
 import static org.junit.Assert.assertThat
 import static org.hamcrest.Matchers.*
@@ -22,6 +24,20 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     @Test
     void 'can serialize a string'() {
         lease = serializer.serialize([my_key: 'my string'])
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <STRING> my string
+        '''
+        assertThat res, is(exp)
+    }
+
+    @Test
+    void 'can serialize a CharBuffer'() {
+        char[] storedBody = 'my string' as char[]
+        CharBuffer cb = CharBuffer.wrap(storedBody, 0, storedBody.length)
+
+        lease = serializer.serialize([my_key: cb])
         String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
         def exp = p '''
         <MAP>

@@ -163,6 +163,8 @@ public class PowerwafContext {
                     Powerwaf.clearRules(this.handle);
                 } finally {
                     if (Powerwaf.EXIT_ON_LEAK) {
+                        this.logger.error("Context {} was not properly closed. " +
+                                "Exiting with exit code 2", this.uniqueName);
                         System.exit(2);
                     }
                 }

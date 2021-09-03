@@ -96,12 +96,12 @@ public class ByteBufferSerializer {
             if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
                 throw new RuntimeException("Error writing empty map for null value");
             }
-        } else if (value instanceof String) {
-            String svalue = (String) value;
+        } else if (value instanceof CharSequence) {
+            CharSequence svalue = (CharSequence) value;
             if (svalue.length() > limits.maxStringSize) {
                 LOGGER.debug("Truncating string from size {} to size {}",
                         svalue.length(), limits.maxStringSize);
-                svalue = ((String) value).substring(0, limits.maxStringSize);
+                svalue = svalue.subSequence(0, limits.maxStringSize);
             }
             if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
                 throw new RuntimeException("Could not write string");
@@ -246,10 +246,15 @@ public class ByteBufferSerializer {
          * @return the native pointer to the string and its size in bytes,
          *         or null if the string is too large
          */
-        WrittenString writeStringUnlimited(String s) {
+        WrittenString writeStringUnlimited(CharSequence s) {
             ByteBuffer bytes;
+
+            CharBuffer cb = s instanceof CharBuffer ?
+                    ((CharBuffer) s).duplicate() :
+                    CharBuffer.wrap(s);
+
             try {
-                bytes = CHARSET_ENCODER.encode(CharBuffer.wrap(s));
+                bytes = CHARSET_ENCODER.encode(cb);
             } catch (CharacterCodingException e) {
                 // should not happen
                 throw new UndeclaredThrowableException(e);
@@ -446,7 +451,7 @@ public class ByteBufferSerializer {
             this.buffer = buffer;
         }
 
-        boolean writeString(Arena arena, String parameterName, String value) {
+        boolean writeString(Arena arena, String parameterName, CharSequence value) {
             if (!putParameterName(arena, parameterName)) { // string too large
                 return false;
             }

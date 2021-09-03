@@ -14,6 +14,18 @@ extern jclass jcls_rte;
 extern jclass jcls_iae;
 extern jmethodID rte_constr_cause;
 
+extern jclass charSequence_cls;
+extern struct j_method charSequence_length;
+extern struct j_method charSequence_subSequence;
+
+extern jclass buffer_cls;
+extern struct j_method buffer_position;
+extern struct j_method buffer_limit;
+
+extern jclass charBuffer_cls;
+extern struct j_method charBuffer_hasArray;
+extern struct j_method charBuffer_array;
+
 extern jclass string_cls;
 extern struct j_method to_string;
 
