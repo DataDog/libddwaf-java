@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
 import java.util.Map;
 
 public final class Additive implements Closeable {
@@ -17,8 +16,7 @@ public final class Additive implements Closeable {
 
     private final PowerwafContext ctx;
 
-    private final LinkedList<ByteBufferSerializer.ArenaLease> leases =
-            new LinkedList<>();
+    private final ByteBufferSerializer.ArenaLease lease;
 
     /**
      *  The ptr field holds the pointer to PWAddContext and managed by PowerWAF
@@ -30,6 +28,7 @@ public final class Additive implements Closeable {
         this.logger.debug("Creating PowerWAF Additive for {}", ctx);
         this.ctx = ctx;
         this.ptr = initAdditive(ctx.handle, Powerwaf.ENABLE_BYTE_BUFFERS);
+        this.lease = ByteBufferSerializer.getBlankLease();
         online = true;
     }
 
@@ -55,37 +54,34 @@ public final class Additive implements Closeable {
      * @param parameters                    data to push to PowerWAF
      * @param limits                        request execution limits
      * @return                              execution results
-     * @throws AbstractPowerwafException    rethrow any RuntimeException from native code
+     * @throws AbstractPowerwafException    rethrow from native code, timeout or param serialization failure
      */
     public Powerwaf.ActionWithData run(Map<String, Object> parameters,
                                        Powerwaf.Limits limits) throws AbstractPowerwafException {
         try {
             if (Powerwaf.ENABLE_BYTE_BUFFERS) {
-                ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
                 long before = System.nanoTime();
-                ByteBufferSerializer.ArenaLease lease;
-                try {
-                    lease = serializer.serialize(parameters);
-                } catch (Exception e) {
-                    throw new RuntimeException("Exception encoding parameters", e);
-                }
-                // henceforth the lease mustn't leak
                 synchronized (this) {
                     if (!online) {
-                        lease.close();
                         throw new IllegalStateException("This Additive is no longer online");
                     }
-                    leases.push(lease);
+                    ByteBuffer bb;
+                    try {
+                        bb = this.lease.serializeMore(limits, parameters);
+                    } catch (Exception e) {
+                        // extra exception is here just to match what happens when bytebuffers are disabled
+                        throw new UnclassifiedPowerwafException(
+                                new RuntimeException("Exception encoding parameters", e));
+                    }
                     long elapsedNs = System.nanoTime() - before;
                     Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
                     if (newLimits.generalBudgetInUs == 0L) {
                         this.logger.debug(
                                 "Budget exhausted after serialization; " +
                                         "not running on additive {}", this);
-                        leases.pop().close(); // might as well close it now
                         throw new TimeoutPowerwafException();
                     }
-                    return runAdditive(lease.getFirstPWArgsByteBuffer(), newLimits);
+                    return runAdditive(bb, newLimits);
                 }
             } else {
                 synchronized (this) {
@@ -102,7 +98,7 @@ public final class Additive implements Closeable {
 
     @Override
     public void close() {
-        Throwable clearException = null;
+        Throwable exc = null;
         synchronized (this) {
             if (!online) {
                 throw new IllegalStateException("This Additive is no longer online");
@@ -113,29 +109,26 @@ public final class Additive implements Closeable {
                 clearAdditive();
                 this.logger.debug("Closed Additive for rule context {}", this.ctx);
             } catch (Throwable t) {
-                clearException = t;
+                exc = t;
             }
 
-            ByteBufferSerializer.ArenaLease lease;
-            while ((lease = this.leases.pollLast()) != null) {
-                try {
-                    lease.close();
-                } catch (Throwable t) {
-                    this.logger.warn("Error releasing lease", t);
-                }
+            try {
+                this.lease.close();
+            } catch (Throwable t) {
+                exc = t;
             }
         }
 
         // if we reach this point, we were originally online
         this.ctx.delReference();
 
-        if (clearException != null) {
-            if (clearException instanceof Error) {
-                throw (Error) clearException;
-            } else if (clearException instanceof RuntimeException) {
-                throw (RuntimeException) clearException;
+        if (exc != null) {
+            if (exc instanceof Error) {
+                throw (Error) exc;
+            } else if (exc instanceof RuntimeException) {
+                throw (RuntimeException) exc;
             } else {
-                throw new UndeclaredThrowableException(clearException);
+                throw new UndeclaredThrowableException(exc);
             }
         }
     }

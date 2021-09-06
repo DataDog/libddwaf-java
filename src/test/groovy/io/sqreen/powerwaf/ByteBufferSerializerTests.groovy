@@ -3,6 +3,7 @@ package io.sqreen.powerwaf
 import org.junit.After
 import org.junit.Test
 
+import java.nio.ByteBuffer
 import java.nio.CharBuffer
 
 import static groovy.util.GroovyAssert.shouldFail
@@ -295,6 +296,33 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           12\uAAAA: <STRING> \uFFFD\uFFFD\uFFFD
         '''
         assertThat res, is(exp)
+    }
+
+    @Test
+    void 'additive basic usage'() {
+        lease = ByteBufferSerializer.blankLease
+        ByteBuffer bb1 = lease.serializeMore(limits, [a: 'b'])
+        ByteBuffer bb2 = lease.serializeMore(limits, [c: 'd'])
+
+        String res = Powerwaf.pwArgsBufferToString(bb1)
+        def exp = p '''
+        <MAP>
+          a: <STRING> b
+        '''
+        assertThat res, is(exp)
+
+        res = Powerwaf.pwArgsBufferToString(bb2)
+        exp = p '''
+        <MAP>
+          c: <STRING> d
+        '''
+        assertThat res, is(exp)
+    }
+
+    @Test
+    void 'first pwargs buffer with nothing written'() {
+        lease = ByteBufferSerializer.blankLease
+        shouldFail(IllegalStateException) { lease.firstPWArgsByteBuffer }
     }
 
     private static String p(String s) {

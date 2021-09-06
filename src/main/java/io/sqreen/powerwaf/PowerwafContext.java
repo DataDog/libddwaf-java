@@ -19,8 +19,9 @@ public class PowerwafContext {
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final String uniqueName;
-    final PowerwafHandle handle;
 
+    // must be accessed with locking
+    final PowerwafHandle handle;
     private boolean online;
 
     private final Lock writeLock;
@@ -59,6 +60,7 @@ public class PowerwafContext {
 
             Powerwaf.ActionWithData res;
             if (Powerwaf.ENABLE_BYTE_BUFFERS) {
+                // serialization could be extracted out of the lock
                 ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
                 long before = System.nanoTime();
                 ByteBufferSerializer.ArenaLease lease;
