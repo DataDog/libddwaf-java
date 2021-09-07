@@ -112,10 +112,10 @@ public class NativeLibLoader {
         switch(type) {
             case LINUX_64_GLIBC:
                 return Arrays.asList("linux_64_glibc/libsqreen_jni.so",
-                        "linux_64_glibc/libddwaf.so");
+                        "linux_64/libddwaf.so");
             case LINUX_64_MUSL:
                 return Arrays.asList("linux_64_musl/libsqreen_jni.so",
-                        "linux_64_musl/libddwaf.so");
+                        "linux_64/libddwaf.so");
             case MAC_OS_64:
                 return Arrays.asList("osx_64/libsqreen_jni.dylib",
                         "osx_64/libddwaf.dylib");
