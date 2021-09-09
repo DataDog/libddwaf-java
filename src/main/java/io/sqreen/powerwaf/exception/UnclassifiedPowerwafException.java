@@ -12,4 +12,8 @@ public class UnclassifiedPowerwafException extends AbstractPowerwafException {
     public UnclassifiedPowerwafException(String message, Throwable cause) {
         super(message, Integer.MIN_VALUE, cause);
     }
+
+    public UnclassifiedPowerwafException(Exception e) {
+        this(e.getMessage(), e);
+    }
 }

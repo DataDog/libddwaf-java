@@ -43,28 +43,39 @@ public class ByteBufferSerializer {
 
         ArenaLease lease = ArenaPool.INSTANCE.getLease();
         try {
-            Arena arena = lease.getArena();
-            int[] remainingElements = new int[]{limits.maxElements};
-
-            PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(1);
-            if (pwArgsArrayBuffer == null) {
-                throw new OutOfMemoryError();
-            }
-            PWArgsBuffer initialValue = pwArgsArrayBuffer.get(0);
-            doSerialize(arena, initialValue, null, map, remainingElements, limits.maxDepth);
-        } catch (RuntimeException rte) {
+            serializeMore(lease, this.limits, map);
+        } catch (RuntimeException | Error rte) {
             lease.close();
             throw rte;
-        } catch (Error error) {
-            lease.close();
-            throw error;
         }
 
         return lease;
     }
 
-    private void doSerialize(Arena arena, PWArgsBuffer pwargsSlot, String parameterName,
-                             Object value, int[] remainingElements, int depthRemaining) {
+    public static ArenaLease getBlankLease() {
+        return ArenaPool.INSTANCE.getLease();
+    }
+
+    private static ByteBuffer serializeMore(ArenaLease lease, Powerwaf.Limits limits, Map<?, ?> map) {
+        Arena arena = lease.getArena();
+        // limits apply per-serialization run
+        int[] remainingElements = new int[]{limits.maxElements};
+
+        PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(1);
+        if (pwArgsArrayBuffer == null) {
+            throw new OutOfMemoryError();
+        }
+        PWArgsBuffer initialValue = pwArgsArrayBuffer.get(0);
+        doSerialize(arena, limits, initialValue, null, map, remainingElements, limits.maxDepth);
+        return initialValue.buffer;
+
+        // if it threw somewhere, the arena will have elements that are never used
+        // they will only be released when the lease is closed
+    }
+
+    private static void doSerialize(Arena arena, Powerwaf.Limits limits, PWArgsBuffer pwargsSlot,
+                                    String parameterName, Object value, int[] remainingElements,
+                                    int depthRemaining) {
         if (parameterName != null && parameterName.length() > limits.maxStringSize) {
             LOGGER.debug("Truncating parameter string from size {} to size {}",
                     parameterName.length(), limits.maxStringSize);
@@ -115,12 +126,14 @@ public class ByteBufferSerializer {
 
             Iterator<?> iterator = ((Collection<?>) value).iterator();
             serializeIterable(
-                    arena, pwargsSlot, parameterName, remainingElements, depthRemaining, iterator, size);
+                    arena, limits, pwargsSlot, parameterName,
+                    remainingElements, depthRemaining, iterator, size);
         } else if (value.getClass().isArray()) {
             int size = Math.min(Array.getLength(value), remainingElements[0]);
             Iterator<?> iterator = new GenericArrayIterator(value);
             serializeIterable(
-                    arena, pwargsSlot, parameterName, remainingElements, depthRemaining, iterator, size);
+                    arena, limits, pwargsSlot, parameterName, remainingElements,
+                    depthRemaining, iterator, size);
         } else if (value instanceof Iterable) {
             // we need to iterate twice
             Iterator<?> iterator = ((Iterable<?>) value).iterator();
@@ -133,7 +146,8 @@ public class ByteBufferSerializer {
 
             iterator = ((Iterable<?>) value).iterator();
             serializeIterable(
-                    arena, pwargsSlot, parameterName, remainingElements, depthRemaining, iterator, size);
+                    arena, limits, pwargsSlot, parameterName,
+                    remainingElements, depthRemaining, iterator, size);
         } else if (value instanceof Map) {
             int size = Math.min(((Map<?, ?>) value).size(), remainingElements[0]);
 
@@ -150,7 +164,7 @@ public class ByteBufferSerializer {
                 if (key == null) {
                     key = "";
                 }
-                doSerialize(arena, newSlot, key.toString(), entry.getValue(),
+                doSerialize(arena, limits, newSlot, key.toString(), entry.getValue(),
                         remainingElements, depthRemaining - 1);
             }
             if (i != size) {
@@ -169,13 +183,14 @@ public class ByteBufferSerializer {
         }
     }
 
-    private void serializeIterable(Arena arena,
-                                   PWArgsBuffer pwArgsSlot,
-                                   String parameterName,
-                                   int[] remainingElements,
-                                   int depthRemaining,
-                                   Iterator<?> iterator,
-                                   int size) {
+    private static void serializeIterable(Arena arena,
+                                          Powerwaf.Limits limits,
+                                          PWArgsBuffer pwArgsSlot,
+                                          String parameterName,
+                                          int[] remainingElements,
+                                          int depthRemaining,
+                                          Iterator<?> iterator,
+                                          int size) {
         PWArgsArrayBuffer pwArgsArrayBuffer = pwArgsSlot.writeArray(arena, parameterName, size);
         if (pwArgsArrayBuffer == null) {
             throw new RuntimeException("Error serializing iterable");
@@ -185,7 +200,7 @@ public class ByteBufferSerializer {
         for (i = 0; iterator.hasNext() && i < size; i++) {
             Object newObj = iterator.next();
             PWArgsBuffer newSlot = pwArgsArrayBuffer.get(i);
-            doSerialize(arena, newSlot, null, newObj, remainingElements, depthRemaining - 1);
+            doSerialize(arena, limits, newSlot, null, newObj, remainingElements, depthRemaining - 1);
         }
         if (i != size) {
             throw new ConcurrentModificationException("i=" + i + ", size=" + size);
@@ -224,8 +239,6 @@ public class ByteBufferSerializer {
 
         ByteBuffer getFirstUsedPWArgsBuffer() {
             if (idxOfFirstUsedPWArgsSegment == -1) {
-                // should not happen, because an ArenaLease should not
-                // escape with nothing written
                 throw new IllegalStateException("No PWArgs written");
             }
             return pwargsSegments.get(idxOfFirstUsedPWArgsSegment).buffer;
@@ -330,7 +343,7 @@ public class ByteBufferSerializer {
 
     }
 
-    static class ArenaLease implements AutoCloseable, Closeable {
+    public static class ArenaLease implements AutoCloseable, Closeable {
         private boolean closeCalled;
         private final Arena arena;
 
@@ -338,12 +351,16 @@ public class ByteBufferSerializer {
             this.arena = arena;
         }
 
-        public Arena getArena() {
+        Arena getArena() {
             return this.arena;
         }
 
         public ByteBuffer getFirstPWArgsByteBuffer() {
             return this.arena.getFirstUsedPWArgsBuffer();
+        }
+
+        public ByteBuffer serializeMore(Powerwaf.Limits limits, Map<?, ?> map) {
+            return ByteBufferSerializer.serializeMore(this, limits, map);
         }
 
         @Override
@@ -394,7 +411,7 @@ public class ByteBufferSerializer {
         static final PWArgsArrayBuffer EMPTY_BUFFER = new PWArgsArrayBuffer();
 
         PWArgsArrayBuffer(ByteBuffer buffer, int num) {
-            if (num == 0) {
+            if (num == 0 || buffer == null) {
                 throw new IllegalArgumentException();
             }
             this.num = num;
@@ -410,6 +427,7 @@ public class ByteBufferSerializer {
             if (i < 0 || i >= num) {
                 throw new ArrayIndexOutOfBoundsException();
             }
+            assert this.buffer != null;
             ByteBuffer slice = offsetBuffer(this.buffer, i * SIZEOF_PWARGS);
             slice.limit(SIZEOF_PWARGS);
             return new PWArgsBuffer( slice);
