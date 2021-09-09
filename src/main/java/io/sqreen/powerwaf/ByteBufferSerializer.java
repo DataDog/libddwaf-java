@@ -24,9 +24,12 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class ByteBufferSerializer {
     private static final long NULLPTR = 0;
-    private static final int SIZEOF_PWARGS = 40;
-    private static final int PWARGS_MIN_SEGMENTS_SIZE = 512;
+    private static final int SIZEOF_PWARGS = 16;
+    private static final int SIZEOF_KVPAIR = 32;
+    private static final int MAIN_MIN_SEGMENTS_SIZE = 512 * SIZEOF_KVPAIR;
     private static final int STRINGS_MIN_SEGMENTS_SIZE = 81920;
+    private static final int MAX_SMALL_STRING_SIZE = 10;
+    private static final byte NUL_TERMINATOR = 0;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ByteBufferSerializer.class);
 
@@ -61,32 +64,23 @@ public class ByteBufferSerializer {
         // limits apply per-serialization run
         int[] remainingElements = new int[]{limits.maxElements};
 
-        PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(1);
+        PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer((char)1);
         if (pwArgsArrayBuffer == null) {
             throw new OutOfMemoryError();
         }
         PWArgsBuffer initialValue = pwArgsArrayBuffer.get(0);
-        doSerialize(arena, limits, initialValue, null, map, remainingElements, limits.maxDepth);
+        doSerialize(arena, limits, initialValue, map, remainingElements, limits.maxDepth);
         return initialValue.buffer;
 
         // if it threw somewhere, the arena will have elements that are never used
         // they will only be released when the lease is closed
     }
 
-    private static void doSerialize(Arena arena, Powerwaf.Limits limits, PWArgsBuffer pwargsSlot,
-                                    String parameterName, Object value, int[] remainingElements,
+    private static void doSerialize(Arena arena, Powerwaf.Limits limits,
+                                    PWArgsBuffer pwargsSlot,
+                                    Object value, int[] remainingElements,
                                     int depthRemaining) {
-        if (parameterName != null && parameterName.length() > limits.maxStringSize) {
-            LOGGER.debug("Truncating parameter string from size {} to size {}",
-                    parameterName.length(), limits.maxStringSize);
-            parameterName = parameterName.substring(0, limits.maxStringSize);
-        }
-
         remainingElements[0]--;
-
-        // RuntimeExceptions thrown should only happen if we get strings with
-        // size Integer.MAX_VALUE and the limit size for strings is also
-        // Integer.MAXVALUE
 
         if (remainingElements[0] < 0 || depthRemaining < 0) {
             if (LOGGER.isInfoEnabled()) {
@@ -97,16 +91,12 @@ public class ByteBufferSerializer {
                 }
             }
             // write empty map
-            if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
-                throw new RuntimeException("Could not write map");
-            }
+            pwargsSlot.writeMap(arena, (char) 0); // can't fail
             return;
         }
 
         if (value == null) {
-            if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
-                throw new RuntimeException("Error writing empty map for null value");
-            }
+            pwargsSlot.writeMap(arena, (char) 0); // can't fail
         } else if (value instanceof CharSequence) {
             CharSequence svalue = (CharSequence) value;
             if (svalue.length() > limits.maxStringSize) {
@@ -114,96 +104,127 @@ public class ByteBufferSerializer {
                         svalue.length(), limits.maxStringSize);
                 svalue = svalue.subSequence(0, limits.maxStringSize);
             }
-            if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
+            if (!pwargsSlot.writeString(arena, svalue)) {
                 throw new RuntimeException("Could not write string");
             }
         } else if (value instanceof Number) {
-            if (!pwargsSlot.writeLong(arena, parameterName, ((Number) value).longValue())) {
-                throw new RuntimeException("Could not write number");
-            }
+            pwargsSlot.writeLong(((Number) value).longValue());
         } else if (value instanceof Collection) {
-            int size = Math.min(((Collection<?>) value).size(), remainingElements[0]);
+            int sizeInt = Math.min(((Collection<?>) value).size(), remainingElements[0]);
+            if (sizeInt < 0) {
+                throw new RuntimeException("Negative collection size");
+            }
+            char size = capToUnsignedShort(sizeInt);
 
             Iterator<?> iterator = ((Collection<?>) value).iterator();
-            serializeIterable(
-                    arena, limits, pwargsSlot, parameterName,
+            serializeArray(
+                    arena, limits, pwargsSlot,
                     remainingElements, depthRemaining, iterator, size);
         } else if (value.getClass().isArray()) {
-            int size = Math.min(Array.getLength(value), remainingElements[0]);
+            int sizeInt = Math.min(Array.getLength(value), remainingElements[0]);
+            char size = capToUnsignedShort(sizeInt);
+
             Iterator<?> iterator = new GenericArrayIterator(value);
-            serializeIterable(
-                    arena, limits, pwargsSlot, parameterName, remainingElements,
+            serializeArray(
+                    arena, limits, pwargsSlot, remainingElements,
                     depthRemaining, iterator, size);
         } else if (value instanceof Iterable) {
             // we need to iterate twice
             Iterator<?> iterator = ((Iterable<?>) value).iterator();
-            int size = 0;
             int maxSize = remainingElements[0];
-            while (iterator.hasNext() && size < maxSize) {
+            char size = 0;
+            while (iterator.hasNext() && size < maxSize && size <= Character.MAX_VALUE) {
                 iterator.next();
                 size++;
             }
 
             iterator = ((Iterable<?>) value).iterator();
-            serializeIterable(
-                    arena, limits, pwargsSlot, parameterName,
+            serializeArray(
+                    arena, limits, pwargsSlot,
                     remainingElements, depthRemaining, iterator, size);
         } else if (value instanceof Map) {
-            int size = Math.min(((Map<?, ?>) value).size(), remainingElements[0]);
-
-            PWArgsArrayBuffer pwArgsArrayBuffer = pwargsSlot.writeMap(arena, parameterName, size);
-            if (pwArgsArrayBuffer == null) {
-                throw new RuntimeException("Could not write map");
-            }
-            int i = 0;
-            Iterator<? extends Map.Entry<?, ?>> iterator = ((Map<?, ?>) value).entrySet().iterator();
-            for (; iterator.hasNext() && i < size; i++) {
-                Map.Entry<?, ?> entry = iterator.next();
-                PWArgsBuffer newSlot = pwArgsArrayBuffer.get(i);
-                Object key = entry.getKey();
-                if (key == null) {
-                    key = "";
-                }
-                doSerialize(arena, limits, newSlot, key.toString(), entry.getValue(),
-                        remainingElements, depthRemaining - 1);
-            }
-            if (i != size) {
-                throw new ConcurrentModificationException("i=" + i + ", size=" + size);
-            }
+            serializeMap(arena, limits, pwargsSlot, remainingElements, depthRemaining, (Map)value);
         } else if (value instanceof Boolean) {
             String svalue = ((Boolean) value).toString();
-            if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
+            if (!pwargsSlot.writeString(arena, svalue)) {
                 throw new RuntimeException("Could not write string");
             }
         } else {
             // unknown value; write empty map
-            if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
-                throw new RuntimeException("Error writing empty map for unknown type");
-            }
+            LOGGER.info("Unsupported type for serialization: {}", value.getClass().getTypeName());
+            pwargsSlot.writeMap(arena, (char) 0); // can't fail
         }
     }
 
-    private static void serializeIterable(Arena arena,
-                                          Powerwaf.Limits limits,
-                                          PWArgsBuffer pwArgsSlot,
-                                          String parameterName,
-                                          int[] remainingElements,
-                                          int depthRemaining,
-                                          Iterator<?> iterator,
-                                          int size) {
-        PWArgsArrayBuffer pwArgsArrayBuffer = pwArgsSlot.writeArray(arena, parameterName, size);
+    private static char capToUnsignedShort(int sizeInt) {
+        return sizeInt > Character.MAX_VALUE ? Character.MAX_VALUE : (char) sizeInt;
+    }
+
+    private static void serializeArray(Arena arena,
+                                       Powerwaf.Limits limits,
+                                       PWArgsBuffer pwArgsSlot,
+                                       int[] remainingElements,
+                                       int depthRemaining,
+                                       Iterator<?> iterator,
+                                       char size) {
+        PWArgsArrayBuffer pwArgsArrayBuffer = pwArgsSlot.writeArray(arena, size);
         if (pwArgsArrayBuffer == null) {
-            throw new RuntimeException("Error serializing iterable");
+            throw new RuntimeException("Could not allocate array for serializing iterable");
         }
 
-        int i;
+        char i;
         for (i = 0; iterator.hasNext() && i < size; i++) {
             Object newObj = iterator.next();
             PWArgsBuffer newSlot = pwArgsArrayBuffer.get(i);
-            doSerialize(arena, limits, newSlot, null, newObj, remainingElements, depthRemaining - 1);
+            doSerialize(arena, limits, newSlot, newObj, remainingElements, depthRemaining - 1);
         }
         if (i != size) {
-            throw new ConcurrentModificationException("i=" + i + ", size=" + size);
+            throw new ConcurrentModificationException("i=" + (int) i + ", size=" + (int) size);
+        }
+    }
+
+    private static void serializeMap(Arena arena,
+                                     Powerwaf.Limits limits,
+                                     PWArgsBuffer pwArgsSlot,
+                                     int[] remainingElements,
+                                     int depthRemaining,
+                                     Map<?, ?> map) {
+        int sizeInt = Math.min(map.size(), remainingElements[0]);
+        if (sizeInt < 0) {
+            throw new RuntimeException("Negative map size");
+        }
+        char size = capToUnsignedShort(sizeInt);
+
+        KVPairArrayBuffer kvPairArrayBuffer = pwArgsSlot.writeMap(arena, size);
+        if (kvPairArrayBuffer == null) {
+            throw new RuntimeException("Could not allocate array for serializing map");
+        }
+
+        Iterator<? extends Map.Entry<?, ?>> iterator = map.entrySet().iterator();
+        char i;
+        for (i = 0; iterator.hasNext() && i < size; i++) {
+            Map.Entry<?, ?> entry = iterator.next();
+            KVPairBuffer newSlot = kvPairArrayBuffer.get(i);
+            // write value
+            doSerialize(arena, limits, newSlot.getValuePWArgsBuffer(),
+                    entry.getValue(), remainingElements, depthRemaining - 1);
+
+            // write key
+            Object key = entry.getKey();
+            CharSequence svalue = key instanceof CharSequence ? (CharSequence) key : key.toString();
+            if (svalue.length() > limits.maxStringSize) {
+                LOGGER.debug("Truncating string from size {} to size {}",
+                        svalue.length(), limits.maxStringSize);
+                svalue = svalue.subSequence(0, limits.maxStringSize);
+            }
+
+            boolean success = newSlot.writeKey(arena, svalue);
+            if (!success) {
+                throw new RuntimeException("Could not write key string");
+            }
+        }
+        if (i != size) {
+            throw new ConcurrentModificationException("i=" + (int) i + ", size=" + (int) size);
         }
     }
 
@@ -214,34 +235,34 @@ public class ByteBufferSerializer {
                         .onUnmappableCharacter(CodingErrorAction.REPLACE) // UTF-8 can represent all though
                         .replaceWith(new byte[] {(byte) 0xEF, (byte) 0xBF, (byte) 0xBD});
 
-        List<PWArgsSegment> pwargsSegments = new ArrayList<>();
-        int curPWArgsSegment;
-        int idxOfFirstUsedPWArgsSegment = -1;
+        List<MainSegment> mainSegments = new ArrayList<>();
+        int curMainSegment;
+        int idxOfFirstUsedSegment = -1;
         List<StringsSegment> stringsSegments = new ArrayList<>();
         int curStringsSegment;
 
         Arena() {
-            pwargsSegments.add(new PWArgsSegment(PWARGS_MIN_SEGMENTS_SIZE));
+            mainSegments.add(new MainSegment(MAIN_MIN_SEGMENTS_SIZE));
             stringsSegments.add(new StringsSegment(STRINGS_MIN_SEGMENTS_SIZE));
         }
 
         void reset() {
-            for (PWArgsSegment seg : pwargsSegments) {
+            for (MainSegment seg : mainSegments) {
                 seg.clear();
             }
             for (StringsSegment seg : stringsSegments) {
                 seg.clear();
             }
-            curPWArgsSegment = 0;
+            curMainSegment = 0;
             curStringsSegment = 0;
-            idxOfFirstUsedPWArgsSegment = -1;
+            idxOfFirstUsedSegment = -1;
         }
 
         ByteBuffer getFirstUsedPWArgsBuffer() {
-            if (idxOfFirstUsedPWArgsSegment == -1) {
+            if (idxOfFirstUsedSegment == -1) {
                 throw new IllegalStateException("No PWArgs written");
             }
-            return pwargsSegments.get(idxOfFirstUsedPWArgsSegment).buffer;
+            return mainSegments.get(idxOfFirstUsedSegment).buffer;
         }
 
         static class WrittenString {
@@ -255,11 +276,13 @@ public class ByteBufferSerializer {
         }
 
         /**
+         * @param smallStringBuffer the buffer where to write strings up to MAX_SMALL_STRING_SIZE
+         *                          null if no such buffer exists
          * @param s the string to serialize
          * @return the native pointer to the string and its size in bytes,
          *         or null if the string is too large
          */
-        WrittenString writeStringUnlimited(CharSequence s) {
+        WrittenString writeStringUnlimited(ByteBuffer smallStringBuffer, CharSequence s) {
             ByteBuffer bytes;
 
             CharBuffer cb = s instanceof CharBuffer ?
@@ -278,6 +301,11 @@ public class ByteBufferSerializer {
                 return null;
             }
 
+            if (smallStringBuffer != null && lenInBytes <= MAX_SMALL_STRING_SIZE) {
+                smallStringBuffer.put(bytes).put(NUL_TERMINATOR);
+                return new WrittenString(0L, lenInBytes);
+            }
+
             StringsSegment segment;
             segment = stringsSegments.get(curStringsSegment);
             long ptr;
@@ -288,28 +316,38 @@ public class ByteBufferSerializer {
             return new WrittenString(ptr, lenInBytes);
         }
 
-        PWArgsArrayBuffer allocatePWArgsBuffer(int num) {
-            PWArgsSegment segment;
-            segment = pwargsSegments.get(curPWArgsSegment);
+        PWArgsArrayBuffer allocatePWArgsBuffer(char num) {
+            MainSegment segment;
+            segment = mainSegments.get(curMainSegment);
             PWArgsArrayBuffer array;
-            while ((array = segment.allocate(num)) == null) {
-                segment = changePWArgsSegment(Math.max(PWARGS_MIN_SEGMENTS_SIZE, num));
+            while ((array = segment.allocatePWArgsArray(num)) == null) {
+                segment = changeMainSegment(Math.max(MAIN_MIN_SEGMENTS_SIZE, num * SIZEOF_PWARGS));
             }
-            if (idxOfFirstUsedPWArgsSegment == -1) {
-                idxOfFirstUsedPWArgsSegment = curPWArgsSegment;
+            if (idxOfFirstUsedSegment == -1) {
+                idxOfFirstUsedSegment = curMainSegment;
             }
             return array;
         }
 
-        private PWArgsSegment changePWArgsSegment(int capacity) {
-            PWArgsSegment e;
-            if (curPWArgsSegment == pwargsSegments.size() -1) {
-                e = new PWArgsSegment(capacity);
-                pwargsSegments.add(e);
-            } else {
-                e = pwargsSegments.get(curPWArgsSegment + 1);
+        KVPairArrayBuffer allocateKVPairArrayBuffer(char num) {
+            MainSegment segment;
+            segment = mainSegments.get(curMainSegment);
+            KVPairArrayBuffer array;
+            while ((array = segment.allocateKVPairArray(num)) == null) {
+                segment = changeMainSegment(Math.max(MAIN_MIN_SEGMENTS_SIZE, num * SIZEOF_KVPAIR));
             }
-            curPWArgsSegment++;
+            return array;
+        }
+
+        private MainSegment changeMainSegment(int capacity) {
+            MainSegment e;
+            if (curMainSegment == mainSegments.size() -1) {
+                e = new MainSegment(capacity);
+                mainSegments.add(e);
+            } else {
+                e = mainSegments.get(curMainSegment + 1);
+            }
+            curMainSegment++;
             return e;
         }
 
@@ -375,24 +413,36 @@ public class ByteBufferSerializer {
     }
 
 
-    static class PWArgsSegment {
+    static class MainSegment {
         ByteBuffer buffer;
 
-        PWArgsSegment(int capacity) {
+        MainSegment(int capacity) {
             // assume this is 8-byte aligned
-            this.buffer = ByteBuffer.allocateDirect(SIZEOF_PWARGS * capacity);
-            this.buffer.order(ByteOrder.nativeOrder());
+            this.buffer = ByteBuffer.allocateDirect(capacity);
         }
 
-        PWArgsArrayBuffer allocate(int num) {
-            if (left() < num) {
+        @SuppressWarnings("Duplicates")
+        PWArgsArrayBuffer allocatePWArgsArray(char num) {
+            if (left() < num * SIZEOF_PWARGS) {
                 return null;
             }
             int position = this.buffer.position();
             ByteBuffer slice = this.buffer.slice();
-            slice.order(ByteOrder.nativeOrder()).limit(num * SIZEOF_PWARGS);
+            slice.limit(num * SIZEOF_PWARGS);
             this.buffer.position(position + num * SIZEOF_PWARGS);
             return new PWArgsArrayBuffer(slice, num);
+        }
+
+        @SuppressWarnings("Duplicates")
+        KVPairArrayBuffer allocateKVPairArray(char num) {
+            if (left() < num * SIZEOF_KVPAIR) {
+                return null;
+            }
+            int position = this.buffer.position();
+            ByteBuffer slice = this.buffer.slice();
+            slice.limit(num * SIZEOF_KVPAIR);
+            this.buffer.position(position + num * SIZEOF_KVPAIR);
+            return new KVPairArrayBuffer(slice, num);
         }
 
         void clear() {
@@ -400,7 +450,7 @@ public class ByteBufferSerializer {
         }
 
         private int left() {
-            return (buffer.capacity() - buffer.position()) / SIZEOF_PWARGS;
+            return buffer.remaining();
         }
     }
 
@@ -430,7 +480,44 @@ public class ByteBufferSerializer {
             assert this.buffer != null;
             ByteBuffer slice = offsetBuffer(this.buffer, i * SIZEOF_PWARGS);
             slice.limit(SIZEOF_PWARGS);
-            return new PWArgsBuffer( slice);
+            return new PWArgsBuffer(slice);
+        }
+
+        long getAddress() {
+            if (buffer == null) {
+                return NULLPTR;
+            }
+            return getByteBufferAddress(buffer);
+        }
+    }
+
+    static class KVPairArrayBuffer {
+        private final ByteBuffer buffer;
+        private final int num;
+
+        static final KVPairArrayBuffer EMPTY_BUFFER = new KVPairArrayBuffer();
+
+        KVPairArrayBuffer(ByteBuffer buffer, int num) {
+            if (num == 0 || buffer == null) {
+                throw new IllegalArgumentException();
+            }
+            this.num = num;
+            this.buffer = buffer;
+        }
+
+        private KVPairArrayBuffer() {
+            this.num = 0;
+            this.buffer = null;
+        }
+
+        KVPairBuffer get(int i) {
+            if (i < 0 || i >= num) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+            assert this.buffer != null;
+            ByteBuffer slice = offsetBuffer(this.buffer, i * SIZEOF_KVPAIR);
+            slice.limit(SIZEOF_KVPAIR);
+            return new KVPairBuffer(slice);
         }
 
         long getAddress() {
@@ -442,70 +529,77 @@ public class ByteBufferSerializer {
     }
 
     /*
-     * This is the structure until we get improvements:
+     * These are the structures:
      *
-     * https://github.com/sqreen/PowerWAF/issues/201
-     *
-     *  struct _PWArgs
+     *  struct _ddwaf_object
      *  {
-     *      const char* parameterName;
-     *      uint64_t parameterNameLength;
-     *      union
+     *      union __attribute__((packed))
      *      {
-     *          const char* stringValue;
-     *          uint64_t uintValue;
-     *          int64_t intValue;
-     *          const PWArgs* array;
-     *          const void* rawHandle;
+     *          uint64_t u64;
+     *          int64_t i64;
+     *          struct _ddwaf_object_kv *map;
+     *          struct _ddwaf_object *array;
+     *          char *str;
+     *          char sstr[11];
+     *      } via;
+     *      uint8_t type;
+     *      union __attribute__((packed))
+     *      {
+     *          struct __attribute__((packed))
+     *          {
+     *              uint16_t capacity;
+     *              uint16_t size;
+     *          };
+     *          uint32_t length;
      *      };
-     *      uint64_t nbEntries;
-     *      PW_INPUT_TYPE type;
      *  };
+     *
      */
     static class PWArgsBuffer {
+        private static final int OFFSET_OF_TYPE = 11;
+
         private final ByteBuffer buffer;
 
         PWArgsBuffer(ByteBuffer buffer) {
             this.buffer = buffer;
         }
 
-        boolean writeString(Arena arena, String parameterName, CharSequence value) {
-            if (!putParameterName(arena, parameterName)) { // string too large
-                return false;
-            }
-            Arena.WrittenString writtenString = arena.writeStringUnlimited(value);
+        boolean writeString(Arena arena, CharSequence value) {
+            Arena.WrittenString writtenString = arena.writeStringUnlimited(buffer, value);
             if (writtenString == null) { // string too large
                 return false;
             }
-            this.buffer.putLong(writtenString.ptr).putLong(writtenString.utf8len)
-                    .putInt(PWInputType.PWI_STRING.value);
+
+            if (writtenString.ptr == 0) {
+                this.buffer.position(OFFSET_OF_TYPE);
+                this.buffer
+                        .put(PWInputType.PWI_SMALL_STRING.value)
+                        .putInt(writtenString.utf8len);
+            } else {
+                this.buffer
+                        .putLong(writtenString.ptr)
+                        .position(OFFSET_OF_TYPE);
+                this.buffer
+                        .put(PWInputType.PWI_STRING.value)
+                        .putInt(writtenString.utf8len);
+            }
             return true;
         }
 
-        boolean writeLong(Arena arena, String parameterName, long value) {
-            if (!putParameterName(arena, parameterName)) { // string too large
-                return false;
-            }
-            this.buffer.putLong(value).putLong(0)
-                    .putInt(PWInputType.PWI_SIGNED_NUMBER.value);
-            return true;
+        void writeLong(long value) {
+            this.buffer
+                    .putLong(value)
+                    .position(OFFSET_OF_TYPE);
+            this.buffer
+                    .put(PWInputType.PWI_SIGNED_NUMBER.value);
         }
 
-        PWArgsArrayBuffer writeArray(Arena arena, String parameterName, int numElements) {
-            return writeArrayOrMap(arena, parameterName, numElements, PWInputType.PWI_ARRAY);
-        }
-
-        PWArgsArrayBuffer writeMap(Arena arena, String parameterName, int numElements) {
-            return writeArrayOrMap(arena, parameterName, numElements, PWInputType.PWI_MAP);
-        }
-
-        private PWArgsArrayBuffer writeArrayOrMap(Arena arena, String parameterName, int numElements,
-                                                  PWInputType type) {
-            if (!putParameterName(arena, parameterName)) { // string too large
-                return null;
-            }
+        PWArgsArrayBuffer writeArray(Arena arena, char numElements) {
             if (numElements == 0) {
-                this.buffer.putLong(0L).putLong(0L).putInt(type.value);
+                this.buffer.position(OFFSET_OF_TYPE);
+                this.buffer
+                        .put(PWInputType.PWI_ARRAY.value)
+                        .putInt(0); // capacity & length
                 return PWArgsArrayBuffer.EMPTY_BUFFER;
             }
 
@@ -514,56 +608,99 @@ public class ByteBufferSerializer {
                 // should not happen
                 return null;
             }
-            long address = pwArgsArrayBuffer.getAddress();
-            if (address == NULLPTR) {
-                // should not happen
-                return null;
-            }
-            this.buffer.putLong(address)
-                    .putLong(numElements)
-                    .putInt(type.value);
+            this.buffer
+                    .putLong(pwArgsArrayBuffer.getAddress())
+                    .position(OFFSET_OF_TYPE);
+            this.buffer
+                    .put(PWInputType.PWI_ARRAY.value)
+                    .putChar(numElements)
+                    .putChar(numElements);
             return pwArgsArrayBuffer;
         }
 
-
-        private boolean putParameterName(Arena arena, String parameterName) {
-            if (parameterName == null) {
-                this.buffer.putLong(0L).putLong(0L);
-            } else {
-                Arena.WrittenString writtenString = arena.writeStringUnlimited(parameterName);
-                if (writtenString == null) { // string too large
-                    return false;
-                }
-                this.buffer.putLong(writtenString.ptr).putLong(writtenString.utf8len);
+        KVPairArrayBuffer writeMap(Arena arena, char numElements) {
+            if (numElements == 0) {
+                this.buffer
+                        .putLong(0L)
+                        .position(OFFSET_OF_TYPE);
+                this.buffer
+                        .put(PWInputType.PWI_MAP.value)
+                        .putInt(0); // capacity & length
+                return KVPairArrayBuffer.EMPTY_BUFFER;
             }
 
+            KVPairArrayBuffer kvPairArrayBuffer = arena.allocateKVPairArrayBuffer(numElements);
+            if (kvPairArrayBuffer == null) {
+                // should not happen
+                return null;
+            }
+            this.buffer
+                    .putLong(kvPairArrayBuffer.getAddress())
+                    .position(OFFSET_OF_TYPE);
+            this.buffer
+                    .put(PWInputType.PWI_MAP.value)
+                    .putChar(numElements)
+                    .putChar(numElements);
+            return kvPairArrayBuffer;
+        }
+    }
+
+     /*
+      *  struct _ddwaf_object_kv {
+      *      struct _ddwaf_object value;
+      *      char *key;
+      *      uint32_t length;
+      *  };
+      */
+    static class KVPairBuffer {
+        private final static int OFFSET_OF_KEY = SIZEOF_PWARGS;
+
+        private final ByteBuffer buffer;
+
+        KVPairBuffer(ByteBuffer buffer) {
+            this.buffer = buffer;
+        }
+
+        PWArgsBuffer getValuePWArgsBuffer() {
+            ByteBuffer slice = offsetBuffer(this.buffer, 0);
+            slice.limit(SIZEOF_PWARGS);
+            return new PWArgsBuffer(slice);
+        }
+
+        boolean writeKey(Arena arena, CharSequence sequence) {
+            Arena.WrittenString writtenString = arena.writeStringUnlimited(null, sequence);
+            if (writtenString == null) {
+                return false;
+            }
+            this.buffer.position(OFFSET_OF_KEY);
+            this.buffer
+                    .putLong(writtenString.ptr)
+                    .putInt(writtenString.utf8len);
             return true;
         }
     }
 
     enum PWInputType {
-        PWI_INVALID(0),
-        PWI_SIGNED_NUMBER(1),
-        PWI_UNSIGNED_NUMBER(2),
-        PWI_STRING(4),
-        PWI_ARRAY(8),
-        PWI_MAP(16);
+        PWI_INVALID((byte) 0),
+        PWI_SIGNED_NUMBER((byte) 1),
+        PWI_UNSIGNED_NUMBER((byte) 2),
+        PWI_STRING((byte) 4),
+        PWI_ARRAY((byte) 8),
+        PWI_MAP((byte) 16),
+        PWI_SMALL_STRING((byte) 32);
 
-        int value;
-        PWInputType(int i) {
+        byte value;
+        PWInputType(byte i) {
             this.value = i;
         }
     }
 
     static final class StringsSegment {
-        private static final byte NUL_TERMINATOR = 0;
-
         ByteBuffer buffer;
         long base;
 
         StringsSegment(int capacity) {
             this.buffer = ByteBuffer.allocateDirect(capacity);
-            this.buffer.order(ByteOrder.nativeOrder());
             this.base = getByteBufferAddress(this.buffer);
             if (this.base == NULLPTR) {
                 throw new IllegalArgumentException("not a direct ByteBuffer");

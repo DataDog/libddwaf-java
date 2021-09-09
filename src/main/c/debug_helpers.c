@@ -5,9 +5,56 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include <ddwaf.h>
+// #include <ddwaf.h>
 #include "common.h"
 #include "utf16_utf8.h"
+
+typedef enum
+{
+    DDWAF_OBJ_INVALID   = 0,
+    DDWAF_OBJ_SIGNED    = 1 << 0,
+    DDWAF_OBJ_UNSIGNED  = 1 << 1,
+    DDWAF_OBJ_STRING    = 1 << 2,
+    DDWAF_OBJ_ARRAY     = 1 << 3,
+    DDWAF_OBJ_MAP       = 1 << 4,
+    DDWAF_OBJ_SSTRING   = 1 << 5,
+} DDWAF_OBJ_TYPE;
+
+#define DDWAF_OBJ_SSTR_SIZE 11
+#define DDWAF_OBJ_SCALAR (DDWAF_OBJ_SIGNED | DDWAF_OBJ_UNSIGNED | DDWAF_OBJ_STRING)
+#define DDWAF_OBJ_CONTAINER (DDWAF_OBJ_ARRAY | DDWAF_OBJ_MAP)
+
+typedef struct _ddwaf_object ddwaf_object;
+typedef struct _ddwaf_object_kv ddwaf_object_kv;
+
+struct _ddwaf_object
+{
+    union __attribute__((packed))
+    {
+        uint64_t u64;
+        int64_t i64;
+        ddwaf_object_kv *map;
+        ddwaf_object *array;
+        char *str;
+        char sstr[DDWAF_OBJ_SSTR_SIZE];
+    } via;
+    uint8_t type;
+    union __attribute__((packed))
+    {
+        uint32_t length;
+        struct __attribute__((packed))
+        {
+            uint16_t capacity;
+            uint16_t size;
+        };
+    };
+};
+
+struct _ddwaf_object_kv {
+    struct _ddwaf_object value;
+    char *key;
+    uint32_t length;
+};
 
 typedef struct {
     char *buffer;
@@ -20,8 +67,8 @@ typedef struct {
 JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
         JNIEnv *, jclass, jobject);
 
-static void _hstring_write_pwargs(hstring *str, size_t depth,
-                                  const ddwaf_object *pwargs);
+static void _hstring_write_pwargs(hstring *, size_t, const char *, uint32_t,
+                                  const ddwaf_object *);
 
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
@@ -47,7 +94,7 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
     if (!str.buffer) {
         return NULL;
     }
-    _hstring_write_pwargs(&str, 0, &root);
+    _hstring_write_pwargs(&str, 0, NULL, 0, &root);
 #ifdef __clang_analyzer__
     // due to other exclusions, analyzer doesn't know str.buffer was written
     jstring jstr = NULL;
@@ -123,15 +170,16 @@ static void _hstring_repeat(hstring *str, char c, size_t repeat_times)
 }
 
 static void _hstring_write_pwargs(hstring *str, size_t depth,
+                                  const char *param_name,
+                                  uint32_t param_name_len,
                                   const ddwaf_object *pwargs)
 {
     if (depth > 25) { // arbitrary cutoff to avoid stackoverflows
         return;
     }
     _hstring_repeat(str, ' ', depth * 2);
-    if (pwargs->parameterName) {
-        _hstring_append(str, pwargs->parameterName,
-                        pwargs->parameterNameLength);
+    if (param_name) {
+        _hstring_append(str, param_name, param_name_len);
         HSTRING_APPEND_CONST(str, ": ");
     }
     switch (pwargs->type) {
@@ -142,7 +190,7 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         HSTRING_APPEND_CONST(str, "<SIGNED> ");
         char scratch[sizeof("-9223372036854775808")];
         int len = snprintf(scratch, sizeof(scratch), "%" PRId64,
-                           pwargs->intValue);
+                           pwargs->via.i64);
         if ((size_t) len < sizeof scratch) {
             _hstring_append(str, scratch, (size_t) len);
         } // else should never happen
@@ -153,7 +201,7 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         HSTRING_APPEND_CONST(str, "<UNSIGNED> ");
         char scratch[sizeof("18446744073709551615")];
         int len = snprintf(scratch, sizeof(scratch), "%" PRIu64,
-                           pwargs->uintValue);
+                           pwargs->via.u64);
         if ((size_t) len < sizeof scratch) {
             _hstring_append(str, scratch, (size_t) len);
         } // else should never happen
@@ -162,19 +210,27 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
     }
     case DDWAF_OBJ_STRING:
         HSTRING_APPEND_CONST(str, "<STRING> ");
-        _hstring_append(str, pwargs->stringValue, pwargs->nbEntries);
+        _hstring_append(str, pwargs->via.str, pwargs->length);
+        HSTRING_APPEND_CONST(str, "\n");
+        break;
+    case DDWAF_OBJ_SSTRING:
+        HSTRING_APPEND_CONST(str, "<SSTRING> ");
+        _hstring_append(str, pwargs->via.sstr, pwargs->length);
         HSTRING_APPEND_CONST(str, "\n");
         break;
     case DDWAF_OBJ_ARRAY: {
         HSTRING_APPEND_CONST(str, "<ARRAY>\n");
-        for (size_t i = 0; i < pwargs->nbEntries; i++) {
-            _hstring_write_pwargs(str, depth + 1, pwargs->array + i);
+        for (size_t i = 0; i < pwargs->size; i++) {
+            _hstring_write_pwargs(str, depth + 1, NULL, 0,
+                                  pwargs->via.array + i);
         }
         break;
     case DDWAF_OBJ_MAP: {
         HSTRING_APPEND_CONST(str, "<MAP>\n");
-        for (size_t i = 0; i < pwargs->nbEntries; i++) {
-            _hstring_write_pwargs(str, depth + 1, pwargs->array + i);
+        for (size_t i = 0; i < pwargs->size; i++) {
+            ddwaf_object_kv *kv = pwargs->via.map + i;
+            _hstring_write_pwargs(str, depth + 1, kv->key, kv->length,
+                                  &kv->value);
         }
         break;
     }
