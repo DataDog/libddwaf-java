@@ -181,13 +181,11 @@ jobs:
         with:
           path: ${{ env.tempdir }}/packages
           name: libsqreen_jni_${{ env.artifactsuff }}
-  Native_binaries_Stage_linux_amd64_glibc:
-    name: Linux amd64 (glibc)
+  Native_binaries_Stage_libddwaf_linux_amd64:
+    name: Linux amd64 (semi-static libddwaf.so)
     runs-on: ubuntu-18.04
     env:
-      dockerfile: ci/manylinux
-      artifactsuff: linux_glibc
-      libdir: linux_64_glibc
+      dockerfile: ci/alpine-libc++-static
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -195,21 +193,57 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GH_TOKEN }}
           clean: true
+      - uses: docker/setup-buildx-action@v1
+        id: buildx
+        with:
+          install: true
+      - name: Create packages directory
+        run: mkdir -p ${{ env.tempdir }}/packages
+      - name: Build semi-statically compiled dynamic library
+        run: docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --progress=plain -o ${{ env.tempdir }}/packages .
+      - name: Save Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          path: ${{ env.tempdir }}/packages
+          name: libddwaf_linux
+  Native_binaries_Stage_linux_amd64_glibc:
+    name: Linux amd64 (glibc)
+    runs-on: ubuntu-18.04
+    needs:
+      - Native_binaries_Stage_libddwaf_linux_amd64
+    env:
+      dockerfile: ci/manylinux
+      artifactsuff: linux_glibc
+      libdir: linux_64_glibc
+      artifactsDirectory: ${{ github.workspace }}/artifacts
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+          token: ${{ secrets.GH_TOKEN }}
+          clean: true
+      - name: Create artifacts directory
+        run: mkdir -p ${{ env.artifactsDirectory }}
+      - name: Download libddwaf artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: libddwaf_linux
+          path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
         run: docker build ${{ env.dockerfile  }} -t linux_cmake
       - name: Clean previous docker container
         run: docker rm -f pwaf_java_build || true
-      - name: Build and test with release binaries
+      - name: Build and test JNI binding
         run: |
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
-            mkdir buildPW && cd buildPW &&
-            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_STATIC=0 &&
-            make -j && make install &&
-            mkdir ../buildAG && cd ../buildAG &&
+            tar --strip-components=1 -xf ${{ env.artifactsDirectory }}/libddwaf.tar.gz -C /usr/local/ &&
+            mkdir buildAG && cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
             make -j &&
-            cp {.,../buildPW}/*.so* ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
+            cp -v /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux_64/ &&
+            cp -v *.so /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
             cd ${{ github.workspace }} &&
             ./gradlew check --info -PuseReleaseBinaries'
         shell: bash
@@ -218,22 +252,23 @@ jobs:
           sudo chown -R $(whoami) "${{ env.tempdir }}"
           mkdir ${{ env.tempdir }}/packages
           cd ${{ env.tempdir }}/packages
-          docker cp pwaf_java_build:/buildPW/libddwaf.so .
-          docker cp pwaf_java_build:/buildPW/libddwaf.so.debug .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
         uses: actions/upload-artifact@v2
         with:
           path: ${{ env.tempdir }}/packages
-          name: libsqreen_jni_${{ env.artifactsuff }}
+          name: jni_${{ env.artifactsuff }}
   Native_binaries_Stage_linux_amd64_musl:
     name: Linux amd64 (musl)
     runs-on: ubuntu-18.04
+    needs:
+      - Native_binaries_Stage_libddwaf_linux_amd64
     env:
       dockerfile: ci/alpine
       artifactsuff: linux_musl
       libdir: linux_64_musl
+      artifactsDirectory: ${{ github.workspace }}/artifacts
     steps: # identical to glibc
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -241,6 +276,13 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GH_TOKEN }}
           clean: true
+      - name: Create artifacts directory
+        run: mkdir -p ${{ env.artifactsDirectory }}
+      - name: Download libddwaf artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: libddwaf_linux
+          path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
         run: docker build ${{ env.dockerfile  }} -t linux_cmake
       - name: Clean previous docker container
@@ -249,13 +291,12 @@ jobs:
         run: |
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
-            mkdir buildPW && cd buildPW &&
-            cmake ${{ github.workspace }}/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_STATIC=0 &&
-            make -j && make install &&
-            mkdir ../buildAG && cd ../buildAG &&
+            tar --strip-components=1 -xvf ${{ env.artifactsDirectory }}/libddwaf.tar.gz -C /usr/local/ &&
+            mkdir buildAG && cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
             make -j &&
-            cp {.,../buildPW}/*.so* ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
+            cp -v /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux_64/ &&
+            cp -v *.so ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
             cd ${{ github.workspace }} &&
             ./gradlew check --info -PuseReleaseBinaries'
         shell: bash
@@ -264,15 +305,13 @@ jobs:
           sudo chown -R $(whoami) ${{ env.tempdir }}
           mkdir ${{ env.tempdir }}/packages
           cd ${{ env.tempdir }}/packages
-          docker cp pwaf_java_build:/buildPW/libddwaf.so .
-          docker cp pwaf_java_build:/buildPW/libddwaf.so.debug .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
         uses: actions/upload-artifact@v2
         with:
           path: ${{ env.tempdir }}/packages
-          name: libsqreen_jni_${{ env.artifactsuff }}
+          name: jni_${{ env.artifactsuff }}
   Native_binaries_Stage_asan:
     name: ASAN/static analyzer on Linux
     runs-on: ubuntu-18.04
@@ -341,6 +380,7 @@ jobs:
       - Native_binaries_Stage_linux_amd64_glibc
       - Native_binaries_Stage_linux_amd64_musl
       - Native_binaries_Stage_asan
+      - Native_binaries_Stage_libddwaf_linux_amd64
     steps:
     - name: Setup JDK 1.8
       uses: actions/setup-java@v1
@@ -358,24 +398,30 @@ jobs:
       run: |
         cmake -E make_directory \
           ${{ env.artifactsDirectory }}/libsqreen_jni_win_amd64 \
-          ${{ env.artifactsDirectory }}/libsqreen_jni_linux_glibc \
-          ${{ env.artifactsDirectory }}/libsqreen_jni_linux_musl \
+          ${{ env.artifactsDirectory }}/libsqreen_linux_amd64 \
+          ${{ env.artifactsDirectory }}/jni_linux_glibc \
+          ${{ env.artifactsDirectory }}/jni_linux_musl \
           ${{ env.artifactsDirectory }}/libsqreen_jni_macos
     - name: Download libsqreen_jni_win_amd64
       uses: actions/download-artifact@v2
       with:
         name: libsqreen_jni_win_amd64
         path: ${{ env.artifactsDirectory }}/libsqreen_jni_win_amd64
-    - name: Download libsqreen_jni_linux_glibc
+    - name: Download libddwaf_linux
       uses: actions/download-artifact@v2
       with:
-        name: libsqreen_jni_linux_glibc
-        path: ${{ env.artifactsDirectory }}/libsqreen_jni_linux_glibc
-    - name: Download libsqreen_jni_linux_musl
+        name: libddwaf_linux
+        path: ${{ env.artifactsDirectory }}/libsqreen_linux_amd64
+    - name: Download jni_linux_glibc
       uses: actions/download-artifact@v2
       with:
-        name: libsqreen_jni_linux_musl
-        path: ${{ env.artifactsDirectory }}/libsqreen_jni_linux_musl
+        name: jni_linux_glibc
+        path: ${{ env.artifactsDirectory }}/jni_linux_glibc
+    - name: Download jni_linux_musl
+      uses: actions/download-artifact@v2
+      with:
+        name: jni_linux_musl
+        path: ${{ env.artifactsDirectory }}/jni_linux_musl
     - name: Download libsqreen_jni_macos
       uses: actions/download-artifact@v2
       with:
@@ -387,8 +433,12 @@ jobs:
       run: |
         set -ex
         cp ${{ env.artifactsDirectory }}/libsqreen_jni_win_amd64/* native_libs/windows_64/
-        cp ${{ env.artifactsDirectory }}/libsqreen_jni_linux_glibc/* native_libs/linux_64_glibc/
-        cp ${{ env.artifactsDirectory }}/libsqreen_jni_linux_musl/* native_libs/linux_64_musl/
+        LIBDDWAF_TAR="${{ env.artifactsDirectory }}/libsqreen_linux_amd64/libddwaf.tar.gz"
+        tar -xvf "$LIBDDWAF_TAR" -C native_libs/linux_64/ --strip-components=2 `tar -tf "$LIBDDWAF_TAR" | grep '\.so$'`
+        tar -xvf "$LIBDDWAF_TAR" -C native_libs/linux_64/ --strip-components=4 `tar -tf "$LIBDDWAF_TAR" | grep '\.debug$'`
+        mv native_libs/linux_64/*.debug native_libs/linux_64/libddwaf.so.debug
+        cp ${{ env.artifactsDirectory }}/jni_linux_glibc/* native_libs/linux_64_glibc/
+        cp ${{ env.artifactsDirectory }}/jni_linux_musl/* native_libs/linux_64_musl/
         cp ${{ env.artifactsDirectory }}/libsqreen_jni_macos/* native_libs/osx_64/
       shell: bash
     - name: Cache Gradle artifacts
