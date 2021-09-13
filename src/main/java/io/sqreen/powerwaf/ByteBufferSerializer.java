@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.Supplier;
 
 public class ByteBufferSerializer {
     private static final long NULLPTR = 0;
@@ -208,17 +209,28 @@ public class ByteBufferSerializer {
     }
 
     private static class Arena {
-        private static final CharsetEncoder CHARSET_ENCODER =
-                StandardCharsets.UTF_8.newEncoder()
-                        .onMalformedInput(CodingErrorAction.REPLACE)
-                        .onUnmappableCharacter(CodingErrorAction.REPLACE) // UTF-8 can represent all though
-                        .replaceWith(new byte[] {(byte) 0xEF, (byte) 0xBF, (byte) 0xBD});
+        private static final ThreadLocal<CharsetEncoder> UTF8_ENCODER_CACHE =
+                ThreadLocal.withInitial(new Supplier<CharsetEncoder>() {
+                    @Override
+                    public CharsetEncoder get() {
+                        return StandardCharsets.UTF_8.newEncoder()
+                                .onMalformedInput(CodingErrorAction.REPLACE)
+                                .onUnmappableCharacter(CodingErrorAction.REPLACE) // UTF-8 can represent all though
+                                .replaceWith(new byte[]{(byte) 0xEF, (byte) 0xBF, (byte) 0xBD});
+                    }
+                });
 
         List<PWArgsSegment> pwargsSegments = new ArrayList<>();
         int curPWArgsSegment;
         int idxOfFirstUsedPWArgsSegment = -1;
         List<StringsSegment> stringsSegments = new ArrayList<>();
         int curStringsSegment;
+
+        public static final CharsetEncoder getCharsetEncoder() {
+            CharsetEncoder charsetEncoder = UTF8_ENCODER_CACHE.get();
+            charsetEncoder.reset();
+            return charsetEncoder;
+        }
 
         Arena() {
             pwargsSegments.add(new PWArgsSegment(PWARGS_MIN_SEGMENTS_SIZE));
@@ -267,7 +279,7 @@ public class ByteBufferSerializer {
                     CharBuffer.wrap(s);
 
             try {
-                bytes = CHARSET_ENCODER.encode(cb);
+                bytes = getCharsetEncoder().encode(cb);
             } catch (CharacterCodingException e) {
                 // should not happen
                 throw new UndeclaredThrowableException(e);
