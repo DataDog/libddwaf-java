@@ -1,0 +1,5 @@
+Component,Origin,License,Copyright
+import,org.slf4j,MIT,Copyright (c) 2004-2017 QOS.ch
+import,org.hamcrest:hamcrest-library,BSD-3-Clause,2000-2015 www.hamcrest.org
+import,com.github.tomakehurst:wiremock,Apache-2.0,2011 Thomas Akehurst
+import,org.codehaus.groovy:groovy-all,Apache-2.0,Groovy Copyright 2003-2021
