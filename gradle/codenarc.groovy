@@ -157,7 +157,6 @@ ruleset {
     ThrowThrowable
 
     // rulesets/formatting.xml
-    BlankLineBeforePackage
     BlockEndsWithBlankLine
     BlockStartsWithBlankLine
     BracesForClass
