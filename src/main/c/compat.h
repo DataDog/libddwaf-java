@@ -1,3 +1,11 @@
+/*
+ * Unless explicitly stated otherwise all files in this repository are licensed
+ * under the Apache-2.0 License.
+ *
+ * This product includes software developed at Datadog
+ * (https://www.datadoghq.com/). Copyright 2021 Datadog, Inc.
+ */
+
 #if !defined(SQREEN_COMPAT_H) && (defined(_MSC_VER) || defined(__APPLE__))
 #define SQREEN_COMPAT_H
 
