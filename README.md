@@ -1,47 +1,54 @@
+# Introduction
+
+This project provides Java bindings for [libddwaf][libddwaf_repos] through JNI.
+Currently supported runtimes are Linux (GNU and musl) and Windows amd64.
+
 # Build instructions
 
-Gradle is not currently used to build the JNI library, with exception to the
-debug version used for testing. The reason is that these have to be built for
-several environments.
+Gradle is used to build the Java component, and CMake to build the native
+components. Three components need to be built separately:
 
-libddwaf.so and libsqreen\_jni.so have to be copied to the `native_libs`'
-subdirectories prior to the final release build (built with `gradle build`).
+* libddwaf needs to be built and installed.
+* Then the JNI binding (named libsqreen\_jni, for historical reasons).
+* Finally the jar can be built with Gradle.
 
-For each environment, a release build of libddwaf is needed:
+A jar for release purposes needs to have both the libddwaf and libsqreen
+binaries for all the supported runtime environments. These are included inside
+the JAR. For Linux, a shared library build of libddwaf (libddwaf.so) is included
+in JAR; this DSO is used in both musl and glibc systems. On Windows, there is
+only one binary, which is linked against libddwaf built as a static library.
+
+For testing purposes, Gradle can invoke a debug build of libsqreen\_jni. By
+default, libddwaf CMake config files are searched in
+`libddwaf/Debug/out/usr/local/share/cmake/libddwaf`.
+
+The binaries for inclusion in the final release jar have to be copied into the
+`native_libs` directory. Then the jar can be built with `gradle build`.
+
+For development purposes, a debug build of libddwaf can be obtained with:
 
 ```sh
 cd libddwaf
-mkdir Release && cd Release
-cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+mkdir Debug && cd Debug
+cmake .. -DCMAKE_BUILD_TYPE=Debug
 make -j
 DESTDIR=out make install
-cp libddwaf.so{,.debug} ../../native_libs/linux_64_glibc/  # example
 cd ../..
 ```
 
-Then the jni lib can be built with:
+Then the jni lib can be built with `./gradlew buildNativeLibDebug`.
 
-```sh
-mkdir Release && cd Release
-cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_PREFIX_PATH=$(realpath ../libddwaf/Release/out/usr/local/share/cmake/libddwaf/)
-make -j
-cp libsqreen_jni.so{,.debug} ../native_libs/linux_64_glibc/  # example
-cd ..
-```
+Tests are run with `./gradlew check`. This implicitly invokes
+`buildNativeLibDebug` if needed.
 
-On Windows:
+On Windows libddwaf can be built with:
 
 ```sh
 cd libddwaf
-mkdir Release && cd Release
-cmake .. -DCMAKE_INSTALL_PREFIX=out\usr\local -A x64 -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build . --target libddwaf_shared -j --config RelWithDebInfo
-cmake --build . --target install -j --config RelWithDebInfo
-
-cd ..\..
-mkdir Release && cd Release
-cmake .. -DCMAKE_PREFIX_PATH=...\libddwaf\Release\out\usr\local -A x64 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+mkdir Debug && cd Debug
+cmake .. -DCMAKE_INSTALL_PREFIX=out\usr\local -A x64 -DCMAKE_BUILD_TYPE=Debug
+cmake --build . --target install -j --config Debug
 
 ```
 
+  [libddwaf_repos]: https://github.com/DataDog/libddwaf
