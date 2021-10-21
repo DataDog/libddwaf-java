@@ -98,11 +98,11 @@ public class ByteBufferSerializer {
         // Integer.MAXVALUE
 
         if (remainingElements[0] < 0 || depthRemaining < 0) {
-            if (LOGGER.isInfoEnabled()) {
+            if (LOGGER.isDebugEnabled()) {
                 if (remainingElements[0] < 0) {
-                    LOGGER.info("Ignoring element, for maxElements was exceeded");
+                    LOGGER.debug("Ignoring element, for maxElements was exceeded");
                 } else if (depthRemaining <= 0) {
-                    LOGGER.info("Ignoring element, for maxDepth was exceeded");
+                    LOGGER.debug("Ignoring element, for maxDepth was exceeded");
                 }
             }
             // write empty map
