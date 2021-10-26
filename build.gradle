@@ -316,7 +316,6 @@ task testgc(type: Test) {
 check.dependsOn testgc
 
 task testNoByteBuffers(type: Test) {
-    description = 'Tests that the library can be unloaded'
     group = 'verification'
 
     jvmArgs += ['-DPOWERWAF_ENABLE_BYTE_BUFFERS=0']
