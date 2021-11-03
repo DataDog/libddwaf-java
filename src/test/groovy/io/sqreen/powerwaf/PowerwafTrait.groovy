@@ -17,7 +17,7 @@ import org.junit.AfterClass
 @CompileStatic
 trait PowerwafTrait extends JNITrait {
 
-    static final Map ARACHNI_ATOM = (Map) new JsonSlurper().parseText('''
+    static final Map ARACHNI_ATOM_v1_0 = (Map) new JsonSlurper().parseText('''
         {
           "version": "1.0",
           "events": [
@@ -37,6 +37,38 @@ trait PowerwafTrait extends JNITrait {
                 "type": "arachni_detection"
               },
               "action": "record"
+            }
+          ]
+        }''')
+
+    static final Map ARACHNI_ATOM_v2_1 = (Map) new JsonSlurper().parseText('''
+        {
+          "version": "2.1",
+          "rules": [
+            {
+              "id": "arachni_rule",
+              "name": "Arachni",
+              "tags": {
+                "type": "security_scanner",
+                "category": "attack_attempt"
+              },
+              "conditions": [
+                {
+                  "parameters": {
+                    "inputs": [
+                      {
+                        "address": "server.request.headers.no_cookies",
+                        "key_path": [
+                          "user-agent"
+                        ]
+                      }
+                    ],
+                    "regex": "^Arachni\\\\/v"
+                  },
+                  "operator": "match_regex"
+                }
+              ],
+              "transformers": []
             }
           ]
         }''')

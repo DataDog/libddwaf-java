@@ -19,7 +19,7 @@ class BadRuleTests implements PowerwafTrait {
 
     @Test(expected = IllegalArgumentException)
     void 'version is not a string'() {
-        def rules = [:] + ARACHNI_ATOM
+        def rules = [:] + ARACHNI_ATOM_v1_0
         rules['version'] = 99
         ctx = Powerwaf.createContext('test', rules)
     }

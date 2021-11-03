@@ -22,7 +22,7 @@ class LimitsTests implements PowerwafTrait {
 
     @Lazy
     PowerwafContext ctxWithArachniAtom =
-            Powerwaf.createContext('test', ARACHNI_ATOM)
+            Powerwaf.createContext('test', ARACHNI_ATOM_v1_0)
 
     @Test
     void 'maxDepth is respected'() {
@@ -184,6 +184,8 @@ class LimitsTests implements PowerwafTrait {
         timeoutInUs = 10000000 // 10 sec
         runBudget = 10 // 10 microseconds
         maxStringSize = Integer.MAX_VALUE
+
+
 
         def res = runRules('Arachni' * 9000)
         assertThat res.action, isOneOf(

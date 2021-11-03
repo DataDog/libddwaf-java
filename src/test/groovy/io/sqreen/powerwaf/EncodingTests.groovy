@@ -18,7 +18,7 @@ class EncodingTests implements PowerwafTrait {
 
     @Before
     void assignContext() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM)
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_v1_0)
     }
 
     @Test
@@ -26,7 +26,7 @@ class EncodingTests implements PowerwafTrait {
         Powerwaf.ActionWithData awd = runRules('Arachni\uD800')
 
         def json = slurper.parseText(awd.data)
-        assert json.filter.first().first().resolved_value == 'Arachni\uFFFD'
+        assert json[0].rule_matches[0].parameters[0].value == 'Arachni\uFFFD'
     }
 
     @Test
@@ -34,7 +34,7 @@ class EncodingTests implements PowerwafTrait {
         Powerwaf.ActionWithData awd = runRules 'Arachni\uD800Ā'
 
         def json = slurper.parseText(awd.data)
-        assert json.filter.first().first().resolved_value == 'Arachni\uFFFDĀ'
+        assert json[0].rule_matches[0].parameters[0].value == 'Arachni\uFFFDĀ'
     }
 
     @Test
@@ -42,7 +42,7 @@ class EncodingTests implements PowerwafTrait {
         Powerwaf.ActionWithData awd = runRules 'Arachni\uDC00x'
 
         def json = slurper.parseText(awd.data)
-        assert json.filter.first().first().resolved_value == 'Arachni\uFFFDx'
+        assert json[0].rule_matches[0].parameters[0].value == 'Arachni\uFFFDx'
     }
 
     @Test

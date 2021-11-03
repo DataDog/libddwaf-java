@@ -45,10 +45,15 @@ public class PowerwafContext {
 
         this.uniqueName = uniqueName;
 
-        if (!definition.containsKey("version") ||
-                !definition.containsKey("events")) {
+        if (!definition.containsKey("version")) {
             throw new IllegalStateException(
-                    "Invalid definition. Expected keys 'version' and 'events' to exist");
+                    "Invalid definition. Expected key 'version' to exist");
+        }
+
+        if (!definition.containsKey("events") &&
+                !definition.containsKey("rules")) {
+            throw new IllegalStateException(
+                    "Invalid definition. Expected keys 'events' or 'rules' to exist");
         }
         this.handle = Powerwaf.addRules(definition);
 

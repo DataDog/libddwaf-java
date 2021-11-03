@@ -22,8 +22,8 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
-    void 'test running basic rule'() {
-        def ruleSet = ARACHNI_ATOM
+    void 'test running basic rule v1_0'() {
+        def ruleSet = ARACHNI_ATOM_v1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -32,14 +32,44 @@ class BasicTests implements PowerwafTrait {
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
         def json = slurper.parseText(awd.data)
-        assert json.ret_code == [1]
-        assert json.flow == ['arachni_detection']
-        assert json.rule == ['arachni_rule']
+
+        assert json[0].rule.id == 'arachni_rule'
+        assert json[0].rule.name == 'Arachni'
+        assert json[0].rule.tags == [category: '', type: 'arachni_detection']
+        assert json[0].rule_matches[0]['operator'] == 'match_regex'
+        assert json[0].rule_matches[0]['operator_value'] == 'Arachni'
+        assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
+        assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
+        assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni'
+        assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni']
+    }
+
+    @Test
+    void 'test running basic rule v2_1'() {
+        def ruleSet = ARACHNI_ATOM_v2_1
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits)
+        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+
+        def json = slurper.parseText(awd.data)
+
+        assert json[0].rule.id == 'arachni_rule'
+        assert json[0].rule.name == 'Arachni'
+        assert json[0].rule.tags == [category: 'attack_attempt', type: 'security_scanner']
+        assert json[0].rule_matches[0]['operator'] == 'match_regex'
+        assert json[0].rule_matches[0]['operator_value'] == '^Arachni\\/v'
+        assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
+        assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
+        assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
+        assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
     }
 
     @Test
     void 'test with array of string lists'() {
-        def ruleSet = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM_v1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -54,7 +84,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test with array'() {
-        def ruleSet = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM_v1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -66,7 +96,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test null argument'() {
-        def ruleSet = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM_v1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -78,7 +108,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test boolean arguments'() {
-        def ruleSet = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM_v1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -93,7 +123,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test unencodable arguments'() {
-        def ruleSet = ARACHNI_ATOM
+        def ruleSet = ARACHNI_ATOM_v1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 

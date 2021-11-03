@@ -88,14 +88,14 @@ class AdditiveTest implements ReactiveTrait {
 
     @Test(expected = IllegalArgumentException)
     void 'Should throw IllegalArgumentException if Limits is null while run'() {
-        ctx = new PowerwafContext('test', ARACHNI_ATOM)
+        ctx = new PowerwafContext('test', ARACHNI_ATOM_v2_1)
         additive = ctx.openAdditive()
         additive.runAdditive([:], null)
     }
 
     @Test
     void 'should defer context destruction if the context is closed'() {
-        ctx = new PowerwafContext('test', ARACHNI_ATOM)
+        ctx = new PowerwafContext('test', ARACHNI_ATOM_v2_1)
         additive = ctx.openAdditive()
         assert ctx.refcount.get() == 2
         ctx.delReference()
