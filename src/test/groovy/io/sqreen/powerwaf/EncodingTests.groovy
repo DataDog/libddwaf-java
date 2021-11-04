@@ -18,7 +18,7 @@ class EncodingTests implements PowerwafTrait {
 
     @Before
     void assignContext() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_v1_0)
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V1_0)
     }
 
     @Test

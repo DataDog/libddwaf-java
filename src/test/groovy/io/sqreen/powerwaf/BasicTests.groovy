@@ -23,7 +23,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test running basic rule v1_0'() {
-        def ruleSet = ARACHNI_ATOM_v1_0
+        def ruleSet = ARACHNI_ATOM_V1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -46,7 +46,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test running basic rule v2_1'() {
-        def ruleSet = ARACHNI_ATOM_v2_1
+        def ruleSet = ARACHNI_ATOM_V2_1
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -69,7 +69,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test with array of string lists'() {
-        def ruleSet = ARACHNI_ATOM_v1_0
+        def ruleSet = ARACHNI_ATOM_V1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -84,7 +84,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test with array'() {
-        def ruleSet = ARACHNI_ATOM_v1_0
+        def ruleSet = ARACHNI_ATOM_V1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -96,7 +96,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test null argument'() {
-        def ruleSet = ARACHNI_ATOM_v1_0
+        def ruleSet = ARACHNI_ATOM_V1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -108,7 +108,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test boolean arguments'() {
-        def ruleSet = ARACHNI_ATOM_v1_0
+        def ruleSet = ARACHNI_ATOM_V1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
@@ -123,7 +123,7 @@ class BasicTests implements PowerwafTrait {
 
     @Test
     void 'test unencodable arguments'() {
-        def ruleSet = ARACHNI_ATOM_v1_0
+        def ruleSet = ARACHNI_ATOM_V1_0
 
         ctx = Powerwaf.createContext('test', ruleSet)
 

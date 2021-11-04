@@ -17,7 +17,7 @@ import org.junit.AfterClass
 @CompileStatic
 trait PowerwafTrait extends JNITrait {
 
-    static final Map ARACHNI_ATOM_v1_0 = (Map) new JsonSlurper().parseText('''
+    static final Map ARACHNI_ATOM_V1_0 = (Map) new JsonSlurper().parseText('''
         {
           "version": "1.0",
           "events": [
@@ -41,7 +41,7 @@ trait PowerwafTrait extends JNITrait {
           ]
         }''')
 
-    static final Map ARACHNI_ATOM_v2_1 = (Map) new JsonSlurper().parseText('''
+    static final Map ARACHNI_ATOM_V2_1 = (Map) new JsonSlurper().parseText('''
         {
           "version": "2.1",
           "rules": [

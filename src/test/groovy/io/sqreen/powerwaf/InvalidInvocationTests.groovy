@@ -44,7 +44,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'runRule with conversion throwing exception'() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_v2_1)
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedPowerwafException) {
             ctx.runRules(new BadMap(delegate: [:]), limits)
         }
@@ -55,7 +55,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'runRule with conversion throwing exception additive variant'() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_v2_1)
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
         def exc = shouldFail(UnclassifiedPowerwafException) {
             additive.run(new BadMap(delegate: [:]), limits)
@@ -67,7 +67,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'rule is run on closed context'() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_v2_1)
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         ctx.delReference()
         def exc = shouldFail(UnclassifiedPowerwafException) {
             ctx.runRules([:], limits)
@@ -80,7 +80,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     void 'bytebuffer passed does not represent a map'() {
         Assume.assumeTrue Powerwaf.ENABLE_BYTE_BUFFERS
 
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_v2_1)
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
 
         ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
@@ -98,7 +98,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     void 'bytebuffer passed is not direct buffer'() {
         Assume.assumeTrue Powerwaf.ENABLE_BYTE_BUFFERS
 
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_v2_1)
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
 
         shouldFail(IllegalArgumentException) {

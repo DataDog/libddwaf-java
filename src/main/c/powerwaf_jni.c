@@ -1228,6 +1228,9 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                               "Error calling toString() on map key");
             JAVA_CALL(value_obj, entry_value, entry);
 
+            JNI(DeleteLocalRef, key_obj);
+            JNI(DeleteLocalRef, entry);
+
             ddwaf_object value =
                     _convert_checked(env, value_obj, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
@@ -1250,8 +1253,6 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
              * on a loop and we don't want to run out of local refs */
             JNI(DeleteLocalRef, value_obj);
             JNI(DeleteLocalRef, key_jstr);
-            JNI(DeleteLocalRef, key_obj);
-            JNI(DeleteLocalRef, entry);
             if (!success) {
                 JNI(ThrowNew, jcls_rte, "ddwaf_object_map_add failed (OOM?)");
                 goto error;

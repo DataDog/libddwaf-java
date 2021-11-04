@@ -10,6 +10,7 @@ package io.sqreen.powerwaf
 
 import groovy.json.JsonSlurper
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException
+import org.junit.Ignore
 import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail
@@ -22,7 +23,7 @@ class LimitsTests implements PowerwafTrait {
 
     @Lazy
     PowerwafContext ctxWithArachniAtom =
-            Powerwaf.createContext('test', ARACHNI_ATOM_v1_0)
+            Powerwaf.createContext('test', ARACHNI_ATOM_V1_0)
 
     @Test
     void 'maxDepth is respected'() {
@@ -137,6 +138,7 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
+    @Ignore
     void 'runBudgetInUs is observed'() {
         def atom = new JsonSlurper().parseText('''
           {
@@ -184,8 +186,6 @@ class LimitsTests implements PowerwafTrait {
         timeoutInUs = 10000000 // 10 sec
         runBudget = 10 // 10 microseconds
         maxStringSize = Integer.MAX_VALUE
-
-
 
         def res = runRules('Arachni' * 9000)
         assertThat res.action, isOneOf(
