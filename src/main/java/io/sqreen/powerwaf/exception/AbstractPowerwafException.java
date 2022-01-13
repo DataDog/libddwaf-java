@@ -24,12 +24,10 @@ public abstract class AbstractPowerwafException extends Exception {
     public static AbstractPowerwafException createFromErrorCode(int errorCode) {
         switch (errorCode) {
             case -1:
-                return new TimeoutPowerwafException();
-            case -2:
                 return new InvalidArgumentPowerwafException();
-            case -3:
+            case -2:
                 return new InvalidObjectPowerwafException();
-            case -4:
+            case -3:
                 return new InternalPowerwafException();
             default:
                 return new UnclassifiedPowerwafException(errorCode);

@@ -36,7 +36,9 @@ DESTDIR=out make install
 cd ../..
 ```
 
-Then the jni lib can be built with `./gradlew buildNativeLibDebug`.
+Then the jni lib can be built with `./gradlew buildNativeLibDebug --rerun-tasks`.
+
+To build native libraries, recommended use `--rerun-tasks` option to enforce rebuild task, because of gradle can skip building tasks due caches and lead to unexpected results. 
 
 Tests are run with `./gradlew check`. This implicitly invokes
 `buildNativeLibDebug` if needed.

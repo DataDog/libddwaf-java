@@ -55,6 +55,7 @@ static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limit
 static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits);
 static ddwaf_handle _get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj);
 static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
+static void _throw_pwaf_timeout_exception(JNIEnv *env);
 
 // don't use DDWAF_OBJ_INVALID, as that can't be added to arrays/maps
 static const ddwaf_object _pwinput_invalid = { .type = DDWAF_OBJ_MAP };
@@ -70,6 +71,7 @@ jclass jcls_iae;
 jmethodID rte_constr_cause;
 
 static struct j_method _create_exception;
+static struct j_method _timeout_exception_init;
 /* these three are weak global references
  * we don't need strong ones because they are static fields of a class that
  * won't be unloaded as long as the Powerwaf class is loaded */
@@ -335,7 +337,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                      "General budget of %" PRId64 " us exhausted after "
                      "native conversion",
                      limits.general_budget_in_us);
-            _throw_pwaf_exception(env, DDWAF_ERR_TIMEOUT);
+            _throw_pwaf_timeout_exception(env);
             goto end;
         }
     }
@@ -350,19 +352,19 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         goto end;
     }
     DDWAF_RET_CODE ret_code = ddwaf_run(ctx, &input, &ret, run_budget);
-    if (ret_code != ret.action) {
-        JAVA_LOG(DDWAF_LOG_WARN, "Inconsistent return value and ret.action");
-        _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
-        goto freeRet;
-    }
 
     JAVA_LOG(DDWAF_LOG_DEBUG,
              "ddwaf_run ran in %" PRId32 " microseconds. "
              "Result code: %d",
-             ret.perfTotalRuntime, ret.action);
+             ret.perfTotalRuntime, ret_code);
+
+    if (ret.timeout) {
+        _throw_pwaf_timeout_exception(env);
+        goto freeRet;
+    }
 
     jobject action_obj;
-    switch (ret.action) {
+    switch (ret_code) {
         case DDWAF_GOOD:
             action_obj = _action_ok;
             break;
@@ -385,7 +387,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
             // break intentionally missing
         default: {
             // any errors or unknown statuses
-            _throw_pwaf_exception(env, (jint) ret.action);
+            _throw_pwaf_exception(env, (jint) ret_code);
             goto freeRet;
         }
     }
@@ -569,13 +571,18 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
                  "General budget of %" PRId64
                  " us exhausted after native conversion",
                  limits.general_budget_in_us);
-        _throw_pwaf_exception(env, DDWAF_ERR_TIMEOUT);
+        _throw_pwaf_timeout_exception(env);
         goto err;
     }
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
     DDWAF_RET_CODE ret_code = ddwaf_run(context, &input, &ret, run_budget);
+
+    if (ret.timeout) {
+        _throw_pwaf_timeout_exception(env);
+        goto freeRet;
+    }
 
     jobject action_obj;
     switch (ret_code) {
@@ -601,7 +608,7 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
             // break intentionally missing
         default: {
             // any errors or unknown statuses
-            _throw_pwaf_exception(env, (jint) ret.action);
+            _throw_pwaf_exception(env, (jint) ret_code);
             goto freeRet;
         }
     }
@@ -898,6 +905,14 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
+    if (!java_meth_init_checked(
+                env, &_timeout_exception_init, "io/sqreen/powerwaf/exception/TimeoutPowerwafException",
+                "<init>",
+                "()V",
+                JMETHOD_CONSTRUCTOR)) {
+        goto error;
+    }
+
     if (!java_meth_init_checked(env, &to_string, "java/lang/Object", "toString",
                                 "()Ljava/lang/String;", JMETHOD_VIRTUAL)) {
         goto error;
@@ -1040,6 +1055,7 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     }
 
     DESTROY_METH(_create_exception)
+    DESTROY_METH(_timeout_exception_init)
     DESTROY_METH(charSequence_length)
     DESTROY_METH(charSequence_subSequence)
     DESTROY_METH(charBuffer_hasArray)
@@ -1712,6 +1728,14 @@ static ddwaf_handle _get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj)
 static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode)
 {
     jobject exc = java_meth_call(env, &_create_exception, NULL, retcode);
+    if (!JNI(ExceptionCheck)) {
+        JNI(Throw, exc);
+    }
+}
+
+static void _throw_pwaf_timeout_exception(JNIEnv *env)
+{
+    jobject exc = java_meth_call(env, &_timeout_exception_init, NULL);
     if (!JNI(ExceptionCheck)) {
         JNI(Throw, exc);
     }
