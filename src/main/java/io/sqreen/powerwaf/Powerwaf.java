@@ -142,6 +142,9 @@ public final class Powerwaf {
     }
 
     public static class ActionWithData {
+        // reuse this from JNI when there is no Action or Data
+        public static final ActionWithData OK_NULL = new ActionWithData(Action.OK, null);
+
         public final Action action;
         public final String data;
 
