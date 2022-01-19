@@ -19,6 +19,7 @@ import java.nio.ByteOrder;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CoderResult;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -29,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.Supplier;
 
 public class ByteBufferSerializer {
     private static final long NULLPTR = 0;
@@ -70,7 +70,7 @@ public class ByteBufferSerializer {
         // limits apply per-serialization run
         int[] remainingElements = new int[]{limits.maxElements};
 
-        PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(1);
+        PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(1, true);
         if (pwArgsArrayBuffer == null) {
             throw new OutOfMemoryError();
         }
@@ -217,25 +217,23 @@ public class ByteBufferSerializer {
     }
 
     private static class Arena {
-        private static final ThreadLocal<CharsetEncoder> UTF8_ENCODER_CACHE =
-                ThreadLocal.withInitial(new Supplier<CharsetEncoder>() {
-                    @Override
-                    public CharsetEncoder get() {
-                        return StandardCharsets.UTF_8.newEncoder()
-                                .onMalformedInput(CodingErrorAction.REPLACE)
-                                .onUnmappableCharacter(CodingErrorAction.REPLACE) // UTF-8 can represent all though
-                                .replaceWith(new byte[]{(byte) 0xEF, (byte) 0xBF, (byte) 0xBD});
-                    }
-                });
+        private final CharsetEncoder UTF8_ENCODER = StandardCharsets.UTF_8.newEncoder()
+                .onMalformedInput(CodingErrorAction.REPLACE)
+                .onUnmappableCharacter(CodingErrorAction.REPLACE) // UTF-8 can represent all though
+                .replaceWith(new byte[]{(byte) 0xEF, (byte) 0xBF, (byte) 0xBD});
+
+        private final int MAX_BYTES_PER_CHAR_UTF8 = (int) UTF8_ENCODER.maxBytesPerChar();
 
         List<PWArgsSegment> pwargsSegments = new ArrayList<>();
         int curPWArgsSegment;
         int idxOfFirstUsedPWArgsSegment = -1;
         List<StringsSegment> stringsSegments = new ArrayList<>();
         int curStringsSegment;
+        CharBuffer currentWrapper = null;
+        WrittenString cachedWS = null;
 
-        public static final CharsetEncoder getCharsetEncoder() {
-            CharsetEncoder charsetEncoder = UTF8_ENCODER_CACHE.get();
+        public final CharsetEncoder getCharsetEncoder() {
+            CharsetEncoder charsetEncoder = UTF8_ENCODER;
             charsetEncoder.reset();
             return charsetEncoder;
         }
@@ -246,11 +244,13 @@ public class ByteBufferSerializer {
         }
 
         void reset() {
-            for (PWArgsSegment seg : pwargsSegments) {
-                seg.clear();
+            int size = pwargsSegments.size();
+            for (int pos = 0; pos < size; pos++) {
+                pwargsSegments.get(pos).clear();
             }
-            for (StringsSegment seg : stringsSegments) {
-                seg.clear();
+            size = stringsSegments.size();
+            for (int pos = 0; pos < size; pos++) {
+                stringsSegments.get(pos).clear();
             }
             curPWArgsSegment = 0;
             curStringsSegment = 0;
@@ -265,54 +265,65 @@ public class ByteBufferSerializer {
         }
 
         static class WrittenString {
-            private final long ptr;
-            private final int utf8len;
+            private final Arena arena;
+            private long ptr;
+            private int utf8len;
 
-            WrittenString(long ptr, int utf8len) {
+            WrittenString(Arena arena) {
+                this.arena = arena;
+            }
+
+            public void release() {
+                arena.cachedWS = this;
+            }
+
+            public WrittenString update(long ptr, int utf8len) {
                 this.ptr = ptr;
                 this.utf8len = utf8len;
+                return this;
             }
         }
 
         /**
          * @param s the string to serialize
          * @return the native pointer to the string and its size in bytes,
-         *         or null if the string is too large
+         * or null if the string is too large
          */
         WrittenString writeStringUnlimited(CharSequence s) {
-            ByteBuffer bytes;
-
-            CharBuffer cb = s instanceof CharBuffer ?
-                    ((CharBuffer) s).duplicate() :
-                    CharBuffer.wrap(s);
-
-            try {
-                bytes = getCharsetEncoder().encode(cb);
-            } catch (CharacterCodingException e) {
-                // should not happen
-                throw new UndeclaredThrowableException(e);
+            CharBuffer cb;
+            if (s instanceof CharBuffer) {
+                cb = ((CharBuffer) s).duplicate();
+            } else {
+                cb = currentWrapper = CharSequenceWrapper.wrap(s, currentWrapper);
             }
-            int lenInBytes = bytes.limit();
-            if (lenInBytes == Integer.MAX_VALUE) {
+
+            long tmp = (long) s.length() * MAX_BYTES_PER_CHAR_UTF8 + 1; // 0 terminated
+            if (tmp > Integer.MAX_VALUE) {
                 // overflow ahead
                 return null;
             }
+            int maxBytes = (int) tmp;
 
             StringsSegment segment;
             segment = stringsSegments.get(curStringsSegment);
-            long ptr;
-            while ((ptr = segment.writeNulTerminated(bytes)) == NULLPTR) {
-                segment = changeStringsSegment(
-                        Math.max(STRINGS_MIN_SEGMENTS_SIZE, lenInBytes + 1 /* NUL */));
+            WrittenString str = cachedWS;
+            if (str == null) {
+                cachedWS = str = new WrittenString(this);
             }
-            return new WrittenString(ptr, lenInBytes);
+            while ((str = segment.writeNulTerminated(str, getCharsetEncoder(), cb, maxBytes)) == null) {
+                segment = changeStringsSegment(
+                        Math.max(STRINGS_MIN_SEGMENTS_SIZE, maxBytes));
+                str = cachedWS;
+            }
+            cachedWS = null;
+            return str;
         }
 
-        PWArgsArrayBuffer allocatePWArgsBuffer(int num) {
+        PWArgsArrayBuffer allocatePWArgsBuffer(int num, boolean offsetAddress) {
             PWArgsSegment segment;
             segment = pwargsSegments.get(curPWArgsSegment);
             PWArgsArrayBuffer array;
-            while ((array = segment.allocate(num)) == null) {
+            while ((array = segment.allocate(num, offsetAddress)) == null) {
                 segment = changePWArgsSegment(Math.max(PWARGS_MIN_SEGMENTS_SIZE, num));
             }
             if (idxOfFirstUsedPWArgsSegment == -1) {
@@ -323,7 +334,7 @@ public class ByteBufferSerializer {
 
         private PWArgsSegment changePWArgsSegment(int capacity) {
             PWArgsSegment e;
-            if (curPWArgsSegment == pwargsSegments.size() -1) {
+            if (curPWArgsSegment == pwargsSegments.size() - 1) {
                 e = new PWArgsSegment(capacity);
                 pwargsSegments.add(e);
             } else {
@@ -346,7 +357,7 @@ public class ByteBufferSerializer {
         }
     }
 
-    /* we want to reuse our ByteBuffers because the live off heap */
+    /* we want to reuse our ByteBuffers because they live off heap */
     enum ArenaPool {
         INSTANCE;
 
@@ -397,6 +408,8 @@ public class ByteBufferSerializer {
 
     static class PWArgsSegment {
         ByteBuffer buffer;
+        List<PWArgsArrayBuffer> pwargsArrays = new ArrayList<>();
+        int idxOfNextUnusedPWArgsArrayBuffer = 0;
 
         PWArgsSegment(int capacity) {
             // assume this is 8-byte aligned
@@ -404,19 +417,32 @@ public class ByteBufferSerializer {
             this.buffer.order(ByteOrder.nativeOrder());
         }
 
-        PWArgsArrayBuffer allocate(int num) {
+        PWArgsArrayBuffer allocate(int num, boolean offsetAddress) {
             if (left() < num) {
                 return null;
             }
             int position = this.buffer.position();
-            ByteBuffer slice = this.buffer.slice();
-            slice.order(ByteOrder.nativeOrder()).limit(num * SIZEOF_PWARGS);
+            PWArgsArrayBuffer arrayBuffer;
+            if (offsetAddress) {
+                ByteBuffer slice = this.buffer.slice().order(ByteOrder.nativeOrder());
+                arrayBuffer = new PWArgsArrayBuffer(slice, 0, num);
+            } else if (idxOfNextUnusedPWArgsArrayBuffer >= pwargsArrays.size()) {
+                ByteBuffer duplicate = this.buffer.duplicate().order(ByteOrder.nativeOrder());
+                arrayBuffer = new PWArgsArrayBuffer(duplicate, position, num);
+                pwargsArrays.add(arrayBuffer);
+                idxOfNextUnusedPWArgsArrayBuffer++;
+            } else {
+                arrayBuffer = pwargsArrays.get(idxOfNextUnusedPWArgsArrayBuffer);
+                arrayBuffer.reset(position, num);
+                idxOfNextUnusedPWArgsArrayBuffer++;
+            }
             this.buffer.position(position + num * SIZEOF_PWARGS);
-            return new PWArgsArrayBuffer(slice, num);
+            return arrayBuffer;
         }
 
         void clear() {
             buffer.clear();
+            idxOfNextUnusedPWArgsArrayBuffer = 0;
         }
 
         private int left() {
@@ -426,21 +452,36 @@ public class ByteBufferSerializer {
 
     static class PWArgsArrayBuffer {
         private final ByteBuffer buffer;
-        private final int num;
+        private int start;
+        private int num;
+        private final List<PWArgsBuffer> pwArgsBuffers;
 
         static final PWArgsArrayBuffer EMPTY_BUFFER = new PWArgsArrayBuffer();
 
-        PWArgsArrayBuffer(ByteBuffer buffer, int num) {
+        PWArgsArrayBuffer(ByteBuffer buffer, int start, int num) {
             if (num == 0 || buffer == null) {
                 throw new IllegalArgumentException();
             }
-            this.num = num;
             this.buffer = buffer;
+            this.start = start;
+            this.num = num;
+            buffer.limit(start + num * SIZEOF_PWARGS);
+            buffer.position(start);
+            this.pwArgsBuffers = new ArrayList<>(num);
         }
 
         private PWArgsArrayBuffer() {
-            this.num = 0;
             this.buffer = null;
+            this.start = 0;
+            this.num = 0;
+            this.pwArgsBuffers = null;
+        }
+
+        void reset(int start, int num) {
+            this.start = start;
+            this.num = num;
+            this.buffer.limit(start + num * SIZEOF_PWARGS);
+            this.buffer.position(start);
         }
 
         PWArgsBuffer get(int i) {
@@ -448,16 +489,21 @@ public class ByteBufferSerializer {
                 throw new ArrayIndexOutOfBoundsException();
             }
             assert this.buffer != null;
-            ByteBuffer slice = offsetBuffer(this.buffer, i * SIZEOF_PWARGS);
-            slice.limit(SIZEOF_PWARGS);
-            return new PWArgsBuffer( slice);
+            while (i >= pwArgsBuffers.size()) {
+                ByteBuffer duplicate = this.buffer.duplicate().order(ByteOrder.nativeOrder());
+                pwArgsBuffers.add(new PWArgsBuffer(duplicate, start));
+            }
+            PWArgsBuffer pwArgsBuffer = pwArgsBuffers.get(i);
+            pwArgsBuffer.reset(start + i * SIZEOF_PWARGS);
+            return pwArgsBuffer;
         }
 
         long getAddress() {
             if (buffer == null) {
                 return NULLPTR;
             }
-            return getByteBufferAddress(buffer);
+            long address = getByteBufferAddress(buffer);
+            return address >= 0 ? address + start : address - start;
         }
     }
 
@@ -485,8 +531,15 @@ public class ByteBufferSerializer {
     static class PWArgsBuffer {
         private final ByteBuffer buffer;
 
-        PWArgsBuffer(ByteBuffer buffer) {
+        PWArgsBuffer(ByteBuffer buffer, int start) {
             this.buffer = buffer;
+            this.buffer.limit(start + SIZEOF_PWARGS);
+            this.buffer.position(start);
+        }
+
+        void reset(int start) {
+            this.buffer.limit(start + SIZEOF_PWARGS);
+            this.buffer.position(start);
         }
 
         boolean writeString(Arena arena, String parameterName, CharSequence value) {
@@ -499,6 +552,7 @@ public class ByteBufferSerializer {
             }
             this.buffer.putLong(writtenString.ptr).putLong(writtenString.utf8len)
                     .putInt(PWInputType.PWI_STRING.value);
+            writtenString.release();
             return true;
         }
 
@@ -529,7 +583,7 @@ public class ByteBufferSerializer {
                 return PWArgsArrayBuffer.EMPTY_BUFFER;
             }
 
-            PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(numElements);
+            PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(numElements, false);
             if (pwArgsArrayBuffer == null) {
                 // should not happen
                 return null;
@@ -555,6 +609,7 @@ public class ByteBufferSerializer {
                     return false;
                 }
                 this.buffer.putLong(writtenString.ptr).putLong(writtenString.utf8len);
+                writtenString.release();
             }
 
             return true;
@@ -570,6 +625,7 @@ public class ByteBufferSerializer {
         PWI_MAP(16);
 
         int value;
+
         PWInputType(int i) {
             this.value = i;
         }
@@ -594,21 +650,32 @@ public class ByteBufferSerializer {
             buffer.clear();
         }
 
-        /**
-         * Writes a previously truncated UTF-8 string
-         * @param stringBytes stringBytes with the truncated UTF-8 string, position 0, limit length
-         * @return the pointer value of the written string or NULLPTR,
-         *         if there is no space available in the segment
-         */
-        long writeNulTerminated(ByteBuffer stringBytes) {
-            // assume length is not Integer.MAX_INT
-            int size = stringBytes.limit() + 1;
-            if (left() < size) {
-                return NULLPTR;
+        Arena.WrittenString writeNulTerminated(Arena.WrittenString writtenString,
+                                               CharsetEncoder encoder,
+                                               CharBuffer in,
+                                               int maxBytes) {
+            if (left() < maxBytes) {
+                return null;
             }
-            long ptr = base + this.buffer.position();
-            this.buffer.put(stringBytes).put(NUL_TERMINATOR);
-            return ptr;
+            int position = this.buffer.position();
+            long ptr = base + position;
+            if (maxBytes > 1 && in.hasRemaining()) {
+                try {
+                    CoderResult cr = encoder.encode(in, this.buffer, true);
+                    if (cr.isUnderflow())
+                        cr = encoder.flush(this.buffer);
+                    if (!cr.isUnderflow()) {
+                        cr.throwException();
+                    }
+                } catch (CharacterCodingException e) {
+                    // should not happen
+                    throw new UndeclaredThrowableException(e);
+                }
+            }
+            int bytesLen = this.buffer.position() - position;
+            this.buffer.put(NUL_TERMINATOR);
+
+            return writtenString.update(ptr, bytesLen);
         }
 
         private int left() {
@@ -617,14 +684,6 @@ public class ByteBufferSerializer {
     }
 
     private static native long getByteBufferAddress(ByteBuffer bb);
-
-    private static ByteBuffer offsetBuffer(ByteBuffer buffer, int offsetInBytes) {
-        buffer.mark().position(offsetInBytes);
-        ByteBuffer slice = buffer.slice();
-        slice.order(ByteOrder.nativeOrder());
-        buffer.reset();
-        return slice;
-    }
 
     private static class GenericArrayIterator implements Iterator<Object> {
         final Object array;
