@@ -35,6 +35,7 @@ static bool _check_init(JNIEnv *env);
 static void _deinitialize(JNIEnv *env);
 static bool _cache_references(JNIEnv *env);
 static void _dispose_of_action_enums(JNIEnv *env);
+static void _dispose_of_action_with_data_fields(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
@@ -78,6 +79,7 @@ static struct j_method _timeout_exception_init;
 static jobject _action_ok;
 static jobject _action_monitor;
 static jobject _action_block;
+static jobject _action_with_data_ok_null;
 static struct j_method _action_with_data_init;
 static jfieldID _limit_max_depth;
 static jfieldID _limit_max_elements;
@@ -367,6 +369,10 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
     switch (ret_code) {
         case DDWAF_GOOD:
             action_obj = _action_ok;
+            if (!ret.data) {
+                result = _action_with_data_ok_null;
+                goto freeRet;
+            }
             break;
         case DDWAF_MONITOR:
             action_obj = _action_monitor;
@@ -588,6 +594,10 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     switch (ret_code) {
         case DDWAF_GOOD:
             action_obj = _action_ok;
+            if (!ret.data) {
+                result = _action_with_data_ok_null;
+                goto freeRet;
+            }
             break;
         case DDWAF_MONITOR:
             action_obj = _action_monitor;
@@ -754,6 +764,32 @@ error:
     return ret;
 }
 
+#define ACTION_WITH_DATA_DESCR "Lio/sqreen/powerwaf/Powerwaf$ActionWithData;"
+static bool _fetch_action_with_data_fields(JNIEnv *env)
+{
+    bool ret = false;
+
+    jclass action_with_data_jclass = JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$ActionWithData");
+    if (!action_with_data_jclass) {
+        goto error;
+    }
+
+    _action_with_data_ok_null = java_static_field_checked(env, action_with_data_jclass,
+                                           "OK_NULL", ACTION_WITH_DATA_DESCR);
+    if (!_action_with_data_ok_null) {
+        goto error;
+    }
+
+    ret = true;
+
+error:
+    JNI(DeleteLocalRef, action_with_data_jclass);
+    if (!ret) {
+        _dispose_of_action_with_data_fields(env);
+    }
+    return ret;
+}
+
 static bool _fetch_additive_fields(JNIEnv *env)
 {
     bool ret = false;
@@ -840,6 +876,14 @@ static void _dispose_of_action_enums(JNIEnv *env)
     if (_action_block) {
         JNI(DeleteWeakGlobalRef, _action_block);
         _action_block = NULL;
+    }
+}
+
+static void _dispose_of_action_with_data_fields(JNIEnv *env)
+{
+    if (_action_with_data_ok_null) {
+        JNI(DeleteWeakGlobalRef, _action_with_data_ok_null);
+        _action_with_data_ok_null = NULL;
     }
 }
 
@@ -1095,6 +1139,10 @@ static bool _cache_references(JNIEnv *env)
         goto error;
     }
 
+    if (!_fetch_action_with_data_fields(env)) {
+        goto error;
+    }
+
     if (!_fetch_additive_fields(env)) {
         goto error;
     }
@@ -1120,6 +1168,7 @@ error:
 static void _dispose_of_cache_references(JNIEnv * env)
 {
     _dispose_of_action_enums(env);
+    _dispose_of_action_with_data_fields(env);
     _dispose_of_weak_classes(env);
     _dispose_of_cached_methods(env);
 }

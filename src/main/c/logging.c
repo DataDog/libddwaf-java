@@ -74,6 +74,8 @@ static const struct slf4j_strings slf4j_strings_ddog = {
 };
 static const struct slf4j_strings *slf4j_active = &slf4j_strings_org;
 
+static DDWAF_LOG_LEVEL min_level;
+
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
     char *loc = memrchr(__FILE__, DIR_SEP, strlen(__FILE__));
@@ -183,7 +185,6 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-    DDWAF_LOG_LEVEL min_level;
     if (!_get_min_log_level(env, &min_level)) {
         java_wrap_exc("Could not determine minimum log level");
         goto error;
@@ -255,6 +256,11 @@ void java_log_shutdown(JNIEnv *env)
 void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
               int line, jthrowable throwable, const char *fmt, ...)
 {
+    if (level < min_level) {
+        // don't even create the Java String if we won't log it anyway
+        return;
+    }
+
     char *message = NULL;
     va_list ap;
     va_start(ap, fmt);
