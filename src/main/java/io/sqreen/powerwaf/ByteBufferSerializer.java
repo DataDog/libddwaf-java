@@ -70,7 +70,8 @@ public class ByteBufferSerializer {
         // limits apply per-serialization run
         int[] remainingElements = new int[]{limits.maxElements};
 
-        PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(1, true);
+        // The address of this ByteBuffer will be accessed from native code via GetDirectBufferAddress
+        PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocateGetAddressCompatiblePWArgsBuffer(1);
         if (pwArgsArrayBuffer == null) {
             throw new OutOfMemoryError();
         }
@@ -217,12 +218,13 @@ public class ByteBufferSerializer {
     }
 
     private static class Arena {
-        private final CharsetEncoder UTF8_ENCODER = StandardCharsets.UTF_8.newEncoder()
+        private static final int MAX_BYTES_PER_CHAR_UTF8 =
+                (int) StandardCharsets.UTF_8.newEncoder().maxBytesPerChar();
+
+        private final CharsetEncoder utf8Encoder = StandardCharsets.UTF_8.newEncoder()
                 .onMalformedInput(CodingErrorAction.REPLACE)
                 .onUnmappableCharacter(CodingErrorAction.REPLACE) // UTF-8 can represent all though
                 .replaceWith(new byte[]{(byte) 0xEF, (byte) 0xBF, (byte) 0xBD});
-
-        private final int MAX_BYTES_PER_CHAR_UTF8 = (int) UTF8_ENCODER.maxBytesPerChar();
 
         List<PWArgsSegment> pwargsSegments = new ArrayList<>();
         int curPWArgsSegment;
@@ -233,7 +235,7 @@ public class ByteBufferSerializer {
         WrittenString cachedWS = null;
 
         public final CharsetEncoder getCharsetEncoder() {
-            CharsetEncoder charsetEncoder = UTF8_ENCODER;
+            CharsetEncoder charsetEncoder = utf8Encoder;
             charsetEncoder.reset();
             return charsetEncoder;
         }
@@ -319,11 +321,19 @@ public class ByteBufferSerializer {
             return str;
         }
 
-        PWArgsArrayBuffer allocatePWArgsBuffer(int num, boolean offsetAddress) {
+        PWArgsArrayBuffer allocateGetAddressCompatiblePWArgsBuffer(int num) {
+            return allocatePWArgsBuffer(num, true);
+        }
+
+        PWArgsArrayBuffer allocatePWArgsBuffer(int num) {
+            return allocatePWArgsBuffer(num, false);
+        }
+
+        private PWArgsArrayBuffer allocatePWArgsBuffer(int num, boolean getAddressCompatible) {
             PWArgsSegment segment;
             segment = pwargsSegments.get(curPWArgsSegment);
             PWArgsArrayBuffer array;
-            while ((array = segment.allocate(num, offsetAddress)) == null) {
+            while ((array = segment.allocate(num, getAddressCompatible)) == null) {
                 segment = changePWArgsSegment(Math.max(PWARGS_MIN_SEGMENTS_SIZE, num));
             }
             if (idxOfFirstUsedPWArgsSegment == -1) {
@@ -417,13 +427,13 @@ public class ByteBufferSerializer {
             this.buffer.order(ByteOrder.nativeOrder());
         }
 
-        PWArgsArrayBuffer allocate(int num, boolean offsetAddress) {
+        PWArgsArrayBuffer allocate(int num, boolean getAddressCompatible) {
             if (left() < num) {
                 return null;
             }
             int position = this.buffer.position();
             PWArgsArrayBuffer arrayBuffer;
-            if (offsetAddress) {
+            if (getAddressCompatible) {
                 ByteBuffer slice = this.buffer.slice().order(ByteOrder.nativeOrder());
                 arrayBuffer = new PWArgsArrayBuffer(slice, 0, num);
             } else if (idxOfNextUnusedPWArgsArrayBuffer >= pwargsArrays.size()) {
@@ -491,7 +501,7 @@ public class ByteBufferSerializer {
             assert this.buffer != null;
             while (i >= pwArgsBuffers.size()) {
                 ByteBuffer duplicate = this.buffer.duplicate().order(ByteOrder.nativeOrder());
-                pwArgsBuffers.add(new PWArgsBuffer(duplicate, start));
+                pwArgsBuffers.add(new PWArgsBuffer(duplicate, start + i * SIZEOF_PWARGS));
             }
             PWArgsBuffer pwArgsBuffer = pwArgsBuffers.get(i);
             pwArgsBuffer.reset(start + i * SIZEOF_PWARGS);
@@ -503,7 +513,7 @@ public class ByteBufferSerializer {
                 return NULLPTR;
             }
             long address = getByteBufferAddress(buffer);
-            return address >= 0 ? address + start : address - start;
+            return address + start;
         }
     }
 
@@ -583,7 +593,7 @@ public class ByteBufferSerializer {
                 return PWArgsArrayBuffer.EMPTY_BUFFER;
             }
 
-            PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(numElements, false);
+            PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(numElements);
             if (pwArgsArrayBuffer == null) {
                 // should not happen
                 return null;

@@ -14,6 +14,7 @@ public class CharSequenceWrapper {
     private static boolean resetBuffer;
 
     static {
+        // Get the package private class StringCharBuffer by calling wrap
         str = getField(CharBuffer.wrap("").getClass(), "str");
         offset = getField(CharBuffer.class, "offset");
         mark = getField(Buffer.class, "mark");
@@ -38,7 +39,8 @@ public class CharSequenceWrapper {
         if (!resetBuffer || previous == null || cs == null) {
             return CharBuffer.wrap(cs);
         } else {
-            // we're assuming that this is a StringCharBuffer until proven otherwise
+            // Since StringCharBuffer is package private, we can't do an instanceof check above, so we're
+            // assuming that this is a StringCharBuffer and catch any exceptions, and don't try again
             try {
                 str.set(previous, cs);
                 offset.setInt(previous, 0);
