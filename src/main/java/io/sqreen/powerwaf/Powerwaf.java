@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.0.16";
+    public static final String LIB_VERSION = "1.0.17";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
