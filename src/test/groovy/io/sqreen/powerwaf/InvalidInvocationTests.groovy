@@ -77,6 +77,17 @@ class InvalidInvocationTests implements ReactiveTrait {
     }
 
     @Test
+    void 'addresses are fetched on closed context'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        ctx.delReference()
+        def exc = shouldFail(IllegalStateException) {
+            ctx.usedAddresses
+        }
+        assertThat exc.message, containsString('This context is already offline')
+        ctx = null
+    }
+
+    @Test
     void 'bytebuffer passed does not represent a map'() {
         Assume.assumeTrue Powerwaf.ENABLE_BYTE_BUFFERS
 

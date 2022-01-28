@@ -8,10 +8,12 @@
 
 package io.sqreen.powerwaf
 
+import groovy.json.JsonSlurper
 import org.junit.Test
 
 import static io.sqreen.powerwaf.Powerwaf.ActionWithData
 import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.is
 
 class BasicTests implements PowerwafTrait {
@@ -131,5 +133,42 @@ class BasicTests implements PowerwafTrait {
         ActionWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
+    }
+
+    @Test
+    void 'can retrieve used addresses'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        assertThat ctx.usedAddresses as List, contains('server.request.headers.no_cookies')
+    }
+
+    @Test
+    void 'handles ruleset without addresses'() {
+        def ruleSet = new JsonSlurper().parseText '''
+            {
+              "version": "2.1",
+              "rules": [
+                {
+                  "id": "arachni_rule",
+                  "name": "Arachni",
+                  "tags": {
+                    "type": "security_scanner",
+                    "category": "attack_attempt"
+                  },
+                  "conditions": [
+                    {
+                      "parameters": {
+                        "inputs": [],
+                        "regex": "^Arachni\\\\\\\\/v"
+                      },
+                      "operator": "match_regex"
+                    }
+                  ],
+                  "transformers": []
+                }
+              ]
+
+            }'''
+        ctx = Powerwaf.createContext('test', ruleSet)
+        assertThat ctx.usedAddresses, is([] as String[])
     }
 }
