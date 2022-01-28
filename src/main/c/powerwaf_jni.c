@@ -302,12 +302,12 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddre
 
     JAVA_LOG(DDWAF_LOG_DEBUG, "Found %u addresses in ruleset", size);
 
-    jobject ret_jarr = JNI(NewObjectArray, size, string_cls, NULL);
+    jobject ret_jarr = JNI(NewObjectArray, (jsize) size, string_cls, NULL);
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
-    for (jsize i = 0; i < size; i++) {
+    for (jsize i = 0; i < (jsize) size; i++) {
         const char *addr = addresses[i];
         if (!addr) {
             JNI(ThrowNew, jcls_rte,
