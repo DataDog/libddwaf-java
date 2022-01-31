@@ -87,6 +87,8 @@ public final class Powerwaf {
     /* pw_clearRuleH */
     static native void clearRules(PowerwafHandle handle);
 
+    static native String[] getRequiredAddresses(PowerwafHandle handle);
+
     /**
      * Runs a rule with the parameters pre-serialized into direct
      * ByteBuffers. The initial PWArgs must be the object at offset 0

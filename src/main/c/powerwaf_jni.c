@@ -272,6 +272,63 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRules(
     ddwaf_destroy(nat_handle);
 }
 
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    getRequiredAddresses
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)[Ljava/lang/String;
+ */
+JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddresses
+  (JNIEnv *env, jclass clazz, jobject handle_obj)
+{
+    UNUSED(clazz);
+
+    if (!_check_init(env)) {
+        return NULL;
+    }
+
+    ddwaf_handle nat_handle;
+    if (!(nat_handle = _get_pwaf_handle_checked(env, handle_obj))) {
+        return NULL;
+    }
+
+    uint32_t size;
+    const char* const* addresses = ddwaf_required_addresses(nat_handle, &size);
+    if (!addresses || size == 0 || size > INT_MAX /* jsize == int */) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "Found no addresses in ruleset");
+        jobject ret_jarr = JNI(NewObjectArray, 0, string_cls, NULL);
+        UNUSED(JNI(ExceptionCheck));
+        return ret_jarr;
+    }
+
+    JAVA_LOG(DDWAF_LOG_DEBUG, "Found %u addresses in ruleset", size);
+
+    jobject ret_jarr = JNI(NewObjectArray, (jsize) size, string_cls, NULL);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+
+    for (jsize i = 0; i < (jsize) size; i++) {
+        const char *addr = addresses[i];
+        if (!addr) {
+            JNI(ThrowNew, jcls_rte,
+                "Unexpected NULL ptr in returned list of addresses");
+            return NULL; // should not happen
+        }
+        jstring addr_jstr =
+                java_utf8_to_jstring_checked(env, addr, strlen(addr));
+        if (!addr_jstr) {
+            return NULL;
+        }
+        JNI(SetObjectArrayElement, ret_jarr, i, addr_jstr);
+        if (JNI(ExceptionCheck)) {
+            return NULL;
+        }
+        JNI(DeleteLocalRef, addr_jstr);
+    }
+
+    return ret_jarr;
+}
+
 // runRule overloads
 static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                                 jobject handle_obj, jobject parameters,

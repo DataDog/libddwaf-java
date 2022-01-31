@@ -63,6 +63,16 @@ public class PowerwafContext {
         this.logger.debug("Successfully create PowerWAF context {}", uniqueName);
     }
 
+    public String[] getUsedAddresses() {
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            return Powerwaf.getRequiredAddresses(this.handle);
+        } finally {
+            this.readLock.unlock();
+        }
+    }
+
     public Powerwaf.ActionWithData runRules(Map<String, Object> parameters,
                                             Powerwaf.Limits limits) throws AbstractPowerwafException {
         this.readLock.lock();
