@@ -20,11 +20,11 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Additive implements Closeable {
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private static final Logger LOGGER = LoggerFactory.getLogger(Additive.class);
 
     private final PowerwafContext ctx;
-
     private final ByteBufferSerializer.ArenaLease lease;
+    private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
     /**
      *  The ptr field holds the pointer to PWAddContext and managed by PowerWAF
@@ -33,11 +33,16 @@ public final class Additive implements Closeable {
     private boolean online;
 
     Additive(PowerwafContext ctx) {
-        this.logger.debug("Creating PowerWAF Additive for {}", ctx);
+        LOGGER.debug("Creating PowerWAF Additive for {}", ctx);
         this.ctx = ctx;
         this.ptr = initAdditive(ctx.handle, Powerwaf.ENABLE_BYTE_BUFFERS);
         this.lease = ByteBufferSerializer.getBlankLease();
-        online = true;
+        this.online = true;
+        if (Powerwaf.EXIT_ON_LEAK) {
+            this.selfRef = LeakDetection.registerCloseable(this);
+        } else {
+            this.selfRef = null;
+        }
     }
 
     private static native long initAdditive(PowerwafHandle handle, boolean powerwafEnableByteBuffers);
@@ -84,7 +89,7 @@ public final class Additive implements Closeable {
                     long elapsedNs = System.nanoTime() - before;
                     Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
                     if (newLimits.generalBudgetInUs == 0L) {
-                        this.logger.debug(
+                        LOGGER.debug(
                                 "Budget exhausted after serialization; " +
                                         "not running on additive {}", this);
                         throw new TimeoutPowerwafException();
@@ -115,7 +120,7 @@ public final class Additive implements Closeable {
 
             try {
                 clearAdditive();
-                this.logger.debug("Closed Additive for rule context {}", this.ctx);
+                LOGGER.debug("Closed Additive for rule context {}", this.ctx);
             } catch (Throwable t) {
                 exc = t;
             }
@@ -130,6 +135,10 @@ public final class Additive implements Closeable {
         // if we reach this point, we were originally online
         this.ctx.delReference();
 
+        if (this.selfRef != null) {
+            LeakDetection.notifyClose(this.selfRef);
+        }
+
         if (exc != null) {
             if (exc instanceof Error) {
                 throw (Error) exc;
@@ -137,24 +146,6 @@ public final class Additive implements Closeable {
                 throw (RuntimeException) exc;
             } else {
                 throw new UndeclaredThrowableException(exc);
-            }
-        }
-    }
-
-    @Override
-    protected synchronized void finalize() {
-        // last-resort! close() should be called instead
-        if (online) {
-            this.logger.warn(
-                    "Additive for rule context {} had not been properly cleared", this.ctx);
-            try {
-                close();
-            } finally {
-                if (Powerwaf.EXIT_ON_LEAK) {
-                    this.logger.error("Additive for rule context {} was not properly closed. " +
-                            "Exiting with exit code 2", this.ctx);
-                    System.exit(2);
-                }
             }
         }
     }

@@ -24,7 +24,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * is destroyed and that the rule is not destroyed during runs.
  */
 public class PowerwafContext {
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private static final Logger LOGGER = LoggerFactory.getLogger(PowerwafContext.class);
 
     private final String uniqueName;
 
@@ -36,9 +36,10 @@ public class PowerwafContext {
     private final Lock readLock;
 
     private final AtomicInteger refcount = new AtomicInteger(1);
+    private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
     PowerwafContext(String uniqueName, Map<String, Object> definition) throws AbstractPowerwafException {
-        this.logger.debug("Creating PowerWAF context {}", uniqueName);
+        LOGGER.debug("Creating PowerWAF context {}", uniqueName);
         ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
         this.readLock = rwLock.readLock();
         this.writeLock = rwLock.writeLock();
@@ -60,7 +61,12 @@ public class PowerwafContext {
         // online set to true must be after call to Powerwaf.addRules
         // finalizer still runs even if the constructor threw
         online = true;
-        this.logger.debug("Successfully create PowerWAF context {}", uniqueName);
+        if (Powerwaf.EXIT_ON_LEAK) {
+            this.selfRef = LeakDetection.registerCloseable(this);
+        } else {
+            this.selfRef = null;
+        }
+        LOGGER.debug("Successfully create PowerWAF context {}", uniqueName);
     }
 
     public String[] getUsedAddresses() {
@@ -78,7 +84,7 @@ public class PowerwafContext {
         this.readLock.lock();
         try {
             checkIfOnline();
-            this.logger.debug("Running rule for context {} with limits {}",
+            LOGGER.debug("Running rule for context {} with limits {}",
                     this, limits);
 
             Powerwaf.ActionWithData res;
@@ -96,7 +102,7 @@ public class PowerwafContext {
                     long elapsedNs = System.nanoTime() - before;
                     Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
                     if (newLimits.generalBudgetInUs == 0L) {
-                        this.logger.debug(
+                        LOGGER.debug(
                                 "Budget exhausted after serialization; " +
                                         "not running rule of context {}",
                                 this);
@@ -110,7 +116,7 @@ public class PowerwafContext {
                 res = Powerwaf.runRules(this.handle, parameters, limits);
             }
 
-            this.logger.debug("Rule of context {} ran successfully with return {}", this, res);
+            LOGGER.debug("Rule of context {} ran successfully with return {}", this, res);
 
             return res;
         } catch (RuntimeException rte) {
@@ -161,7 +167,10 @@ public class PowerwafContext {
                 if (success) {
                     this.online = false;
                     Powerwaf.clearRules(this.handle);
-                    logger.debug("Deleted WAF context {}", this);
+                    LOGGER.debug("Deleted WAF context {}", this);
+                    if (this.selfRef != null) {
+                        LeakDetection.notifyClose(this.selfRef);
+                    }
                 }
             } finally {
                 this.writeLock.unlock();
@@ -174,28 +183,6 @@ public class PowerwafContext {
             if (!success) {
                 delReference(); // try again
             }
-        }
-    }
-
-    @Override
-    protected void finalize() {
-        // last-resort! delReference() should be called instead
-        this.writeLock.lock();
-        try {
-            if (this.online) {
-                this.logger.warn("Context {} had not been properly closed", this.uniqueName);
-                try {
-                    Powerwaf.clearRules(this.handle);
-                } finally {
-                    if (Powerwaf.EXIT_ON_LEAK) {
-                        this.logger.error("Context {} was not properly closed. " +
-                                "Exiting with exit code 2", this.uniqueName);
-                        System.exit(2);
-                    }
-                }
-            }
-        } finally {
-            this.writeLock.unlock();
         }
     }
 
