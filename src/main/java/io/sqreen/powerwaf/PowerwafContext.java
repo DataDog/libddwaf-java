@@ -9,6 +9,7 @@
 package io.sqreen.powerwaf;
 
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
+import io.sqreen.powerwaf.exception.InvalidRuleSetException;
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ public class PowerwafContext {
     private final Lock writeLock;
     private final Lock readLock;
 
+    private final RuleSetInfo ruleSetInfo;
     private final AtomicInteger refcount = new AtomicInteger(1);
     private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
@@ -47,16 +49,25 @@ public class PowerwafContext {
         this.uniqueName = uniqueName;
 
         if (!definition.containsKey("version")) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                     "Invalid definition. Expected key 'version' to exist");
         }
 
         if (!definition.containsKey("events") &&
                 !definition.containsKey("rules")) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                     "Invalid definition. Expected keys 'events' or 'rules' to exist");
         }
-        this.handle = Powerwaf.addRules(definition);
+        RuleSetInfo[] infoRef = new RuleSetInfo[1];
+        try {
+            this.handle = Powerwaf.addRules(definition, infoRef);
+        } catch (IllegalArgumentException iae) {
+            if (infoRef[0] != null) {
+                throw new InvalidRuleSetException(infoRef[0], iae);
+            }
+            throw iae;
+        }
+        this.ruleSetInfo = infoRef[0];
 
         // online set to true must be after call to Powerwaf.addRules
         // finalizer still runs even if the constructor threw
@@ -184,6 +195,10 @@ public class PowerwafContext {
                 delReference(); // try again
             }
         }
+    }
+
+    public RuleSetInfo getRuleSetInfo() {
+        return ruleSetInfo;
     }
 
     @Override

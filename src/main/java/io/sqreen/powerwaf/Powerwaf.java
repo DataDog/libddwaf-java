@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.0.17";
+    public static final String LIB_VERSION = "1.0.18";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -79,10 +79,12 @@ public final class Powerwaf {
      * See also pw_initH.
      *
      * @param definition map with keys version and events
+     * @param rulesetInfoOut either a null or a 1-byte element holding an out
+     *                       reference for a {@link RuleSetInfo}.
      * @return a non-null native handle
      * @throws IllegalArgumentException
      */
-    static native PowerwafHandle addRules(Map<String, Object> definition);
+    static native PowerwafHandle addRules(Map<String, Object> definition, RuleSetInfo[] rulesetInfoOut);
 
     /* pw_clearRuleH */
     static native void clearRules(PowerwafHandle handle);
