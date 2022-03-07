@@ -103,15 +103,18 @@ public final class Powerwaf {
      * @param handle the PowerWAF rule handle
      * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
      * @param limits the limits
+     * @param metrics the metrics collector, or null
      * @return the resulting action (OK, MONITOR, BLOCK) and associated details
      */
     static native ActionWithData runRules(PowerwafHandle handle,
                                           ByteBuffer firstPWArgsBuffer,
-                                          Limits limits) throws AbstractPowerwafException;
+                                          Limits limits,
+                                          PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native ActionWithData runRules(PowerwafHandle handle,
                                           Map<String, Object> parameters,
-                                          Limits limits) throws AbstractPowerwafException;
+                                          Limits limits,
+                                          PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
