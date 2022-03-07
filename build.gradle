@@ -31,7 +31,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '3.0.8'
+version '4.0.0'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -357,6 +357,10 @@ task generateJniHeaders(type: JavaCompile) {
 
 codenarc {
     configFile = file("${project.projectDir}/gradle/codenarc.groovy")
+}
+codenarcTest {
+    compilationClasspath = codenarcMain.compilationClasspath +
+            sourceSets.test.compileClasspath + sourceSets.test.output
 }
 
 // vim: set et ts=4 sw=4 list:

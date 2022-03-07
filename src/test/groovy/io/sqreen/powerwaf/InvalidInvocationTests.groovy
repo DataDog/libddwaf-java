@@ -46,7 +46,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     void 'runRule with conversion throwing exception'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.runRules(new BadMap(delegate: [:]), limits)
+            ctx.runRules(new BadMap(delegate: [:]), limits, metrics)
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
         assert exc.cause.cause instanceof IllegalStateException
@@ -58,7 +58,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            additive.run(new BadMap(delegate: [:]), limits)
+            additive.run(new BadMap(delegate: [:]), limits, metrics)
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
         assert exc.cause.cause instanceof IllegalStateException
@@ -70,10 +70,52 @@ class InvalidInvocationTests implements ReactiveTrait {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         ctx.delReference()
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.runRules([:], limits)
+            ctx.runRules([:], limits, metrics)
         }
         assertThat exc.message, containsString('This context is already offline')
         ctx = null
+    }
+
+    @Test
+    void 'run with a closed metrics object'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        PowerwafMetrics metrics = ctx.createMetricsCollector()
+        metrics.close()
+        def exc = shouldFail(UnclassifiedPowerwafException) {
+            ctx.runRules([:], limits, metrics)
+        }
+        assertThat exc.message, containsString('Invalid metrics object')
+    }
+
+    @Test
+    void 'attempt to iterate twice on metrics object'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        metrics = ctx.createMetricsCollector()
+        ctx.runRules(['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']],
+                limits, metrics)
+        metrics.iterator()
+        def exc = shouldFail(RuntimeException) {
+            metrics.iterator()
+        }
+        assertThat exc.message, containsString('Tried iterating results more than once')
+    }
+
+    @Test
+    void 'attempt to use metrics object from another context'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        PowerwafContext ctx2 = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        def exc = shouldFail(IllegalArgumentException) {
+            def collector
+            try {
+                collector = ctx2.createMetricsCollector()
+                ctx.runRules([:], limits, collector)
+            } finally {
+                collector.close()
+                ctx2.delReference()
+            }
+        }
+
+        assert exc.message == 'metrics collector with foreign handle'
     }
 
     @Test
@@ -100,7 +142,7 @@ class InvalidInvocationTests implements ReactiveTrait {
             def slice = buffer.slice()
             slice.position(ByteBufferSerializer.SIZEOF_PWARGS)
             shouldFail(InvalidObjectPowerwafException) {
-                additive.runAdditive(slice, limits)
+                additive.runAdditive(slice, limits, metrics)
             }
         }
     }
@@ -113,7 +155,9 @@ class InvalidInvocationTests implements ReactiveTrait {
         additive = ctx.openAdditive()
 
         shouldFail(IllegalArgumentException) {
-            additive.runAdditive(ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS), limits)
+            additive.runAdditive(
+                    ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS),
+                    limits, metrics)
         }
     }
 }

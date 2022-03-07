@@ -91,7 +91,12 @@ public class PowerwafContext {
     }
 
     public Powerwaf.ActionWithData runRules(Map<String, Object> parameters,
-                                            Powerwaf.Limits limits) throws AbstractPowerwafException {
+                                            Powerwaf.Limits limits,
+                                            PowerwafMetrics metrics) throws AbstractPowerwafException {
+        if (metrics != null && metrics.handle != this.handle) {
+            throw new IllegalArgumentException("metrics collector with foreign handle");
+        }
+
         this.readLock.lock();
         try {
             checkIfOnline();
@@ -119,12 +124,13 @@ public class PowerwafContext {
                                 this);
                         throw new TimeoutPowerwafException();
                     }
-                    res = Powerwaf.runRules(this.handle, lease.getFirstPWArgsByteBuffer(), limits);
+                    res = Powerwaf.runRules(
+                            this.handle, lease.getFirstPWArgsByteBuffer(), limits, metrics);
                 } finally {
                     lease.close();
                 }
             } else {
-                res = Powerwaf.runRules(this.handle, parameters, limits);
+                res = Powerwaf.runRules(this.handle, parameters, limits, metrics);
             }
 
             LOGGER.debug("Rule of context {} ran successfully with return {}", this, res);
@@ -199,6 +205,16 @@ public class PowerwafContext {
 
     public RuleSetInfo getRuleSetInfo() {
         return ruleSetInfo;
+    }
+
+    public PowerwafMetrics createMetricsCollector() {
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            return new PowerwafMetrics(this.handle);
+        } finally {
+            this.readLock.unlock();
+        }
     }
 
     @Override

@@ -57,14 +57,24 @@ class AdditiveTest implements ReactiveTrait {
 
         ctx = new PowerwafContext('test', new JsonSlurper().parseText(rule))
         additive = ctx.openAdditive()
+        metrics = ctx.createMetricsCollector()
 
-        Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits)
+        Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits, metrics)
         LOGGER.debug('ActionWithData after 1st runAdditive: {}', awd)
         assertThat awd.action, is(Powerwaf.Action.OK)
 
-        awd = additive.run([arg2: 'string 2'], limits)
+        awd = additive.run([arg2: 'string 2'], limits, metrics)
         LOGGER.debug('ActionWithData after 2nd runAdditive: {}', awd)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
+
+        def iter = metrics.iterator()
+        assert iter.hasNext()
+
+        PowerwafMetrics.RuleExecDuration red = iter.next()
+        assert red.rule as String == 'arachni_rule'
+        assert red.timeInNs > 0
+
+        assert !iter.hasNext()
     }
 
     @Test
@@ -90,7 +100,21 @@ class AdditiveTest implements ReactiveTrait {
     void 'Should throw IllegalArgumentException if Limits is null while run'() {
         ctx = new PowerwafContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
-        additive.runAdditive([:], null)
+        additive.run([:], null, metrics)
+    }
+
+    @Test
+    void 'should throw iae if PowerwafMetrics is foreign'() {
+        ctx = new PowerwafContext('test', ARACHNI_ATOM_V2_1)
+        PowerwafContext ctx2 = new PowerwafContext('test2', ARACHNI_ATOM_V2_1)
+        metrics = ctx2.createMetricsCollector()
+        ctx2.delReference()
+
+        additive = ctx.openAdditive()
+        def exc = shouldFail(IllegalArgumentException) {
+            additive.run([:], null, metrics)
+        }
+        assert exc.message.contains('metrics collector with foreign handle')
     }
 
     @Test
@@ -99,7 +123,7 @@ class AdditiveTest implements ReactiveTrait {
         additive = ctx.openAdditive()
         assert ctx.refcount.get() == 2
         ctx.delReference()
-        additive.runAdditive([:], limits)
+        additive.run([:], limits, metrics)
         assert ctx.refcount.get() == 1
         additive.close()
         assert ctx.refcount.get() == 0

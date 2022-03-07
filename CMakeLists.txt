@@ -34,6 +34,7 @@ set(SOURCE_FILES
     src/main/c/debug_helpers.c
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c
+    src/main/c/metrics.c
     src/main/c/utf16_utf8.c
     src/main/c/logging.c)
 if(MSVC OR APPLE)

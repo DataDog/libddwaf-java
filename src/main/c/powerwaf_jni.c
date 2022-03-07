@@ -12,6 +12,7 @@
 #include "java_call.h"
 #include "utf16_utf8.h"
 #include "logging.h"
+#include "metrics.h"
 #include "compat.h"
 #include <ddwaf.h>
 #include <assert.h>
@@ -55,7 +56,6 @@ static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
 static int64_t _get_pw_run_timeout_checked(JNIEnv *env);
 static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limits);
 static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits);
-static ddwaf_handle _get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj);
 static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
 static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi);
@@ -178,6 +178,14 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
         goto error;
     }
 
+    bool metrics_ok = metrics_init(env);
+    if (!metrics_ok) {
+        if (!JNI(ExceptionCheck)) {
+            JNI(ThrowNew, jcls_rte, "Library initialization failed"
+                                    "(metrics_init)");
+        }
+    }
+
     pw_run_timeout = _get_pw_run_timeout_checked(env);
     if (JNI(ExceptionCheck)) {
         goto error;
@@ -255,7 +263,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules(
         jobject rsi_java = _convert_rsi_checked(env, rule_set_info);
         ddwaf_ruleset_info_free(rule_set_info);
 
-        if (JNI(ExceptionOccurred)) {
+        if (JNI(ExceptionCheck)) {
             java_wrap_exc("Error converting rule info structure");
             if (nativeHandle) {
                 ddwaf_destroy(nativeHandle);
@@ -263,7 +271,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules(
             return NULL;
         }
         JNI(SetObjectArrayElement, rule_set_info_arr, 0, rsi_java);
-        if (JNI(ExceptionOccurred)) {
+        if (JNI(ExceptionCheck)) {
             java_wrap_exc("Error setting reference for RuleSetInfo");
             if (nativeHandle) {
                 ddwaf_destroy(nativeHandle);
@@ -297,7 +305,7 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRules(
     }
 
     ddwaf_handle nat_handle;
-    if (!(nat_handle = _get_pwaf_handle_checked(env, handle_obj))) {
+    if (!(nat_handle = get_pwaf_handle_checked(env, handle_obj))) {
         return;
     }
 
@@ -319,7 +327,7 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddre
     }
 
     ddwaf_handle nat_handle;
-    if (!(nat_handle = _get_pwaf_handle_checked(env, handle_obj))) {
+    if (!(nat_handle = get_pwaf_handle_checked(env, handle_obj))) {
         return NULL;
     }
 
@@ -364,7 +372,7 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddre
 // runRule overloads
 static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                                 jobject handle_obj, jobject parameters,
-                                jobject limits_obj)
+                                jobject limits_obj, jobject metrics_obj)
 {
     UNUSED(clazz);
 
@@ -374,6 +382,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
     struct _limits limits;
     ddwaf_result ret;
     struct timespec start;
+    ddwaf_metrics_collector coll = NULL;
 
     if (!_get_time_checked(env, &start)) {
         return NULL;
@@ -388,8 +397,16 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         return NULL;
     }
 
+    if (!JNI(IsSameObject, metrics_obj, NULL)) {
+        coll = get_metrics_collector_checked(env, metrics_obj);
+        if (!coll) {
+            java_wrap_exc("%s", "Invalid metrics object");
+            return NULL;
+        }
+    }
+
     ddwaf_handle pwhandle;
-    if (!(pwhandle = _get_pwaf_handle_checked(env, handle_obj))) {
+    if (!(pwhandle = get_pwaf_handle_checked(env, handle_obj))) {
         return NULL;
     }
 
@@ -442,12 +459,20 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
         goto end;
     }
-    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, &input, &ret, run_budget);
+    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, &input, coll, &ret, run_budget);
 
-    JAVA_LOG(DDWAF_LOG_DEBUG,
-             "ddwaf_run ran in %" PRId32 " microseconds. "
-             "Result code: %d",
-             ret.perfTotalRuntime, ret_code);
+    if (log_level_enabled(DDWAF_LOG_DEBUG)) {
+        struct timespec end;
+        if (!_get_time_checked(env, &end)) {
+            JNI(ExceptionClear); // should not happen anyway
+        } else {
+            int64_t diff = _timespec_diff_ns(end, start) / 1000L;
+            JAVA_LOG(DDWAF_LOG_DEBUG,
+                     "ddwaf_run ran in %" PRId64 " microseconds. "
+                     "Result code: %d",
+                     diff, ret_code);
+        }
+    }
 
     if (ret.timeout) {
         _throw_pwaf_timeout_exception(env);
@@ -518,12 +543,12 @@ end:
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
  */
 JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
+Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
         JNIEnv *env, jclass clazz, jobject handle_obj, jobject parameters,
-        jobject limits_obj)
+        jobject limits_obj, jobject metrics_obj)
 {
     return _run_rule_common(false, env, clazz, handle_obj, parameters,
-                            limits_obj);
+                            limits_obj, metrics_obj);
 }
 
 /*
@@ -531,11 +556,11 @@ Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2L
  * Method:    runRules
  * Signature: (Lio/sqreen/powerwaf/PowerWAFHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
  */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2
-  (JNIEnv *env, jclass clazz, jobject handle_obj, jobject main_byte_buffer, jobject limits_obj)
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
+  (JNIEnv *env, jclass clazz, jobject handle_obj, jobject main_byte_buffer, jobject limits_obj, jobject metrics_obj)
 {
     return _run_rule_common(true, env, clazz, handle_obj, main_byte_buffer,
-                            limits_obj);
+                            limits_obj, metrics_obj);
 }
 
 /*
@@ -576,7 +601,7 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive(
     UNUSED(clazz);
 
     ddwaf_handle nat_handle;
-    if (!(nat_handle = _get_pwaf_handle_checked(env, handle_obj))) {
+    if (!(nat_handle = get_pwaf_handle_checked(env, handle_obj))) {
         return 0L;
     }
 
@@ -592,6 +617,7 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive(
 
 static jobject _run_additive_common(JNIEnv *env, jobject this,
                                     jobject parameters, jobject limits_obj,
+                                    jobject metrics_obj,
                                     const bool is_byte_buffer)
 {
     jobject result = NULL;
@@ -600,6 +626,7 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     struct _limits limits;
     ddwaf_result ret;
     struct timespec start;
+    ddwaf_metrics_collector coll = NULL;
 
     if (!_get_time_checked(env, &start)) {
         return NULL;
@@ -623,6 +650,15 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     if (!context) {
         return NULL;
     }
+
+    if (!JNI(IsSameObject, metrics_obj, NULL)) {
+        coll = get_metrics_collector_checked(env, metrics_obj);
+        if (!coll) {
+            java_wrap_exc("%s", "Invalid metrics object");
+            return NULL;
+        }
+    }
+
 
     if (context == 0) {
         JNI(ThrowNew, jcls_rte, "The Additive has already been cleared");
@@ -672,7 +708,8 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
-    DDWAF_RET_CODE ret_code = ddwaf_run(context, &input, &ret, run_budget);
+    DDWAF_RET_CODE ret_code =
+            ddwaf_run(context, &input, coll, &ret, run_budget);
 
     if (ret.timeout) {
         _throw_pwaf_timeout_exception(env);
@@ -749,10 +786,12 @@ err:
  * (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
  */
 JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
-        JNIEnv *env, jobject this, jobject parameters, jobject limits_obj)
+Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
+        JNIEnv *env, jobject this, jobject parameters, jobject limits_obj,
+        jobject metrics_obj)
 {
-    return _run_additive_common(env, this, parameters, limits_obj, false);
+    return _run_additive_common(env, this, parameters, limits_obj, metrics_obj,
+                                false);
 }
 
 /*
@@ -762,10 +801,11 @@ Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_util_Map_2Lio_sqreen_powerwa
  * (Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
  */
 JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2(
-        JNIEnv *env, jobject this, jobject bb, jobject limits_obj)
+Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
+        JNIEnv *env, jobject this, jobject bb, jobject limits_obj,
+        jobject metrics_obj)
 {
-    return _run_additive_common(env, this, bb, limits_obj, true);
+    return _run_additive_common(env, this, bb, limits_obj, metrics_obj, true);
 }
 
 /*
@@ -1872,7 +1912,7 @@ static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limit
     return run_budget;
 }
 
-static ddwaf_handle _get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj)
+ddwaf_handle get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj)
 {
     if (JNI(IsSameObject, handle_obj, NULL)) {
         JNI(ThrowNew, jcls_iae, "Passed null PowerwafHandle");
@@ -1911,7 +1951,7 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi)
     if (rsi->version) {
         version = java_utf8_to_jstring_checked(env, rsi->version,
                                                strlen(rsi->version));
-        if (JNI(ExceptionOccurred)) {
+        if (JNI(ExceptionCheck)) {
             return NULL;
         }
     }
@@ -1920,7 +1960,7 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi)
     jint num_errors = (jint) MIN(rsi->errors.nbEntries, (INT_MAX / 4) * 3);
     jint map_cap = num_errors + (num_errors + 2) / 3; // load factor is .75
     errors_map = java_meth_call(env, &_hashmap_init, NULL, map_cap);
-    if (JNI(ExceptionOccurred)) {
+    if (JNI(ExceptionCheck)) {
         return NULL;
     }
     assert(rsi->errors.type == DDWAF_OBJ_MAP);
@@ -1937,12 +1977,12 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi)
         jint num_rule_ids = (jint) MIN(entry->nbEntries, INT_MAX);
         jobjectArray rule_id_jarray =
                 JNI(NewObjectArray, num_rule_ids, string_cls, NULL);
-        if (JNI(ExceptionOccurred)) {
+        if (JNI(ExceptionCheck)) {
             return NULL;
         }
 
         for (jint j = 0; j < num_rule_ids; j++) {
-            ddwaf_object *rule_id_obj = &entry->array[j];
+            const ddwaf_object *rule_id_obj = &entry->array[j];
             assert(rule_id_obj->type == DDWAF_OBJ_STRING);
             jstring rule_id = java_utf8_to_jstring_checked(env,
                 rule_id_obj->stringValue, rule_id_obj->nbEntries);
@@ -1951,7 +1991,7 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi)
             }
 
             JNI(SetObjectArrayElement, rule_id_jarray, j, rule_id);
-            if (JNI(ExceptionOccurred)) {
+            if (JNI(ExceptionCheck)) {
                 return NULL;
             }
 
@@ -1959,7 +1999,7 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi)
         }
 
         java_meth_call(env, &_map_put, errors_map, error_jstr, rule_id_jarray);
-        if (JNI(ExceptionOccurred)) {
+        if (JNI(ExceptionCheck)) {
             return NULL;
         }
 

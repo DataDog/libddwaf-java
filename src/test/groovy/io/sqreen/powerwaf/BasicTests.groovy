@@ -30,7 +30,7 @@ class BasicTests implements PowerwafTrait {
         ctx = Powerwaf.createContext('test', ruleSet)
 
         ActionWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits)
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, metrics)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
         def json = slurper.parseText(awd.data)
@@ -57,9 +57,10 @@ class BasicTests implements PowerwafTrait {
         def ruleSet = ARACHNI_ATOM_V2_1
 
         ctx = Powerwaf.createContext('test', ruleSet)
+        metrics = ctx.createMetricsCollector()
 
         ActionWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits)
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
         def json = slurper.parseText(awd.data)
@@ -79,6 +80,13 @@ class BasicTests implements PowerwafTrait {
         assert rsi.numRulesError == 0
         assert rsi.errors == [:]
         assert rsi.fileVersion == '1.2.6'
+
+        PowerwafMetrics.RuleExecDurationIterator iter = metrics.iterator()
+        assert iter.hasNext()
+        PowerwafMetrics.RuleExecDuration red = iter.next()
+        assert red.rule as String == 'arachni_rule'
+        assert red.timeInNs >= 0
+        assert iter.totalDdwafRunTimeNs >= red.timeInNs
     }
 
     @Test
@@ -92,7 +100,7 @@ class BasicTests implements PowerwafTrait {
             PassWord: ['Arachni'],
         ]
         ActionWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 
@@ -104,7 +112,7 @@ class BasicTests implements PowerwafTrait {
 
         def data = ['foo', 'Arachni'] as String[]
         ActionWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 
@@ -116,7 +124,7 @@ class BasicTests implements PowerwafTrait {
 
         def data = [null, 'Arachni']
         ActionWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 
@@ -128,7 +136,7 @@ class BasicTests implements PowerwafTrait {
 
         def data = [true, false, 'Arachni']
         ActionWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 
@@ -143,7 +151,7 @@ class BasicTests implements PowerwafTrait {
 
         def data = [new MyClass(), 'Arachni']
         ActionWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
     }
 

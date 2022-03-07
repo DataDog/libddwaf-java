@@ -26,6 +26,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     ByteBufferSerializer.ArenaLease lease
 
     @After
+    @Override
     void after() {
         lease?.close()
     }

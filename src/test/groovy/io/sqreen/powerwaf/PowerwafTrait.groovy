@@ -88,6 +88,7 @@ trait PowerwafTrait extends JNITrait {
     }
 
     PowerwafContext ctx
+    PowerwafMetrics metrics
 
     JsonSlurper slurper = new JsonSlurper()
 
@@ -95,6 +96,9 @@ trait PowerwafTrait extends JNITrait {
     void after() {
         if (ctx) {
             ctx.delReference()
+        }
+        if (metrics) {
+            metrics.close()
         }
     }
 
@@ -104,12 +108,12 @@ trait PowerwafTrait extends JNITrait {
         System.gc()
     }
 
-    @SuppressWarnings('UnnecessaryCast')
+    @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
     Powerwaf.ActionWithData runRules(Object data) {
         ctx.runRules([
                 'server.request.headers.no_cookies': [
                         'user-agent': data
                 ]
-        ] as Map<String, Object>, limits)
+        ] as Map<String, Object>, limits, metrics)
     }
 }

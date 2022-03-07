@@ -13,6 +13,8 @@
 #include "common.h"
 #include <ddwaf.h>
 
+extern DDWAF_LOG_LEVEL min_level;
+
 #ifdef _MSC_VER
 # define __attribute__(...)
 #endif
@@ -31,6 +33,10 @@ void _java_wrap_exc_relay(JNIEnv *env,
 void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
               int line, jthrowable throwable, const char *fmt, ...)
 __attribute__((format (printf, 6, 7)));
+inline bool log_level_enabled(DDWAF_LOG_LEVEL level)
+{
+    return level >= min_level;
+}
 
 #ifdef _MSC_VER
 # undef __attribute__
