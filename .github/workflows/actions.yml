@@ -1,7 +1,7 @@
 name: Build Native Libraries
 on:
   pull_request:
-    branches: master
+    branches: '*'
   push:
     branches-ignore: '*'
     tags: '*'
