@@ -44,6 +44,12 @@ class BasicTests implements PowerwafTrait {
         assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
         assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni']
+
+        def rsi = ctx.ruleSetInfo
+        assert rsi.numRulesOK == 1
+        assert rsi.numRulesError == 0
+        assert rsi.errors == [:]
+        assert rsi.fileVersion == null
     }
 
     @Test
@@ -67,6 +73,12 @@ class BasicTests implements PowerwafTrait {
         assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
         assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
+
+        def rsi = ctx.ruleSetInfo
+        assert rsi.numRulesOK == 1
+        assert rsi.numRulesError == 0
+        assert rsi.errors == [:]
+        assert rsi.fileVersion == '1.2.6'
     }
 
     @Test

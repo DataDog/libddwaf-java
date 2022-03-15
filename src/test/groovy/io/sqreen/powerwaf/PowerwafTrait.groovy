@@ -44,6 +44,9 @@ trait PowerwafTrait extends JNITrait {
     static final Map ARACHNI_ATOM_V2_1 = (Map) new JsonSlurper().parseText('''
         {
           "version": "2.1",
+          "metadata": {
+            "rules_version": "1.2.6"
+          },
           "rules": [
             {
               "id": "arachni_rule",

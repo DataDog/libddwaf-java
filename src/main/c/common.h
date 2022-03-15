@@ -18,6 +18,8 @@
 #endif
 #define UNUSED(var) (void) var
 
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 extern jclass jcls_rte;
 extern jclass jcls_iae;
 extern jmethodID rte_constr_cause;
