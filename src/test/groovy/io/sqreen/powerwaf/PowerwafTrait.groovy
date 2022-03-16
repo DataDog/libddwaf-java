@@ -97,9 +97,6 @@ trait PowerwafTrait extends JNITrait {
         if (ctx) {
             ctx.delReference()
         }
-        if (metrics) {
-            metrics.close()
-        }
     }
 
     @AfterClass

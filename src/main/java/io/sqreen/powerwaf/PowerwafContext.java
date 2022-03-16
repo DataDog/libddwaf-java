@@ -93,10 +93,6 @@ public class PowerwafContext {
     public Powerwaf.ActionWithData runRules(Map<String, Object> parameters,
                                             Powerwaf.Limits limits,
                                             PowerwafMetrics metrics) throws AbstractPowerwafException {
-        if (metrics != null && metrics.handle != this.handle) {
-            throw new IllegalArgumentException("metrics collector with foreign handle");
-        }
-
         this.readLock.lock();
         try {
             checkIfOnline();
@@ -128,6 +124,13 @@ public class PowerwafContext {
                             this.handle, lease.getFirstPWArgsByteBuffer(), limits, metrics);
                 } finally {
                     lease.close();
+                    if (metrics != null) {
+                        long after = System.nanoTime();
+                        long totalTimeNs = after - before;
+                        synchronized (metrics) {
+                            metrics.totalRunTimeNs += totalTimeNs;
+                        }
+                    }
                 }
             } else {
                 res = Powerwaf.runRules(this.handle, parameters, limits, metrics);
@@ -207,14 +210,9 @@ public class PowerwafContext {
         return ruleSetInfo;
     }
 
-    public PowerwafMetrics createMetricsCollector() {
-        this.readLock.lock();
-        try {
-            checkIfOnline();
-            return new PowerwafMetrics(this.handle);
-        } finally {
-            this.readLock.unlock();
-        }
+    public PowerwafMetrics createMetrics() {
+        // right now this doesn't depend on the ctx, but it might in the future
+        return new PowerwafMetrics();
     }
 
     @Override

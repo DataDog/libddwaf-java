@@ -57,7 +57,7 @@ class BasicTests implements PowerwafTrait {
         def ruleSet = ARACHNI_ATOM_V2_1
 
         ctx = Powerwaf.createContext('test', ruleSet)
-        metrics = ctx.createMetricsCollector()
+        metrics = ctx.createMetrics()
 
         ActionWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
@@ -81,12 +81,9 @@ class BasicTests implements PowerwafTrait {
         assert rsi.errors == [:]
         assert rsi.fileVersion == '1.2.6'
 
-        PowerwafMetrics.RuleExecDurationIterator iter = metrics.iterator()
-        assert iter.hasNext()
-        PowerwafMetrics.RuleExecDuration red = iter.next()
-        assert red.rule as String == 'arachni_rule'
-        assert red.timeInNs >= 0
-        assert iter.totalDdwafRunTimeNs >= red.timeInNs
+        assert metrics.totalRunTimeNs > 0
+        assert metrics.totalDdwafRunTimeNs > 0
+        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
     }
 
     @Test

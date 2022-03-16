@@ -57,7 +57,7 @@ class AdditiveTest implements ReactiveTrait {
 
         ctx = new PowerwafContext('test', new JsonSlurper().parseText(rule))
         additive = ctx.openAdditive()
-        metrics = ctx.createMetricsCollector()
+        metrics = ctx.createMetrics()
 
         Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits, metrics)
         LOGGER.debug('ActionWithData after 1st runAdditive: {}', awd)
@@ -67,14 +67,9 @@ class AdditiveTest implements ReactiveTrait {
         LOGGER.debug('ActionWithData after 2nd runAdditive: {}', awd)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
 
-        def iter = metrics.iterator()
-        assert iter.hasNext()
-
-        PowerwafMetrics.RuleExecDuration red = iter.next()
-        assert red.rule as String == 'arachni_rule'
-        assert red.timeInNs > 0
-
-        assert !iter.hasNext()
+        assert metrics.totalRunTimeNs > 0
+        assert metrics.totalDdwafRunTimeNs > 0
+        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
     }
 
     @Test
@@ -101,20 +96,6 @@ class AdditiveTest implements ReactiveTrait {
         ctx = new PowerwafContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
         additive.run([:], null, metrics)
-    }
-
-    @Test
-    void 'should throw iae if PowerwafMetrics is foreign'() {
-        ctx = new PowerwafContext('test', ARACHNI_ATOM_V2_1)
-        PowerwafContext ctx2 = new PowerwafContext('test2', ARACHNI_ATOM_V2_1)
-        metrics = ctx2.createMetricsCollector()
-        ctx2.delReference()
-
-        additive = ctx.openAdditive()
-        def exc = shouldFail(IllegalArgumentException) {
-            additive.run([:], null, metrics)
-        }
-        assert exc.message.contains('metrics collector with foreign handle')
     }
 
     @Test

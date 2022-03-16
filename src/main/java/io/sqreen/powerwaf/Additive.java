@@ -73,11 +73,6 @@ public final class Additive implements Closeable {
     public Powerwaf.ActionWithData run(Map<String, Object> parameters,
                                        Powerwaf.Limits limits,
                                        PowerwafMetrics metrics) throws AbstractPowerwafException {
-        if (metrics != null) {
-            if (metrics.handle != ctx.handle) {
-                throw new IllegalArgumentException("metrics collector with foreign handle");
-            }
-        }
         if (limits == null) {
             throw new IllegalArgumentException("limits must be provided");
         }
@@ -104,7 +99,17 @@ public final class Additive implements Closeable {
                                         "not running on additive {}", this);
                         throw new TimeoutPowerwafException();
                     }
-                    return runAdditive(bb, newLimits, metrics);
+                    try {
+                        return runAdditive(bb, newLimits, metrics);
+                    } finally {
+                        if (metrics != null) {
+                            long after = System.nanoTime();
+                            long totalTimeNs = after - before;
+                            synchronized (metrics) {
+                                metrics.totalRunTimeNs += totalTimeNs;
+                            }
+                        }
+                    }
                 }
             } else {
                 synchronized (this) {

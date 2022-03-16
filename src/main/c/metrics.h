@@ -3,5 +3,5 @@
 #include <stdbool.h>
 
 bool metrics_init(JNIEnv *env);
-ddwaf_metrics_collector get_metrics_collector_checked(JNIEnv *env,
-                                                      jobject metrics_obj);
+void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
+                            jlong ddwaf_run_time_ns);

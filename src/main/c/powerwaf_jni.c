@@ -59,6 +59,7 @@ static int64_t get_remaining_budget(struct timespec start, struct timespec end, 
 static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
 static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi);
+static void _update_metrics(JNIEnv *env, jobject metrics_obj, bool is_byte_buffer, const ddwaf_result *ret, struct timespec start);
 
 // don't use DDWAF_OBJ_INVALID, as that can't be added to arrays/maps
 static const ddwaf_object _pwinput_invalid = { .type = DDWAF_OBJ_MAP };
@@ -382,7 +383,6 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
     struct _limits limits;
     ddwaf_result ret;
     struct timespec start;
-    ddwaf_metrics_collector coll = NULL;
 
     if (!_get_time_checked(env, &start)) {
         return NULL;
@@ -395,14 +395,6 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
     limits = _fetch_limits_checked(env, limits_obj);
     if (JNI(ExceptionCheck)) {
         return NULL;
-    }
-
-    if (!JNI(IsSameObject, metrics_obj, NULL)) {
-        coll = get_metrics_collector_checked(env, metrics_obj);
-        if (!coll) {
-            java_wrap_exc("%s", "Invalid metrics object");
-            return NULL;
-        }
     }
 
     ddwaf_handle pwhandle;
@@ -459,19 +451,13 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
         goto end;
     }
-    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, &input, coll, &ret, run_budget);
+    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, &input, &ret, run_budget);
 
     if (log_level_enabled(DDWAF_LOG_DEBUG)) {
-        struct timespec end;
-        if (!_get_time_checked(env, &end)) {
-            JNI(ExceptionClear); // should not happen anyway
-        } else {
-            int64_t diff = _timespec_diff_ns(end, start) / 1000L;
             JAVA_LOG(DDWAF_LOG_DEBUG,
                      "ddwaf_run ran in %" PRId64 " microseconds. "
                      "Result code: %d",
-                     diff, ret_code);
-        }
+                     ret.total_runtime, ret_code);
     }
 
     if (ret.timeout) {
@@ -528,6 +514,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
     JNI(DeleteLocalRef, data_obj);
 
 freeRet:
+    _update_metrics(env, metrics_obj, is_byte_buffer, &ret, start);
     ddwaf_result_free(&ret);
 end:
     if (ctx) {
@@ -626,7 +613,6 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     struct _limits limits;
     ddwaf_result ret;
     struct timespec start;
-    ddwaf_metrics_collector coll = NULL;
 
     if (!_get_time_checked(env, &start)) {
         return NULL;
@@ -650,15 +636,6 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     if (!context) {
         return NULL;
     }
-
-    if (!JNI(IsSameObject, metrics_obj, NULL)) {
-        coll = get_metrics_collector_checked(env, metrics_obj);
-        if (!coll) {
-            java_wrap_exc("%s", "Invalid metrics object");
-            return NULL;
-        }
-    }
-
 
     if (context == 0) {
         JNI(ThrowNew, jcls_rte, "The Additive has already been cleared");
@@ -709,7 +686,7 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
     DDWAF_RET_CODE ret_code =
-            ddwaf_run(context, &input, coll, &ret, run_budget);
+            ddwaf_run(context, &input, &ret, run_budget);
 
     if (ret.timeout) {
         _throw_pwaf_timeout_exception(env);
@@ -768,6 +745,7 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     JNI(DeleteLocalRef, data_obj);
 
 freeRet:
+    _update_metrics(env, metrics_obj, is_byte_buffer, &ret, start);
     ddwaf_result_free(&ret);
 
     return result;
@@ -2009,4 +1987,25 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi)
 
     return java_meth_call(env, &_ruleset_info_init, NULL, version,
                           (jint) rsi->loaded, (jint) rsi->failed, errors_map);
+}
+
+static void _update_metrics(JNIEnv *env, jobject metrics_obj,
+                            bool is_byte_buffer, const ddwaf_result *ret,
+                            struct timespec start)
+{
+    // metrics update
+    if (!JNI(IsSameObject, metrics_obj, NULL)) {
+        if (is_byte_buffer) {
+            // we don't know the total time then
+            metrics_update_checked(env, metrics_obj, 0,
+                                   (jlong) ret->total_runtime);
+        } else {
+            struct timespec end_time;
+            if (_get_time_checked(env, &end_time)) {
+                int64_t run_time_ns = _timespec_diff_ns(end_time, start);
+                metrics_update_checked(env, metrics_obj, (jlong) run_time_ns,
+                                       (jlong) ret->total_runtime);
+            }
+        }
+    }
 }

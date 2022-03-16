@@ -77,48 +77,6 @@ class InvalidInvocationTests implements ReactiveTrait {
     }
 
     @Test
-    void 'run with a closed metrics object'() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        PowerwafMetrics metrics = ctx.createMetricsCollector()
-        metrics.close()
-        def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.runRules([:], limits, metrics)
-        }
-        assertThat exc.message, containsString('Invalid metrics object')
-    }
-
-    @Test
-    void 'attempt to iterate twice on metrics object'() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        metrics = ctx.createMetricsCollector()
-        ctx.runRules(['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']],
-                limits, metrics)
-        metrics.iterator()
-        def exc = shouldFail(RuntimeException) {
-            metrics.iterator()
-        }
-        assertThat exc.message, containsString('Tried iterating results more than once')
-    }
-
-    @Test
-    void 'attempt to use metrics object from another context'() {
-        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        PowerwafContext ctx2 = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        def exc = shouldFail(IllegalArgumentException) {
-            def collector
-            try {
-                collector = ctx2.createMetricsCollector()
-                ctx.runRules([:], limits, collector)
-            } finally {
-                collector.close()
-                ctx2.delReference()
-            }
-        }
-
-        assert exc.message == 'metrics collector with foreign handle'
-    }
-
-    @Test
     void 'addresses are fetched on closed context'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         ctx.delReference()
