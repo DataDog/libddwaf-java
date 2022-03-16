@@ -74,7 +74,8 @@ static const struct slf4j_strings slf4j_strings_ddog = {
 };
 static const struct slf4j_strings *slf4j_active = &slf4j_strings_org;
 
-static DDWAF_LOG_LEVEL min_level;
+DDWAF_LOG_LEVEL min_level;
+extern inline bool log_level_enabled(DDWAF_LOG_LEVEL);
 
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
@@ -256,7 +257,7 @@ void java_log_shutdown(JNIEnv *env)
 void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
               int line, jthrowable throwable, const char *fmt, ...)
 {
-    if (level < min_level) {
+    if (log_level_enabled(level)) {
         // don't even create the Java String if we won't log it anyway
         return;
     }

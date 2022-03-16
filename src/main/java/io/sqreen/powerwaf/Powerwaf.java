@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.0.18";
+    public static final String LIB_VERSION = "1.2.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -103,15 +103,18 @@ public final class Powerwaf {
      * @param handle the PowerWAF rule handle
      * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
      * @param limits the limits
+     * @param metrics the metrics collector, or null
      * @return the resulting action (OK, MONITOR, BLOCK) and associated details
      */
     static native ActionWithData runRules(PowerwafHandle handle,
                                           ByteBuffer firstPWArgsBuffer,
-                                          Limits limits) throws AbstractPowerwafException;
+                                          Limits limits,
+                                          PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native ActionWithData runRules(PowerwafHandle handle,
                                           Map<String, Object> parameters,
-                                          Limits limits) throws AbstractPowerwafException;
+                                          Limits limits,
+                                          PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 

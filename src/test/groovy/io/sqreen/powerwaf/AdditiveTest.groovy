@@ -57,14 +57,19 @@ class AdditiveTest implements ReactiveTrait {
 
         ctx = new PowerwafContext('test', new JsonSlurper().parseText(rule))
         additive = ctx.openAdditive()
+        metrics = ctx.createMetrics()
 
-        Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits)
+        Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits, metrics)
         LOGGER.debug('ActionWithData after 1st runAdditive: {}', awd)
         assertThat awd.action, is(Powerwaf.Action.OK)
 
-        awd = additive.run([arg2: 'string 2'], limits)
+        awd = additive.run([arg2: 'string 2'], limits, metrics)
         LOGGER.debug('ActionWithData after 2nd runAdditive: {}', awd)
         assertThat awd.action, is(Powerwaf.Action.MONITOR)
+
+        assert metrics.totalRunTimeNs > 0
+        assert metrics.totalDdwafRunTimeNs > 0
+        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
     }
 
     @Test
@@ -90,7 +95,7 @@ class AdditiveTest implements ReactiveTrait {
     void 'Should throw IllegalArgumentException if Limits is null while run'() {
         ctx = new PowerwafContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
-        additive.runAdditive([:], null)
+        additive.run([:], null, metrics)
     }
 
     @Test
@@ -99,7 +104,7 @@ class AdditiveTest implements ReactiveTrait {
         additive = ctx.openAdditive()
         assert ctx.refcount.get() == 2
         ctx.delReference()
-        additive.runAdditive([:], limits)
+        additive.run([:], limits, metrics)
         assert ctx.refcount.get() == 1
         additive.close()
         assert ctx.refcount.get() == 0

@@ -46,7 +46,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     void 'runRule with conversion throwing exception'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.runRules(new BadMap(delegate: [:]), limits)
+            ctx.runRules(new BadMap(delegate: [:]), limits, metrics)
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
         assert exc.cause.cause instanceof IllegalStateException
@@ -58,7 +58,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            additive.run(new BadMap(delegate: [:]), limits)
+            additive.run(new BadMap(delegate: [:]), limits, metrics)
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
         assert exc.cause.cause instanceof IllegalStateException
@@ -70,7 +70,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         ctx.delReference()
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.runRules([:], limits)
+            ctx.runRules([:], limits, metrics)
         }
         assertThat exc.message, containsString('This context is already offline')
         ctx = null
@@ -100,7 +100,7 @@ class InvalidInvocationTests implements ReactiveTrait {
             def slice = buffer.slice()
             slice.position(ByteBufferSerializer.SIZEOF_PWARGS)
             shouldFail(InvalidObjectPowerwafException) {
-                additive.runAdditive(slice, limits)
+                additive.runAdditive(slice, limits, metrics)
             }
         }
     }
@@ -113,7 +113,9 @@ class InvalidInvocationTests implements ReactiveTrait {
         additive = ctx.openAdditive()
 
         shouldFail(IllegalArgumentException) {
-            additive.runAdditive(ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS), limits)
+            additive.runAdditive(
+                    ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS),
+                    limits, metrics)
         }
     }
 }

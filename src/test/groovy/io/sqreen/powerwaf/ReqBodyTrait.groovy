@@ -47,6 +47,6 @@ trait ReqBodyTrait extends PowerwafTrait {
         ]
 
         ctx = ctx ?: Powerwaf.createContext('test', rule)
-        ctx.runRules(params, limits)
+        ctx.runRules(params, limits, metrics)
     }
 }

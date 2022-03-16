@@ -10,6 +10,7 @@
 #define COMMON_H
 
 #include <jni.h>
+#include <ddwaf.h>
 #include "java_call.h"
 
 #define JNI(method, ...) (*env)->method(env, ##__VA_ARGS__)
@@ -57,5 +58,7 @@ extern struct j_method iterator_next;
 extern struct j_method iterator_hasNext;
 
 extern struct j_method class_is_array;
+
+ddwaf_handle get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj);
 
 #endif

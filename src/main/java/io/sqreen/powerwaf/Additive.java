@@ -48,10 +48,10 @@ public final class Additive implements Closeable {
     private static native long initAdditive(PowerwafHandle handle, boolean powerwafEnableByteBuffers);
 
     private native Powerwaf.ActionWithData runAdditive(
-            Map<String, Object> parameters, Powerwaf.Limits limits) throws AbstractPowerwafException;
+            Map<String, Object> parameters, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     private native Powerwaf.ActionWithData runAdditive(
-            ByteBuffer firstPWArgsBuffer, Powerwaf.Limits limits) throws AbstractPowerwafException;
+            ByteBuffer firstPWArgsBuffer, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     /**
      * Clear given Additive (free PWAddContext in PowerWAF)
@@ -66,11 +66,16 @@ public final class Additive implements Closeable {
      *
      * @param parameters                    data to push to PowerWAF
      * @param limits                        request execution limits
+     * @param metrics                       a metrics collector, or null
      * @return                              execution results
      * @throws AbstractPowerwafException    rethrow from native code, timeout or param serialization failure
      */
     public Powerwaf.ActionWithData run(Map<String, Object> parameters,
-                                       Powerwaf.Limits limits) throws AbstractPowerwafException {
+                                       Powerwaf.Limits limits,
+                                       PowerwafMetrics metrics) throws AbstractPowerwafException {
+        if (limits == null) {
+            throw new IllegalArgumentException("limits must be provided");
+        }
         try {
             if (Powerwaf.ENABLE_BYTE_BUFFERS) {
                 long before = System.nanoTime();
@@ -94,12 +99,22 @@ public final class Additive implements Closeable {
                                         "not running on additive {}", this);
                         throw new TimeoutPowerwafException();
                     }
-                    return runAdditive(bb, newLimits);
+                    try {
+                        return runAdditive(bb, newLimits, metrics);
+                    } finally {
+                        if (metrics != null) {
+                            long after = System.nanoTime();
+                            long totalTimeNs = after - before;
+                            synchronized (metrics) {
+                                metrics.totalRunTimeNs += totalTimeNs;
+                            }
+                        }
+                    }
                 }
             } else {
                 synchronized (this) {
                     checkOnline();
-                    return runAdditive(parameters, limits);
+                    return runAdditive(parameters, limits, metrics);
                 }
             }
         } catch (RuntimeException rte) {
