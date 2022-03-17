@@ -162,28 +162,26 @@ class BasicTests implements PowerwafTrait {
     void 'handles ruleset without addresses'() {
         def ruleSet = new JsonSlurper().parseText '''
             {
-              "version": "2.1",
-              "rules": [
+              "version": "1.0",
+              "events": [
                 {
                   "id": "arachni_rule",
                   "name": "Arachni",
-                  "tags": {
-                    "type": "security_scanner",
-                    "category": "attack_attempt"
-                  },
                   "conditions": [
                     {
+                      "operation": "match_regex",
                       "parameters": {
                         "inputs": [],
-                        "regex": "^Arachni\\\\\\\\/v"
-                      },
-                      "operator": "match_regex"
+                        "regex": "Arachni"
+                      }
                     }
                   ],
-                  "transformers": []
+                  "tags": {
+                    "type": "arachni_detection"
+                  },
+                  "action": "record"
                 }
               ]
-
             }'''
         ctx = Powerwaf.createContext('test', ruleSet)
         assertThat ctx.usedAddresses, is([] as String[])
