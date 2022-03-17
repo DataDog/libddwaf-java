@@ -143,7 +143,7 @@ jobs:
         name: libsqreen_jni_${{ env.artifactsuff }}
   Native_binaries_Stage_windows_amd64:
     name: Windows amd64
-    runs-on: vs2017-win2016
+    runs-on: windows-2019
     defaults:
       run:
         shell: cmd
