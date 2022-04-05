@@ -40,7 +40,7 @@ public class PowerwafContext {
     private final AtomicInteger refcount = new AtomicInteger(1);
     private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
-    PowerwafContext(String uniqueName, Map<String, Object> definition) throws AbstractPowerwafException {
+    PowerwafContext(String uniqueName, PowerwafConfig config, Map<String, Object> definition) throws AbstractPowerwafException {
         LOGGER.debug("Creating PowerWAF context {}", uniqueName);
         ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
         this.readLock = rwLock.readLock();
@@ -58,9 +58,13 @@ public class PowerwafContext {
             throw new IllegalArgumentException(
                     "Invalid definition. Expected keys 'events' or 'rules' to exist");
         }
+        if (config == null) {
+            config = PowerwafConfig.DEFAULT_CONFIG;
+        }
+
         RuleSetInfo[] infoRef = new RuleSetInfo[1];
         try {
-            this.handle = Powerwaf.addRules(definition, infoRef);
+            this.handle = Powerwaf.addRules(definition, config, infoRef);
         } catch (IllegalArgumentException iae) {
             if (infoRef[0] != null) {
                 throw new InvalidRuleSetException(infoRef[0], iae);

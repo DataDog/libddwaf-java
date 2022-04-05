@@ -55,7 +55,7 @@ class AdditiveTest implements ReactiveTrait {
           }
         '''
 
-        ctx = new PowerwafContext('test', new JsonSlurper().parseText(rule))
+        ctx = new PowerwafContext('test', null, new JsonSlurper().parseText(rule))
         additive = ctx.openAdditive()
         metrics = ctx.createMetrics()
 
@@ -93,14 +93,14 @@ class AdditiveTest implements ReactiveTrait {
 
     @Test(expected = IllegalArgumentException)
     void 'Should throw IllegalArgumentException if Limits is null while run'() {
-        ctx = new PowerwafContext('test', ARACHNI_ATOM_V2_1)
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
         additive.run([:], null, metrics)
     }
 
     @Test
     void 'should defer context destruction if the context is closed'() {
-        ctx = new PowerwafContext('test', ARACHNI_ATOM_V2_1)
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
         assert ctx.refcount.get() == 2
         ctx.delReference()
