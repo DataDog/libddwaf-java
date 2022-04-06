@@ -60,15 +60,13 @@ static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
 static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi);
 static void _update_metrics(JNIEnv *env, jobject metrics_obj, bool is_byte_buffer, const ddwaf_result *ret, struct timespec start);
+static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig, ddwaf_config *out_config);
+static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
+
+#define MAX_DEPTH_UPPER_LIMIT ((uint32_t)32)
 
 // don't use DDWAF_OBJ_INVALID, as that can't be added to arrays/maps
 static const ddwaf_object _pwinput_invalid = { .type = DDWAF_OBJ_MAP };
-
-// disable these checks. We also have our own limits given at rule run time
-static const ddwaf_config _pw_config = {
-    .maxArrayLength = 0ULL,
-    .maxMapDepth = 0ULL,
-};
 
 jclass jcls_rte;
 jclass jcls_iae;
@@ -89,6 +87,9 @@ static jfieldID _limit_max_elements;
 static jfieldID _limit_max_string_size;
 static jfieldID _limit_general_budget_in_us;
 static jfieldID _limit_run_budget_in_us;
+
+static jfieldID _config_key_regex;
+static jfieldID _config_value_regex;
 
 static jfieldID _additive_ptr;
 
@@ -225,15 +226,21 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_deinitialize(
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
  * Method:    addRules
- * Signature: (Ljava/util/Map;)Lio/sqreen/powerwaf/PowerWAFHandle
+ * Signature: (Ljava/util/Map;[Lio/sqreen/powerwaf/PowerwafConfig;[Lio/sqreen/powerwaf/RuleSetInfo;)Lio/sqreen/powerwaf/PowerwafHandle;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules(
         JNIEnv *env, jclass clazz,
-        jobject rule_def, jobject rule_set_info_arr)
+        jobject rule_def, jobject jconfig, jobject rule_set_info_arr)
 {
     UNUSED(clazz);
 
     if (!_check_init(env)) {
+        return NULL;
+    }
+
+    ddwaf_config config;
+    if (!_convert_ddwaf_config_checked(env, jconfig, &config)) {
+        java_wrap_exc("%s", "Error converting PowerwafConfig");
         return NULL;
     }
 
@@ -256,8 +263,9 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules(
                              JNI(GetArrayLength, rule_set_info_arr) == 1;
     ddwaf_ruleset_info *rule_set_info =
             has_rule_set_info ? &(ddwaf_ruleset_info){0} : NULL;
-    ddwaf_handle nativeHandle = ddwaf_init(&input, &_pw_config, rule_set_info);
+    ddwaf_handle nativeHandle = ddwaf_init(&input, &config, rule_set_info);
     ddwaf_object_free(&input);
+    _dispose_of_ddwaf_config(&config);
 
     if (rule_set_info && memcmp(rule_set_info, &(ddwaf_ruleset_info){0},
                                 sizeof(*rule_set_info)) != 0) {
@@ -955,6 +963,32 @@ error:
     return ret;
 }
 
+static bool _fetch_config_fields(JNIEnv *env)
+{
+    bool ret = false;
+
+    jclass config_jclass = JNI(FindClass, "io/sqreen/powerwaf/PowerwafConfig");
+    if (!config_jclass) {
+        goto error;
+    }
+
+    _config_key_regex = JNI(GetFieldID, config_jclass, "obfuscatorKeyRegex",
+                           "Ljava/lang/String;");
+    if (!_config_key_regex) {
+        goto error;
+    }
+    _config_value_regex = JNI(GetFieldID, config_jclass, "obfuscatorValueRegex",
+                           "Ljava/lang/String;");
+    if (!_config_value_regex) {
+        goto error;
+    }
+
+    ret = true;
+error:
+    JNI(DeleteLocalRef, config_jclass);
+    return ret;
+}
+
 static bool _fetch_ruleset_info_init(JNIEnv *env)
 {
     return java_meth_init_checked(
@@ -1277,6 +1311,10 @@ static bool _cache_references(JNIEnv *env)
     }
 
     if (!_fetch_limit_fields(env)) {
+        goto error;
+    }
+
+    if (!_fetch_config_fields(env)) {
         goto error;
     }
 
@@ -2008,4 +2046,71 @@ static void _update_metrics(JNIEnv *env, jobject metrics_obj,
             }
         }
     }
+}
+
+static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
+                                          ddwaf_config *out_config)
+{
+
+    if (JNI(IsSameObject, jconfig, NULL)) {
+        JNI(ThrowNew, jcls_iae, "powerwaf config cannot be null");
+        return false;
+    }
+
+    char *key_regex = NULL, *value_regex = NULL;
+
+    jobject key_regex_jstr = JNI(GetObjectField, jconfig, _config_key_regex);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+    if (!JNI(IsSameObject, key_regex_jstr, NULL)) {
+        key_regex = java_to_utf8_checked(env, (jstring) key_regex_jstr,
+                                         &(size_t){0});
+        if (!key_regex) {
+            return false;
+        }
+        if (key_regex[0] == '\0') {
+            free(key_regex);
+            key_regex = NULL;
+        }
+    }
+    jobject value_regex_jstr =
+            JNI(GetObjectField, jconfig, _config_value_regex);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+    if (!JNI(IsSameObject, value_regex_jstr, NULL)) {
+        value_regex = java_to_utf8_checked(env, (jstring) value_regex_jstr,
+                                           &(size_t){0});
+        if (!value_regex) {
+            free(key_regex);
+            return false;
+        }
+        if (value_regex[0] == '\0') {
+            free(value_regex);
+            value_regex = NULL;
+        }
+    }
+
+    *out_config = (ddwaf_config){
+            // disable these checks. We also have our own
+            // limits given at rule run time
+            .limits =
+                    {// libddwaf allocates a vector with this
+                     // size, so this can't be too large
+                     .max_container_depth = MAX_DEPTH_UPPER_LIMIT,
+                     .max_container_size = (uint32_t) -1,
+                     .max_string_length = (uint32_t) -1},
+
+            .obfuscator = {
+                    .key_regex = key_regex,
+                    .value_regex = value_regex,
+            }};
+
+    return true;
+}
+static void _dispose_of_ddwaf_config(ddwaf_config *cfg)
+{
+    free((void *) (uintptr_t) cfg->obfuscator.key_regex);
+    free((void *) (uintptr_t) cfg->obfuscator.value_regex);
 }

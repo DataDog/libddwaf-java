@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.2.0";
+    public static final String LIB_VERSION = "1.3.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -63,14 +63,28 @@ public final class Powerwaf {
     }
 
     /**
-     * Creates a new collection of rules.
+     * Creates a new collection of rules with the default configuration.
      * @param uniqueId a unique id identifying the context. It better be unique!
      * @param ruleDefinitions a map rule name => rule definition
      * @return the new context
      */
     public static PowerwafContext createContext(
-            String uniqueId, Map<String, Object> ruleDefinitions) throws AbstractPowerwafException {
-        return new PowerwafContext(uniqueId, ruleDefinitions);
+            String uniqueId, Map<String, Object> ruleDefinitions)
+            throws AbstractPowerwafException {
+        return new PowerwafContext(uniqueId, null, ruleDefinitions);
+    }
+
+    /**
+     * Creates a new collection of rules.
+     * @param uniqueId a unique id identifying the context. It better be unique!
+     * @param ruleDefinitions a map rule name => rule definition
+     * @param config configuration settings or null for the default
+     * @return the new context
+     */
+    public static PowerwafContext createContext(
+            String uniqueId, PowerwafConfig config, Map<String, Object> ruleDefinitions)
+            throws AbstractPowerwafException {
+        return new PowerwafContext(uniqueId, config, ruleDefinitions);
     }
 
     /**
@@ -79,12 +93,14 @@ public final class Powerwaf {
      * See also pw_initH.
      *
      * @param definition map with keys version and events
+     * @param config configuration for the obfuscator. Non-null.
      * @param rulesetInfoOut either a null or a 1-byte element holding an out
      *                       reference for a {@link RuleSetInfo}.
      * @return a non-null native handle
      * @throws IllegalArgumentException
      */
-    static native PowerwafHandle addRules(Map<String, Object> definition, RuleSetInfo[] rulesetInfoOut);
+    static native PowerwafHandle addRules(
+            Map<String, Object> definition, PowerwafConfig config, RuleSetInfo[] rulesetInfoOut);
 
     /* pw_clearRuleH */
     static native void clearRules(PowerwafHandle handle);
