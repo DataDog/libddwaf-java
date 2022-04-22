@@ -1,0 +1,46 @@
+#!/bin/bash -e
+
+set -x
+
+function fn {
+  echo "/tmp/libsqreen-$1-dbgsym.zip"
+}
+
+function dl_zip {
+  local readonly version=$1
+  local readonly zip=$(fn $version)
+  local readonly url=https://s3.amazonaws.com/sqreen-ci-java/jars/io.sqreen/libsqreen-$version-dbgsym.zip
+
+  if [[ -f $zip ]]; then
+    return
+  fi
+
+  curl -Lf -o "$zip" "$url"
+}
+
+function extract {
+  local readonly version=$1 filepart=$2
+  local readonly zip=$(fn $version) arpath=$filepart.so.debug
+  local readonly fileinfo=$(bsdtar -O -xf "$zip" "$arpath"  | file -)
+
+  local sha1= sha1_pref= sha1_rest= dir=
+
+  sha1=$(grep -Po '(?<=\[sha1\]=)[a-f0-9]+' <<< "$fileinfo")
+
+  sha1_pref=${sha1:0:2}
+  sha1_rest=${sha1:2}
+
+  dir=/usr/lib/debug/.build-id/$sha1_pref
+  mkdir -p $dir
+
+  bsdtar -O -xf "$zip" "$arpath" > $dir/$sha1_rest.debug
+}
+
+function main {
+  local readonly version=$1
+  dl_zip $version
+  extract $version linux_64_glibc/libsqreen_jni
+  extract $version linux_64/libddwaf
+}
+
+main $1
