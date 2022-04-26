@@ -53,7 +53,7 @@ jobs:
           files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
   Native_binaries_Stage_macos:
     name: Mac OS X
-    runs-on: macOS-10.14
+    runs-on: macOS-10.15
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
