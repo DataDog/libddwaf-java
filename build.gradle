@@ -293,6 +293,10 @@ task testNoByteBuffers(type: Test) {
 check.dependsOn testNoByteBuffers
 
 tasks.withType(Test).each {
+    if (System.getenv('TEST_EXECUTABLE')) {
+        it.executable System.getenv('TEST_EXECUTABLE')
+    }
+
     it.jvmArgs += ['-Xcheck:jni', '-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true']
     if (project.hasProperty('useReleaseBinaries')) {
         it.jvmArgs += ['-DuseReleaseBinaries=true']
