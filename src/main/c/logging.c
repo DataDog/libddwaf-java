@@ -257,7 +257,7 @@ void java_log_shutdown(JNIEnv *env)
 void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
               int line, jthrowable throwable, const char *fmt, ...)
 {
-    if (log_level_enabled(level)) {
+    if (!log_level_enabled(level)) {
         // don't even create the Java String if we won't log it anyway
         return;
     }
