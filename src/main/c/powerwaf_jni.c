@@ -13,6 +13,7 @@
 #include "utf16_utf8.h"
 #include "logging.h"
 #include "metrics.h"
+#include "cs_wrapper.h"
 #include "compat.h"
 #include <ddwaf.h>
 #include <assert.h>
@@ -187,6 +188,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
                                     "(metrics_init)");
         }
     }
+
+    cs_wrapper_init(env);
 
     pw_run_timeout = _get_pw_run_timeout_checked(env);
     if (JNI(ExceptionCheck)) {
