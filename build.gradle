@@ -269,7 +269,8 @@ task copyNativeLibs(type: Copy) {
     def directories = [['linux_64_glibc/libsqreen_jni.so', 'linux_64/libddwaf.so'],
                        ['linux_64_musl/libsqreen_jni.so', 'linux_64/libddwaf.so'],
                        ['solaris_64/libsqreen_jni.so', 'solaris_64/libddwaf.so'],
-                       ['osx_64/libsqreen_jni.dylib', 'osx_64/libddwaf.dylib.dwarf'],
+                       ['macos_intel64/libsqreen_jni.dylib', 'macos_intel64/libddwaf.dylib.dwarf'],
+                       ['macos_arm64/libsqreen_jni.dylib', 'macos_arm64/libddwaf.dylib.dwarf'],
                        ['windows_64/sqreen_jni.dll']]
 
     doFirst {

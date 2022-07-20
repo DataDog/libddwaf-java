@@ -51,16 +51,16 @@ jobs:
           flags: helper
           verbose: true
           files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
-  Native_binaries_Stage_macos:
-    name: Mac OS X
-    runs-on: macOS-10.15
+  Native_binaries_Stage_macos_intel:
+    name: MacOS intel64
+    runs-on: macOS-12
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
       shlib_ext: dylib
       debug_ext: dylib.dwarf
-      artifactsuff: macos
-      libdir: osx_64
+      artifactsuff: macos_intel64
+      libdir: macos_intel64
     steps:
     - uses: actions/checkout@v2
       name: Checkout
@@ -141,6 +141,98 @@ jobs:
       with:
         path: ${{ env.tempdir }}/packages
         name: libsqreen_jni_${{ env.artifactsuff }}
+  Native_binaries_Stage_macos_arm64:
+    name: MacOS arm64
+    runs-on: macOS-12
+    env:
+      generator: Unix Makefiles
+      shlib_prefix: lib
+      shlib_ext: dylib
+      debug_ext: dylib.dwarf
+      artifactsuff: macos_arm64
+      libdir: macos_arm64
+    steps:
+      - uses: actions/checkout@v2
+        name: Checkout
+        with:
+          submodules: recursive
+          clean: true
+      - name: Create Build Directory for libddwaf
+        run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
+      - name: Create Build Directory for JNI binding
+        run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
+      - name: Create Packages Directory
+        run: cmake -E make_directory ${{ env.tempdir }}/packages
+      - name: Generate Build Scripts for libddwaf
+        run: |
+          cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
+            -DLIBDDWAF_BUILD_STATIC=0 \
+            -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
+            -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
+        working-directory: ${{ env.tempdir }}/buildPW
+      - name: Build Binaries for libddwaf
+        run: cmake --build .
+        working-directory: ${{ env.tempdir }}/buildPW
+      - name: Install Binaries for libddwaf
+        run: cmake --build . --target install
+        working-directory: ${{ env.tempdir }}/buildPW
+      - name: Generate Build Scripts for JNI binding
+        run: |
+          cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
+            -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
+            -G "${{ env.generator }}" ${{ github.workspace }}
+        working-directory: ${{ env.tempdir }}/buildAG
+      - name: Build Binaries for JNI Binding
+        run: cmake --build .
+        working-directory: ${{ env.tempdir }}/buildAG
+      - name: Copy libddwaf binaries to packages
+        run: |
+          cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
+            ${{ env.shlib_prefix }}ddwaf.${{ env.debug_ext }} \
+            ${{ env.tempdir }}/packages
+        working-directory: ${{ env.tempdir }}/buildPW
+      - name: Copy libddwaf binding binaries to native_libs (testing)
+        run: |
+          cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
+            ${{ env.shlib_prefix }}ddwaf.${{ env.debug_ext }} \
+            ${{ github.workspace }}/native_libs/${{ env.libdir }}
+        working-directory: ${{ env.tempdir }}/buildPW
+      - name: Copy JNI binding binaries to packages
+        run: |
+          cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} \
+            ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} \
+            ${{ env.tempdir }}/packages
+        working-directory: ${{ env.tempdir }}/buildAG
+      - name: Copy JNI binding binaries to native_libs (testing)
+        run: |
+          cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} \
+            ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} \
+            ${{ github.workspace }}/native_libs/${{ env.libdir }}
+        working-directory: ${{ env.tempdir }}/buildAG
+      - name: Cache Gradle artifacts
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+#      - name: Run tests on binding
+#        run: |
+#          set -ex
+#          cd '${{ github.workspace }}'
+#          export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
+#          ./gradlew --build-cache check --info -PuseReleaseBinaries
+#          ./gradlew --stop
+#        shell: bash
+      - name: Save Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          path: ${{ env.tempdir }}/packages
+          name: libsqreen_jni_${{ env.artifactsuff }}
   Native_binaries_Stage_windows_amd64:
     name: Windows amd64
     runs-on: windows-2019
@@ -408,7 +500,8 @@ jobs:
     env:
       artifactsDirectory: ${{ github.workspace }}/artifacts
     needs:
-      - Native_binaries_Stage_macos
+      - Native_binaries_Stage_macos_intel
+      - Native_binaries_Stage_macos_arm64
       - Native_binaries_Stage_windows_amd64
       - Native_binaries_Stage_linux_amd64_glibc
       - Native_binaries_Stage_linux_amd64_musl
@@ -433,7 +526,8 @@ jobs:
           ${{ env.artifactsDirectory }}/libsqreen_linux_amd64 \
           ${{ env.artifactsDirectory }}/jni_linux_glibc \
           ${{ env.artifactsDirectory }}/jni_linux_musl \
-          ${{ env.artifactsDirectory }}/libsqreen_jni_macos
+          ${{ env.artifactsDirectory }}/libsqreen_jni_macos_intel64 \
+          ${{ env.artifactsDirectory }}/libsqreen_jni_macos_arm64
     - name: Download libsqreen_jni_win_amd64
       uses: actions/download-artifact@v2
       with:
@@ -454,11 +548,16 @@ jobs:
       with:
         name: jni_linux_musl
         path: ${{ env.artifactsDirectory }}/jni_linux_musl
-    - name: Download libsqreen_jni_macos
+    - name: Download libsqreen_jni_macos_intel64
       uses: actions/download-artifact@v2
       with:
-        name: libsqreen_jni_macos
-        path: ${{ env.artifactsDirectory }}/libsqreen_jni_macos
+        name: libsqreen_jni_macos_intel64
+        path: ${{ env.artifactsDirectory }}/libsqreen_jni_macos_intel64
+    - name: Download libsqreen_jni_macos_arm64
+      uses: actions/download-artifact@v2
+      with:
+        name: libsqreen_jni_macos_arm64
+        path: ${{ env.artifactsDirectory }}/libsqreen_jni_macos_arm64
     - run: find .
       working-directory: ${{ env.artifactsDirectory }}
     - name: Copy the artifacts to the correct directories
@@ -471,7 +570,8 @@ jobs:
         mv native_libs/linux_64/*.debug native_libs/linux_64/libddwaf.so.debug
         cp ${{ env.artifactsDirectory }}/jni_linux_glibc/* native_libs/linux_64_glibc/
         cp ${{ env.artifactsDirectory }}/jni_linux_musl/* native_libs/linux_64_musl/
-        cp ${{ env.artifactsDirectory }}/libsqreen_jni_macos/* native_libs/osx_64/
+        cp ${{ env.artifactsDirectory }}/libsqreen_jni_macos_intel64/* native_libs/macos_intel64/
+        cp ${{ env.artifactsDirectory }}/libsqreen_jni_macos_arm64/* native_libs/macos_arm64/
       shell: bash
     - name: Cache Gradle artifacts
       uses: actions/cache@v2

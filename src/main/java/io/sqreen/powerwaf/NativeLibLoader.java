@@ -72,7 +72,8 @@ public class NativeLibLoader {
     private enum OsType {
         LINUX_64_GLIBC,
         LINUX_64_MUSL,
-        MAC_OS_64,
+        MAC_OS_INTEL_64,
+        MAC_OS_ARM_64,
         SUN_OS_64,
         WINDOWS_64
     }
@@ -80,7 +81,7 @@ public class NativeLibLoader {
     private static OsType getOsType() throws UnsupportedVMException {
 
         String arch = System.getProperty("os.arch");
-        if (!"amd64".equals(arch) && !"x86_64".equals(arch)) {
+        if (!"amd64".equals(arch) && !"x86_64".equals(arch) && !"aarch64".equals(arch)) {
             throw new UnsupportedVMException("Unsupported architecture: " + arch);
         }
 
@@ -107,7 +108,11 @@ public class NativeLibLoader {
                 }
             }
         } else if ("Mac OS X".equals(os)) {
-            return OsType.MAC_OS_64;
+            if ("aarch64".equals(arch)) {
+                return OsType.MAC_OS_ARM_64;
+            } else {
+                return OsType.MAC_OS_INTEL_64;
+            }
         } else if ("SunOS".equals(os)) {
             return OsType.SUN_OS_64;
         } else if (os != null && os.toLowerCase(Locale.ENGLISH).contains("windows")) {
@@ -124,9 +129,12 @@ public class NativeLibLoader {
             case LINUX_64_MUSL:
                 return Arrays.asList("linux_64_musl/libsqreen_jni.so",
                         "linux_64/libddwaf.so");
-            case MAC_OS_64:
-                return Arrays.asList("osx_64/libsqreen_jni.dylib",
-                        "osx_64/libddwaf.dylib");
+            case MAC_OS_INTEL_64:
+                return Arrays.asList("macos_intel64/libsqreen_jni.dylib",
+                        "macos_intel64/libddwaf.dylib");
+            case MAC_OS_ARM_64:
+                return Arrays.asList("macos_arm64/libsqreen_jni.dylib",
+                        "macos_arm64/libddwaf.dylib");
             case SUN_OS_64:
                 return Arrays.asList("solaris_64/libsqreen_jni.so",
                         "solaris_64/libddwaf.so");
