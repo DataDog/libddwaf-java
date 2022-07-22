@@ -5,5 +5,5 @@ RUN yum install -y \
 	java-1.8.0-openjdk-devel
 
 RUN cd /usr/local/ && \
-	curl -Lf https://github.com/Kitware/CMake/releases/download/v3.15.3/cmake-3.15.3-Linux-x86_64.tar.gz | \
+	curl -Lf https://github.com/Kitware/CMake/releases/download/v3.24.0/cmake-3.24.0-linux-x86_64.tar.gz | \
 	tar --strip-components=1 -xzf -
