@@ -8,6 +8,7 @@
 
 package io.sqreen.powerwaf
 
+import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.junit.Test
 
@@ -84,6 +85,29 @@ class BasicTests implements PowerwafTrait {
         assert metrics.totalRunTimeNs > 0
         assert metrics.totalDdwafRunTimeNs > 0
         assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
+    }
+
+    @Test
+    void 'test blocking action'() {
+        def ruleSet = ARACHNI_ATOM_BLOCK
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.action, is(Powerwaf.Action.BLOCK)
+    }
+
+    @Test
+    void 'test multiple actions'() { // not supported, we only return block xor monitor
+        def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+        ruleSet['rules'][0]['on_match'] = ['aaaa', 'block_request', 'bbbb']
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.action, is(Powerwaf.Action.BLOCK)
     }
 
     @Test
@@ -185,5 +209,95 @@ class BasicTests implements PowerwafTrait {
             }'''
         ctx = Powerwaf.createContext('test', ruleSet)
         assertThat ctx.usedAddresses, is([] as String[])
+    }
+
+    @Test
+    void 'update rule data'() {
+        def ruleSet = new JsonSlurper().parseText '''{
+           "data" : "usr_data",
+           "rules" : [
+              {
+                 "conditions" : [
+                    {
+                       "operator" : "ip_match",
+                       "parameters" : {
+                          "data" : "ip_data",
+                          "inputs" : [
+                             {
+                                "address" : "http.client_ip"
+                             }
+                          ]
+                       }
+                    }
+                 ],
+                 "id" : 1,
+                 "name" : "rule1",
+                 "tags" : {
+                    "category" : "category1",
+                    "type" : "flow1"
+                 }
+              },
+              {
+                 "conditions" : [
+                    {
+                       "operator" : "exact_match",
+                       "parameters" : {
+                          "data": "usr_data",
+                          "inputs" : [
+                             {
+                                "address" : "usr.id"
+                             }
+                          ]
+                       }
+                    }
+                 ],
+                 "id" : 2,
+                 "name" : "rule2",
+                 "tags" : {
+                    "category" : "category2",
+                    "type" : "flow2"
+                 }
+              }
+           ],
+           "version" : "2.1"
+      }'''
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ActionWithData res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
+        assertThat res.action, is(Powerwaf.Action.OK)
+
+        res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
+        assertThat res.action, is(Powerwaf.Action.OK)
+
+        ctx.updateRuleData([
+            [
+                    id: 'ip_data',
+                    type: 'ip_with_expiration',
+                    data: [
+                        [
+                                value: '1.2.3.4',
+                                expiration: '0',
+                        ]
+                    ]
+            ],
+            [
+                    id: 'usr_data',
+                    type: 'data_with_expiration',
+                    data: [
+                            [
+                                    value: 'paco',
+                                    expiration: '0',
+                            ]
+                    ]
+
+            ]
+        ])
+
+        res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
+        assertThat res.action, is(Powerwaf.Action.MONITOR)
+
+        res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
+        assertThat res.action, is(Powerwaf.Action.MONITOR)
     }
 }

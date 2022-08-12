@@ -76,6 +76,41 @@ trait PowerwafTrait extends JNITrait {
           ]
         }''')
 
+    static final Map ARACHNI_ATOM_BLOCK = (Map) new JsonSlurper().parseText('''
+        {
+          "version": "2.1",
+          "metadata": {
+            "rules_version": "1.2.6"
+          },
+          "rules": [
+            {
+              "id": "arachni_rule",
+              "name": "Arachni",
+              "tags": {
+                "type": "security_scanner",
+                "category": "attack_attempt"
+              },
+              "conditions": [
+                {
+                  "parameters": {
+                    "inputs": [
+                      {
+                        "address": "server.request.headers.no_cookies",
+                        "key_path": [
+                          "user-agent"
+                        ]
+                      }
+                    ],
+                    "regex": "^Arachni\\\\/v"
+                  },
+                  "operator": "match_regex"
+                }
+              ],
+              "on_match": ["block_request"]
+            }
+          ]
+        }''')
+
     int maxDepth = 5
     int maxElements = 20
     int maxStringSize = 100

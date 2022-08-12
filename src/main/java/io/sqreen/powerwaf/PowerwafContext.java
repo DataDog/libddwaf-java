@@ -12,6 +12,7 @@ import io.sqreen.powerwaf.exception.AbstractPowerwafException;
 import io.sqreen.powerwaf.exception.InvalidRuleSetException;
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -159,6 +160,17 @@ public class PowerwafContext {
         } catch (RuntimeException | Error e) {
             delReference();
             throw e;
+        }
+    }
+
+    public void updateRuleData(List<Map<String, Object>> newData) {
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            LOGGER.debug("Updating rule data for context {}", this);
+            Powerwaf.updateData(this.handle, newData);
+        } finally {
+            this.readLock.unlock();
         }
     }
 

@@ -78,7 +78,7 @@ public class LeakDetection {
             } catch (InterruptedException e) {}
         }
 
-        private void panic(Reference<?> ref) {
+        private static void panic(Reference<?> ref) {
             String name = "(unknown)";
             if (ref instanceof PhantomRefWithName) {
                 name = ((PhantomRefWithName<?>) ref).toStringVal;

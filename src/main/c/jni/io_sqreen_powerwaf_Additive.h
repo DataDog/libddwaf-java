@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     io_sqreen_powerwaf_Additive
  * Method:    initAdditive
- * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Z)J
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)J
  */
 JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
-  (JNIEnv *, jclass, jobject, jboolean);
+  (JNIEnv *, jclass, jobject);
 
 /*
  * Class:     io_sqreen_powerwaf_Additive

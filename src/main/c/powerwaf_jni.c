@@ -63,6 +63,7 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi);
 static void _update_metrics(JNIEnv *env, jobject metrics_obj, bool is_byte_buffer, const ddwaf_result *ret, struct timespec start);
 static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig, ddwaf_config *out_config);
 static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
+static jobject _determine_match_action(ddwaf_result ret);
 
 #define MAX_DEPTH_UPPER_LIMIT ((uint32_t)32)
 
@@ -91,6 +92,7 @@ static jfieldID _limit_run_budget_in_us;
 
 static jfieldID _config_key_regex;
 static jfieldID _config_value_regex;
+static jfieldID _config_use_byte_buffers;
 
 static jfieldID _additive_ptr;
 
@@ -455,8 +457,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
-    ctx = ddwaf_context_init(pwhandle,
-                             is_byte_buffer ? NULL : ddwaf_object_free);
+    ctx = ddwaf_context_init(pwhandle);
     if (!ctx) {
         JAVA_LOG(DDWAF_LOG_WARN, "Call to ddwaf_context_init failed");
         _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
@@ -478,19 +479,17 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
     jobject action_obj;
     switch (ret_code) {
-        case DDWAF_GOOD:
+        case DDWAF_OK:
             action_obj = _action_ok;
             if (!ret.data) {
                 result = _action_with_data_ok_null;
                 goto freeRet;
             }
             break;
-        case DDWAF_MONITOR:
-            action_obj = _action_monitor;
+        case DDWAF_MATCH: {
+            action_obj = _determine_match_action(ret);
             break;
-        case DDWAF_BLOCK:
-            action_obj = _action_block;
-            break;
+        }
         case DDWAF_ERR_INTERNAL: {
             JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
                 "Data may have leaked");
@@ -562,6 +561,46 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_
 }
 
 /*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    updateData
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/List;)V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_updateData
+  (JNIEnv *env, jclass clazz, jobject handle_obj, jobject jdata)
+{
+    UNUSED(clazz);
+
+    if (!_check_init(env)) {
+        return;
+    }
+
+    ddwaf_handle pwhandle;
+    if (!(pwhandle = get_pwaf_handle_checked(env, handle_obj))) {
+        return;
+    }
+
+    struct _limits limits = {
+            .max_depth = 10,
+            .max_elements = 100000,
+            .max_string_size = 10000,
+    };
+    ddwaf_object data = _convert_checked(env, jdata, &limits, 0);
+    jthrowable thr = JNI(ExceptionOccurred);
+    if (thr) {
+        JAVA_LOG_THR(DDWAF_LOG_WARN, thr, "Exception encoding rule data");
+        java_wrap_exc("%s", "Exception encoding rule data");
+        JNI(DeleteLocalRef, thr);
+        return;
+    }
+    DDWAF_RET_CODE res = ddwaf_update_rule_data(pwhandle, &data);
+    if (res != DDWAF_OK) {
+        JAVA_LOG(DDWAF_LOG_WARN, "Error updating rule data");
+        JNI(ThrowNew, jcls_rte, "Failure updating rule data");
+    }
+    ddwaf_object_free(&data);
+}
+
+/*
  * Class:     io.sqreen.powerwaf.Powerwaf
  * Method:    getVersion
  * Signature: ()Ljava/lang/String;
@@ -572,29 +611,19 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_getVersion(
     UNUSED(env);
     UNUSED(clazz);
 
-    ddwaf_version iversion;
-    ddwaf_get_version(&iversion);
-    char *version;
-    int size_version = asprintf(&version, "%d.%d.%d",
-                                iversion.major, iversion.minor, iversion.patch);
-    if (size_version < 0) {
-        JNI(ThrowNew, jcls_rte, "Could not allocate memory for the version");
-        return NULL;
-    }
-
+    const char *version = ddwaf_get_version();
     jstring ret = java_utf8_to_jstring_checked(
-                env, version, (size_t)size_version);
-    free(version);
+                env, version, strlen(version));
     return ret;
 }
 
 /*
  * Class:     io.sqreen.powerwaf.Additive
  * Method:    initAdditive
- * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Z)J
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)J
  */
 JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive(
-        JNIEnv *env, jclass clazz, jobject handle_obj, jboolean is_byte_buffers)
+        JNIEnv *env, jclass clazz, jobject handle_obj)
 {
     UNUSED(clazz);
 
@@ -603,8 +632,7 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive(
         return 0L;
     }
 
-    ddwaf_context context = ddwaf_context_init(
-            nat_handle, is_byte_buffers ? NULL : ddwaf_object_free);
+    ddwaf_context context = ddwaf_context_init(nat_handle);
     if (!context) {
         JNI(ThrowNew, jcls_rte, "ddwaf_context_init failed");
         return 0L;
@@ -706,18 +734,15 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
 
     jobject action_obj;
     switch (ret_code) {
-        case DDWAF_GOOD:
+        case DDWAF_OK:
             action_obj = _action_ok;
             if (!ret.data) {
                 result = _action_with_data_ok_null;
                 goto freeRet;
             }
             break;
-        case DDWAF_MONITOR:
-            action_obj = _action_monitor;
-            break;
-        case DDWAF_BLOCK:
-            action_obj = _action_block;
+        case DDWAF_MATCH:
+            action_obj = _determine_match_action(ret);
             break;
         case DDWAF_ERR_INTERNAL: {
             JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
@@ -983,6 +1008,12 @@ static bool _fetch_config_fields(JNIEnv *env)
     _config_value_regex = JNI(GetFieldID, config_jclass, "obfuscatorValueRegex",
                            "Ljava/lang/String;");
     if (!_config_value_regex) {
+        goto error;
+    }
+
+    _config_use_byte_buffers =
+            JNI(GetFieldID, config_jclass, "useByteBuffers", "Z");
+    if (!_config_use_byte_buffers) {
         goto error;
     }
 
@@ -2095,6 +2126,14 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
         }
     }
 
+    jboolean use_byte_buffers =
+            JNI(GetBooleanField, jconfig, _config_use_byte_buffers);
+    if (JNI(ExceptionCheck)) {
+        free(key_regex);
+        free(value_regex);
+        return false;
+    }
+
     *out_config = (ddwaf_config){
             // disable these checks. We also have our own
             // limits given at rule run time
@@ -2105,10 +2144,13 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
                      .max_container_size = (uint32_t) -1,
                      .max_string_length = (uint32_t) -1},
 
-            .obfuscator = {
-                    .key_regex = key_regex,
-                    .value_regex = value_regex,
-            }};
+            .obfuscator =
+                    {
+                            .key_regex = key_regex,
+                            .value_regex = value_regex,
+                    },
+
+            .free_fn = use_byte_buffers ? NULL : ddwaf_object_free};
 
     return true;
 }
@@ -2116,4 +2158,24 @@ static void _dispose_of_ddwaf_config(ddwaf_config *cfg)
 {
     free((void *) (uintptr_t) cfg->obfuscator.key_regex);
     free((void *) (uintptr_t) cfg->obfuscator.value_regex);
+}
+
+static jobject _determine_match_action(ddwaf_result ret)
+{
+    if (ret.actions.size > 0) {
+        if (ret.actions.size > 1) {
+            JAVA_LOG(DDWAF_LOG_INFO,
+                     "libddwaf returned more than one action; only one "
+                     "is now supported: block_request");
+        }
+        for (uint32_t i = 0; i < ret.actions.size; i++) {
+            const char *action = ret.actions.array[i];
+            if (strcmp(action, "block_request") == 0) {
+                return _action_block;
+            }
+            JAVA_LOG(DDWAF_LOG_INFO, "Unknown action: %s", action);
+        }
+    }
+
+    return _action_monitor;
 }

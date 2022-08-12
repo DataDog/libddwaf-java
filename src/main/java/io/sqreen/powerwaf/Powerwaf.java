@@ -11,6 +11,7 @@ package io.sqreen.powerwaf;
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.4.0";
+    public static final String LIB_VERSION = "1.5.0-alpha1";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -133,6 +134,8 @@ public final class Powerwaf {
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
+
+    static native void updateData(PowerwafHandle handle, List<Map<String, Object>> data);
 
     public static native String getVersion();
 
