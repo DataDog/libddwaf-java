@@ -8,7 +8,7 @@ RUN mkdir /tmp/apk && \
 	rm -rf /tmp/apk
 
 FROM build_env AS libddwaf_build
-COPY . /AgentJavaNative
+COPY .. /AgentJavaNative
 # NOTES:
 #    CMAKE_CXX_FLAGS (except -stdlib=libc++) and CMAKE_C_FLAGS are only used to
 #    pass the cmake compiler sanity checks. They have no effect otherwise due to
@@ -33,7 +33,7 @@ RUN mkdir /build && cd /build && cmake /AgentJavaNative/libddwaf \
 # -lm, -ldl, -lpthread need to be provided though
 RUN cd /build && VERBOSE=1 make -j
 RUN patchelf --remove-needed libc.musl-x86_64.so.1 /build/libddwaf.so
-RUN cd /build && make package && mv libddwaf-*.tar.gz libddwaf.tar.gz
+RUN cd /build && make package && mv libddwaf-*.tar.gz libddwaf-x86_64.tar.gz
 
 FROM scratch
-COPY --from=libddwaf_build /build/libddwaf.tar.gz /
+COPY --from=libddwaf_build /build/libddwaf-x86_64.tar.gz /

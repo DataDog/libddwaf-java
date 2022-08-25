@@ -219,10 +219,10 @@ jobs:
           path: ${{ env.tempdir }}/packages
           name: libsqreen_jni_${{ env.artifactsuff }}
   Native_binaries_Stage_libddwaf_linux_amd64:
-    name: Linux amd64 (semi-static libddwaf.so)
+    name: Linux x86_64 (semi-static libddwaf.so)
     runs-on: ubuntu-18.04
     env:
-      dockerfile: ci/alpine-libc++-static
+      dockerfile: ci/alpine-libc++-static/x86_64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -241,14 +241,14 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: ${{ env.tempdir }}/packages
-          name: libddwaf_linux
+          name: libddwaf_linux-x86_64
   Native_binaries_Stage_linux_amd64_glibc:
-    name: Linux amd64 (glibc)
+    name: Linux x86_64 (glibc)
     runs-on: ubuntu-18.04
     needs:
       - Native_binaries_Stage_libddwaf_linux_amd64
     env:
-      dockerfile: ci/manylinux
+      dockerfile: ci/manylinux/x86_64
       artifactsuff: linux_glibc
       libdir: linux_64_glibc
       artifactsDirectory: ${{ github.workspace }}/artifacts
@@ -263,7 +263,7 @@ jobs:
       - name: Download libddwaf artifact
         uses: actions/download-artifact@v2
         with:
-          name: libddwaf_linux
+          name: libddwaf_linux-x86_64
           path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
         run: docker build ${{ env.dockerfile  }} -t linux_cmake
@@ -273,7 +273,7 @@ jobs:
         run: |
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
-            tar --strip-components=1 -xf ${{ env.artifactsDirectory }}/libddwaf.tar.gz -C /usr/local/ &&
+            tar --strip-components=1 -xf ${{ env.artifactsDirectory }}/libddwaf-x86_64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
             make -j &&
