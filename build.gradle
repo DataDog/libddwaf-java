@@ -266,11 +266,14 @@ task copyNativeLibs(type: Copy) {
             true
         }
     }
-    def directories = [['linux_64_glibc/libsqreen_jni.so', 'linux_64/libddwaf.so'],
-                       ['linux_64_musl/libsqreen_jni.so', 'linux_64/libddwaf.so'],
+    def directories = [['linux/x86_64/glibc/libsqreen_jni.so', 'linux/x86_64/libddwaf.so'],
+                       ['linux/x86_64/musl/libsqreen_jni.so', 'linux/x86_64/libddwaf.so'],
+                       ['linux/aarch64/glibc/libsqreen_jni.so', 'linux/aarch64/libddwaf.so'],
+                       ['linux/aarch64/musl/libsqreen_jni.so', 'linux/aarch64/libddwaf.so'],
                        ['solaris_64/libsqreen_jni.so', 'solaris_64/libddwaf.so'],
-                       ['osx_64/libsqreen_jni.dylib', 'osx_64/libddwaf.dylib.dwarf'],
-                       ['windows_64/sqreen_jni.dll']]
+                       ['macos/x86_64/libsqreen_jni.dylib', 'macos/x86_64/libddwaf.dylib.dwarf'],
+                       ['macos/aarch64/libsqreen_jni.dylib', 'macos/aarch64/libddwaf.dylib.dwarf'],
+                       ['windows/x86_64/sqreen_jni.dll']]
 
     doFirst {
         if (!directories.any { files -> files.every(existsLib) }) {

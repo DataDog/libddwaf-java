@@ -70,9 +70,12 @@ public class NativeLibLoader {
     }
 
     private enum OsType {
-        LINUX_64_GLIBC,
-        LINUX_64_MUSL,
-        MAC_OS_64,
+        LINUX_x86_64_GLIBC,
+        LINUX_x86_64_MUSL,
+        LINUX_AARCH64_GLIBC,
+        LINUX_AARCH64_MUSL,
+        MAC_OS_x86_64,
+        MAC_OS_AARCH64,
         SUN_OS_64,
         WINDOWS_64
     }
@@ -80,9 +83,11 @@ public class NativeLibLoader {
     private static OsType getOsType() throws UnsupportedVMException {
 
         String arch = System.getProperty("os.arch");
-        if (!"amd64".equals(arch) && !"x86_64".equals(arch)) {
+        if (!"amd64".equals(arch) && !"x86_64".equals(arch) && !"aarch64".equals(arch)) {
             throw new UnsupportedVMException("Unsupported architecture: " + arch);
         }
+
+        boolean aarch64 = "aarch64".equals(arch);
 
         String os = System.getProperty("os.name");
         if ("Linux".equals(os)) {
@@ -93,9 +98,17 @@ public class NativeLibLoader {
                 while (sc.hasNextLine()){
                     String module = sc.nextLine();
                     if (module.contains("libc.musl-") || module.contains("ld-musl-")) {
-                        return NativeLibLoader.OsType.LINUX_64_MUSL;
+                        if (aarch64) {
+                            return OsType.LINUX_AARCH64_MUSL;
+                        } else {
+                            return NativeLibLoader.OsType.LINUX_x86_64_MUSL;
+                        }
                     } else if (module.contains("-linux-gnu") || module.contains("libc-")) {
-                        return NativeLibLoader.OsType.LINUX_64_GLIBC;
+                        if (aarch64) {
+                            return NativeLibLoader.OsType.LINUX_AARCH64_GLIBC;
+                        } else {
+                            return NativeLibLoader.OsType.LINUX_x86_64_GLIBC;
+                        }
                     }
                 }
             }
@@ -107,7 +120,11 @@ public class NativeLibLoader {
                 }
             }
         } else if ("Mac OS X".equals(os)) {
-            return OsType.MAC_OS_64;
+            if (aarch64) {
+                return OsType.MAC_OS_AARCH64;
+            } else {
+                return OsType.MAC_OS_x86_64;
+            }
         } else if ("SunOS".equals(os)) {
             return OsType.SUN_OS_64;
         } else if (os != null && os.toLowerCase(Locale.ENGLISH).contains("windows")) {
@@ -118,20 +135,29 @@ public class NativeLibLoader {
 
     private static List<String> getNativeLibs(OsType type) {
         switch(type) {
-            case LINUX_64_GLIBC:
-                return Arrays.asList("linux_64_glibc/libsqreen_jni.so",
-                        "linux_64/libddwaf.so");
-            case LINUX_64_MUSL:
-                return Arrays.asList("linux_64_musl/libsqreen_jni.so",
-                        "linux_64/libddwaf.so");
-            case MAC_OS_64:
-                return Arrays.asList("osx_64/libsqreen_jni.dylib",
-                        "osx_64/libddwaf.dylib");
+            case LINUX_x86_64_GLIBC:
+                return Arrays.asList("linux/x86_64/glibc/libsqreen_jni.so",
+                        "linux/x86_64/libddwaf.so");
+            case LINUX_x86_64_MUSL:
+                return Arrays.asList("linux/x86_64/musl/libsqreen_jni.so",
+                        "linux/x86_64/libddwaf.so");
+            case LINUX_AARCH64_GLIBC:
+                return Arrays.asList("linux/aarch64/glibc/libsqreen_jni.so",
+                        "linux/aarch64/libddwaf.so");
+            case LINUX_AARCH64_MUSL:
+                return Arrays.asList("linux/aarch64/musl/libsqreen_jni.so",
+                        "linux/aarch64/libddwaf.so");
+            case MAC_OS_x86_64:
+                return Arrays.asList("macos/x86_64/libsqreen_jni.dylib",
+                        "macos/x86_64/libddwaf.dylib");
+            case MAC_OS_AARCH64:
+                return Arrays.asList("macos/aarch64/libsqreen_jni.dylib",
+                        "macos/aarch64/libddwaf.dylib");
             case SUN_OS_64:
                 return Arrays.asList("solaris_64/libsqreen_jni.so",
                         "solaris_64/libddwaf.so");
             case WINDOWS_64:
-                return Collections.singletonList("windows_64/sqreen_jni.dll");
+                return Collections.singletonList("windows/x86_64/sqreen_jni.dll");
             default:
                 return Collections.emptyList();
         }
