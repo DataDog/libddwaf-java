@@ -20,4 +20,4 @@ RUN sudo apk update
 RUN abuild -r
 
 FROM scratch
-COPY --from=build_apk /packages/builder/x86_64/libc++-dev-11.1.0-r1.apk /
+COPY --from=build_apk /packages/builder/aarch64/libc++-dev-11.1.0-r1.apk /libc++-dev-11.1.0-r1.aarch64.apk
