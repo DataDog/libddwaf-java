@@ -35,7 +35,7 @@ public final class Additive implements Closeable {
     Additive(PowerwafContext ctx) {
         LOGGER.debug("Creating PowerWAF Additive for {}", ctx);
         this.ctx = ctx;
-        this.ptr = initAdditive(ctx.handle, Powerwaf.ENABLE_BYTE_BUFFERS);
+        this.ptr = initAdditive(ctx.handle);
         this.lease = ByteBufferSerializer.getBlankLease();
         this.online = true;
         if (Powerwaf.EXIT_ON_LEAK) {
@@ -45,7 +45,7 @@ public final class Additive implements Closeable {
         }
     }
 
-    private static native long initAdditive(PowerwafHandle handle, boolean powerwafEnableByteBuffers);
+    private static native long initAdditive(PowerwafHandle handle);
 
     private native Powerwaf.ActionWithData runAdditive(
             Map<String, Object> parameters, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;

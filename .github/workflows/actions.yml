@@ -256,7 +256,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         name: Setup x86_64 build
         with:
-          toolset: 14.16
+          toolset: 14.29
           arch: amd64
       - name: Create Build Directory for libddwaf
         run: cmake -E make_directory "${{ env.tempdir }}/buildPW"

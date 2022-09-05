@@ -57,6 +57,14 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    updateData
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/List;)V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_updateData
+  (JNIEnv *, jclass, jobject, jobject);
+
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    getVersion
  * Signature: ()Ljava/lang/String;
  */

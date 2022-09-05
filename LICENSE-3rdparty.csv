@@ -1,10 +1,6 @@
 Component,Origin,License,Copyright
 main,slf4j,mit,QOS.ch
 main,libddwaf,apache-2.0,DataDog
-tests,jackson,apache-2.0,FasterXML LLC
-tests,zjsonpatch,apache-2.0,Flipkart et al
-tests,wiremock,apache-2.0,Tom Akehurst et al
-tests,guava,apache-2.0,Google
 tests,junit,epl-1.0,various
 tests,ant,apache-2.0,Apache Software Foundation
 tests,groovy,apache-2.0,various
