@@ -91,6 +91,7 @@ jobs:
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
           -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
+          -DMACOSX_DEPLOYMENT_TARGET=10.9 \
           -G "${{ env.generator }}" ${{ github.workspace }}
       working-directory: ${{ env.tempdir }}/buildAG
     - name: Build Binaries for JNI Binding
