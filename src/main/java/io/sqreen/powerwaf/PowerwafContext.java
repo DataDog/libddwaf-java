@@ -95,7 +95,7 @@ public class PowerwafContext {
         }
     }
 
-    public Powerwaf.ActionWithData runRules(Map<String, Object> parameters,
+    public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
                                             Powerwaf.Limits limits,
                                             PowerwafMetrics metrics) throws AbstractPowerwafException {
         this.readLock.lock();
@@ -104,7 +104,7 @@ public class PowerwafContext {
             LOGGER.debug("Running rule for context {} with limits {}",
                     this, limits);
 
-            Powerwaf.ActionWithData res;
+            Powerwaf.ResultWithData res;
             if (Powerwaf.ENABLE_BYTE_BUFFERS) {
                 // serialization could be extracted out of the lock
                 ByteBufferSerializer serializer = new ByteBufferSerializer(limits);

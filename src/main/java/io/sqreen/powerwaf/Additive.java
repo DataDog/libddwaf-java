@@ -47,10 +47,10 @@ public final class Additive implements Closeable {
 
     private static native long initAdditive(PowerwafHandle handle);
 
-    private native Powerwaf.ActionWithData runAdditive(
+    private native Powerwaf.ResultWithData runAdditive(
             Map<String, Object> parameters, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
-    private native Powerwaf.ActionWithData runAdditive(
+    private native Powerwaf.ResultWithData runAdditive(
             ByteBuffer firstPWArgsBuffer, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     /**
@@ -70,7 +70,7 @@ public final class Additive implements Closeable {
      * @return                              execution results
      * @throws AbstractPowerwafException    rethrow from native code, timeout or param serialization failure
      */
-    public Powerwaf.ActionWithData run(Map<String, Object> parameters,
+    public Powerwaf.ResultWithData run(Map<String, Object> parameters,
                                        Powerwaf.Limits limits,
                                        PowerwafMetrics metrics) throws AbstractPowerwafException {
         if (limits == null) {

@@ -38,7 +38,7 @@ static bool _check_init(JNIEnv *env);
 static void _deinitialize(JNIEnv *env);
 static bool _cache_references(JNIEnv *env);
 static void _dispose_of_action_enums(JNIEnv *env);
-static void _dispose_of_action_with_data_fields(JNIEnv *env);
+static void _dispose_of_result_with_data_fields(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
 static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools, jobject obj, struct _limits *lims, int rec_level);
@@ -64,7 +64,7 @@ static jobject _convert_rsi_checked(JNIEnv *env, const ddwaf_ruleset_info *rsi);
 static void _update_metrics(JNIEnv *env, jobject metrics_obj, bool is_byte_buffer, const ddwaf_result *ret, struct timespec start);
 static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig, ddwaf_config *out_config);
 static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
-static jobject _determine_match_action(ddwaf_result ret);
+static jobject _create_match_result_with_data_checked(JNIEnv *env, const ddwaf_result *ret);
 
 #define MAX_DEPTH_UPPER_LIMIT ((uint32_t)32)
 
@@ -81,10 +81,10 @@ static struct j_method _timeout_exception_init;
  * we don't need strong ones because they are static fields of a class that
  * won't be unloaded as long as the Powerwaf class is loaded */
 static jobject _action_ok;
-static jobject _action_monitor;
-static jobject _action_block;
-static jobject _action_with_data_ok_null;
-static struct j_method _action_with_data_init;
+static jobject _action_match;
+static jobject _result_with_data_ok_null;
+static jobject _result_with_data_empty_str_arr;
+static struct j_method result_with_data_init;
 static jfieldID _limit_max_depth;
 static jfieldID _limit_max_elements;
 static jfieldID _limit_max_string_size;
@@ -478,18 +478,13 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         goto freeRet;
     }
 
-    jobject action_obj;
     switch (ret_code) {
         case DDWAF_OK:
-            action_obj = _action_ok;
-            if (!ret.data) {
-                result = _action_with_data_ok_null;
-                goto freeRet;
-            }
-            break;
+            result = _result_with_data_ok_null;
+            goto freeRet;
         case DDWAF_MATCH: {
-            action_obj = _determine_match_action(ret);
-            break;
+            result = _create_match_result_with_data_checked(env, &ret);
+            goto freeRet;
         }
         case DDWAF_ERR_INTERNAL: {
             JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
@@ -509,21 +504,6 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         }
     }
 
-    jstring data_obj = NULL;
-    if (ret.data) {
-        // no length, so the string must be NUL-terminated
-        data_obj = java_utf8_to_jstring_checked(
-                    env, ret.data, strlen(ret.data));
-        if (!data_obj) {
-            goto freeRet;
-        }
-    }
-
-    result = java_meth_call(env, &_action_with_data_init, NULL,
-                            action_obj, data_obj);
-
-    JNI(DeleteLocalRef, data_obj);
-
 freeRet:
     _update_metrics(env, metrics_obj, is_byte_buffer, &ret, start);
     ddwaf_result_free(&ret);
@@ -538,7 +518,7 @@ end:
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    runRules
- * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL
 Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
@@ -552,7 +532,7 @@ Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2L
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    runRules
- * Signature: (Lio/sqreen/powerwaf/PowerWAFHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ActionWithData;
+ * Signature: (Lio/sqreen/powerwaf/PowerWAFHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ResultWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
   (JNIEnv *env, jclass clazz, jobject handle_obj, jobject main_byte_buffer, jobject limits_obj, jobject metrics_obj)
@@ -777,17 +757,12 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
         goto freeRet;
     }
 
-    jobject action_obj;
     switch (ret_code) {
         case DDWAF_OK:
-            action_obj = _action_ok;
-            if (!ret.data) {
-                result = _action_with_data_ok_null;
-                goto freeRet;
-            }
-            break;
+            result = _result_with_data_ok_null;
+            goto freeRet;
         case DDWAF_MATCH:
-            action_obj = _determine_match_action(ret);
+            result = _create_match_result_with_data_checked(env, &ret);
             break;
         case DDWAF_ERR_INTERNAL: {
             JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
@@ -807,24 +782,6 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
         }
     }
 
-    jstring data_obj = NULL;
-    if (ret.data) {
-        // no length, so the string must be NUL-terminated
-        data_obj = java_utf8_to_jstring_checked(
-            env, ret.data, strlen(ret.data));
-        if (!data_obj) {
-            if (!JNI(ExceptionCheck)) {
-                JNI(ThrowNew, jcls_rte, "Could not create result data string");
-            }
-            goto freeRet;
-        }
-    }
-
-    result = java_meth_call(env, &_action_with_data_init, NULL,
-                            action_obj, data_obj);
-
-    JNI(DeleteLocalRef, data_obj);
-
 freeRet:
     _update_metrics(env, metrics_obj, is_byte_buffer, &ret, start);
     ddwaf_result_free(&ret);
@@ -842,7 +799,7 @@ err:
  * Class:     io_sqreen_powerwaf_Additive
  * Method:    runAdditive
  * Signature:
- * (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
+ * (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL
 Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
@@ -857,7 +814,7 @@ Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_util_Map_2Lio_sqreen_powerwa
  * Class:     io_sqreen_powerwaf_Additive
  * Method:    runAdditive
  * Signature:
- * (Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ActionWithData;
+ * (Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL
 Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
@@ -916,29 +873,24 @@ static void _deinitialize(JNIEnv *env)
     java_log_shutdown(env);
 }
 
-#define ACTION_ENUM_DESCR "Lio/sqreen/powerwaf/Powerwaf$Action;"
+#define RESULT_ENUM_DESCR "Lio/sqreen/powerwaf/Powerwaf$Result;"
 static bool _fetch_action_enums(JNIEnv *env)
 {
     bool ret = false;
 
-    jclass action_jclass = JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$Action");
+    jclass action_jclass = JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$Result");
     if (!action_jclass) {
         goto error;
     }
 
-    _action_ok = java_static_field_checked(env, action_jclass,
-                                           "OK", ACTION_ENUM_DESCR);
+    _action_ok = java_static_field_checked(env, action_jclass, "OK",
+                                           RESULT_ENUM_DESCR);
     if (!_action_ok) {
         goto error;
     }
-    _action_monitor = java_static_field_checked(env, action_jclass,
-                                                "MONITOR", ACTION_ENUM_DESCR);
-    if (!_action_monitor) {
-        goto error;
-    }
-    _action_block = java_static_field_checked(env, action_jclass,
-                                              "BLOCK", ACTION_ENUM_DESCR);
-    if (!_action_block) {
+    _action_match = java_static_field_checked(env, action_jclass, "MATCH",
+                                              RESULT_ENUM_DESCR);
+    if (!_action_match) {
         goto error;
     }
 
@@ -952,28 +904,36 @@ error:
     return ret;
 }
 
-#define ACTION_WITH_DATA_DESCR "Lio/sqreen/powerwaf/Powerwaf$ActionWithData;"
-static bool _fetch_action_with_data_fields(JNIEnv *env)
+#define RESULT_WITH_DATA_DESCR "Lio/sqreen/powerwaf/Powerwaf$ResultWithData;"
+static bool _fetch_result_with_data_fields(JNIEnv *env)
 {
     bool ret = false;
 
-    jclass action_with_data_jclass = JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$ActionWithData");
-    if (!action_with_data_jclass) {
+    jclass result_with_data_jclass =
+            JNI(FindClass, "io/sqreen/powerwaf/Powerwaf$ResultWithData");
+    if (!result_with_data_jclass) {
         goto error;
     }
 
-    _action_with_data_ok_null = java_static_field_checked(env, action_with_data_jclass,
-                                           "OK_NULL", ACTION_WITH_DATA_DESCR);
-    if (!_action_with_data_ok_null) {
+    _result_with_data_ok_null = java_static_field_checked(
+            env, result_with_data_jclass, "OK_NULL", RESULT_WITH_DATA_DESCR);
+    if (!_result_with_data_ok_null) {
+        goto error;
+    }
+
+    _result_with_data_empty_str_arr =
+            java_static_field_checked(env, result_with_data_jclass,
+                                      "EMPTY_ACTIONS", "[Ljava/lang/String;");
+    if (!_result_with_data_empty_str_arr) {
         goto error;
     }
 
     ret = true;
 
 error:
-    JNI(DeleteLocalRef, action_with_data_jclass);
+    JNI(DeleteLocalRef, result_with_data_jclass);
     if (!ret) {
-        _dispose_of_action_with_data_fields(env);
+        _dispose_of_result_with_data_fields(env);
     }
     return ret;
 }
@@ -1096,21 +1056,21 @@ static void _dispose_of_action_enums(JNIEnv *env)
         JNI(DeleteWeakGlobalRef, _action_ok);
         _action_ok = NULL;
     }
-    if (_action_monitor) {
-        JNI(DeleteWeakGlobalRef, _action_monitor);
-        _action_monitor = NULL;
-    }
-    if (_action_block) {
-        JNI(DeleteWeakGlobalRef, _action_block);
-        _action_block = NULL;
+    if (_action_match) {
+        JNI(DeleteWeakGlobalRef, _action_match);
+        _action_match = NULL;
     }
 }
 
-static void _dispose_of_action_with_data_fields(JNIEnv *env)
+static void _dispose_of_result_with_data_fields(JNIEnv *env)
 {
-    if (_action_with_data_ok_null) {
-        JNI(DeleteWeakGlobalRef, _action_with_data_ok_null);
-        _action_with_data_ok_null = NULL;
+    if (_result_with_data_ok_null) {
+        JNI(DeleteWeakGlobalRef, _result_with_data_ok_null);
+        _result_with_data_ok_null = NULL;
+    }
+    if (_result_with_data_empty_str_arr) {
+        JNI(DeleteWeakGlobalRef, _result_with_data_empty_str_arr);
+        _result_with_data_empty_str_arr = NULL;
     }
 }
 
@@ -1177,10 +1137,9 @@ static bool _cache_methods(JNIEnv *env)
     }
 
     if (!java_meth_init_checked(
-                env, &_timeout_exception_init, "io/sqreen/powerwaf/exception/TimeoutPowerwafException",
-                "<init>",
-                "()V",
-                JMETHOD_CONSTRUCTOR)) {
+                env, &_timeout_exception_init,
+                "io/sqreen/powerwaf/exception/TimeoutPowerwafException",
+                "<init>", "()V", JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
 
@@ -1241,9 +1200,9 @@ static bool _cache_methods(JNIEnv *env)
     }
 
     if (!java_meth_init_checked(
-                env, &_action_with_data_init,
-                "io/sqreen/powerwaf/Powerwaf$ActionWithData", "<init>",
-                "(Lio/sqreen/powerwaf/Powerwaf$Action;Ljava/lang/String;)V",
+                env, &result_with_data_init,
+                "io/sqreen/powerwaf/Powerwaf$ResultWithData", "<init>",
+                "(Lio/sqreen/powerwaf/Powerwaf$Result;Ljava/lang/String;[Ljava/lang/String;)V",
                 JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
@@ -1348,7 +1307,7 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     DESTROY_METH(to_string)
     DESTROY_METH(number_longValue)
     DESTROY_METH(_boolean_booleanValue)
-    DESTROY_METH(_action_with_data_init)
+    DESTROY_METH(result_with_data_init)
     DESTROY_METH(_ruleset_info_init)
     DESTROY_METH(_pwaf_handle_init)
     DESTROY_METH(_hashmap_init)
@@ -1381,7 +1340,7 @@ static bool _cache_references(JNIEnv *env)
         goto error;
     }
 
-    if (!_fetch_action_with_data_fields(env)) {
+    if (!_fetch_result_with_data_fields(env)) {
         goto error;
     }
 
@@ -1418,7 +1377,7 @@ error:
 static void _dispose_of_cache_references(JNIEnv * env)
 {
     _dispose_of_action_enums(env);
-    _dispose_of_action_with_data_fields(env);
+    _dispose_of_result_with_data_fields(env);
     _dispose_of_weak_classes(env);
     _dispose_of_cached_methods(env);
 }
@@ -2219,22 +2178,59 @@ static void _dispose_of_ddwaf_config(ddwaf_config *cfg)
     free((void *) (uintptr_t) cfg->obfuscator.value_regex);
 }
 
-static jobject _determine_match_action(ddwaf_result ret)
+static jobject _create_match_result_with_data_checked(JNIEnv *env,
+                                                      const ddwaf_result *ret)
 {
-    if (ret.actions.size > 0) {
-        if (ret.actions.size > 1) {
-            JAVA_LOG(DDWAF_LOG_INFO,
-                     "libddwaf returned more than one action; only one "
-                     "is now supported: block_request");
+    jobject actions_jarr;
+    bool del_actions_jarr = false;
+    if (ret->actions.size == 0) {
+        actions_jarr = _result_with_data_empty_str_arr;
+    } else {
+        actions_jarr = JNI(NewObjectArray, (jsize) ret->actions.size,
+                           string_cls, NULL);
+        if (!actions_jarr) {
+            java_wrap_exc("%s", "Error creating actions array");
+            return NULL;
         }
-        for (uint32_t i = 0; i < ret.actions.size; i++) {
-            const char *action = ret.actions.array[i];
-            if (strcmp(action, "block_request") == 0) {
-                return _action_block;
+        del_actions_jarr = true;
+
+        for (uint32_t i = 0; i < ret->actions.size; i++) {
+            const char *action = ret->actions.array[i];
+            jstring action_jstr =
+                    java_utf8_to_jstring_checked(env, action, strlen(action));
+            if (!action_jstr) {
+                java_wrap_exc("%s", "Error creating actions array");
+                JNI(DeleteLocalRef, actions_jarr);
+                return NULL;
             }
-            JAVA_LOG(DDWAF_LOG_INFO, "Unknown action: %s", action);
+            JNI(SetObjectArrayElement, actions_jarr, (jsize) i, action_jstr);
+            JNI(DeleteLocalRef, action_jstr);
+            if (JNI(ExceptionCheck)) {
+                java_wrap_exc("%s", "Error setting element in actions array");
+                JNI(DeleteLocalRef, actions_jarr);
+                return NULL;
+            }
         }
     }
 
-    return _action_monitor;
+    jstring data_obj = NULL;
+    if (ret->data) {
+        // no length, so the string must be NUL-terminated
+        data_obj = java_utf8_to_jstring_checked(
+                    env, ret->data, strlen(ret->data));
+        if (!data_obj) {
+            if (del_actions_jarr) {
+                JNI(DeleteLocalRef, actions_jarr);
+            }
+            return NULL;
+        }
+    }
+
+    jobject result = java_meth_call(env, &result_with_data_init, NULL,
+                                    _action_match, data_obj, actions_jarr);
+    if (del_actions_jarr) {
+        JNI(DeleteLocalRef, actions_jarr);
+    }
+    JNI(DeleteLocalRef, data_obj);
+    return result;
 }

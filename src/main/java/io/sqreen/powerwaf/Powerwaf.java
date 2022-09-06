@@ -11,6 +11,8 @@ package io.sqreen.powerwaf;
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,14 +123,14 @@ public final class Powerwaf {
      * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
      * @param limits the limits
      * @param metrics the metrics collector, or null
-     * @return the resulting action (OK, MONITOR, BLOCK) and associated details
+     * @return the resulting action (OK or MATCH) and associated details
      */
-    static native ActionWithData runRules(PowerwafHandle handle,
+    static native ResultWithData runRules(PowerwafHandle handle,
                                           ByteBuffer firstPWArgsBuffer,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 
-    static native ActionWithData runRules(PowerwafHandle handle,
+    static native ResultWithData runRules(PowerwafHandle handle,
                                           Map<String, Object> parameters,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
@@ -156,37 +158,41 @@ public final class Powerwaf {
         return AbstractPowerwafException.createFromErrorCode(retCode);
     }
 
-    public enum Action {
+    public enum Result {
         // there references to these static fields on native code
         OK(0),
-        MONITOR(1),
-        BLOCK(2);
+        MATCH(1);
 
         public final int code;
 
-        Action(int code) {
+        Result(int code) {
             this.code = code;
         }
     }
 
-    public static class ActionWithData {
-        // reuse this from JNI when there is no Action or Data
-        public static final ActionWithData OK_NULL = new ActionWithData(Action.OK, null);
+    public static class ResultWithData {
+        // used also from JNI
+        private static final String[] EMPTY_ACTIONS = new String[0];
 
-        public final Action action;
+        // reuse this from JNI when there is no actions or data
+        public static final ResultWithData OK_NULL = new ResultWithData(Result.OK, null, EMPTY_ACTIONS);
+
+        public final Result result;
         public final String data;
+        public final String[] actions;
 
-
-        public ActionWithData(Action action, String data) {
-            this.action = action;
+        public ResultWithData(Result result, String data, String[] actions) {
+            this.result = result;
             this.data = data;
+            this.actions = actions;
         }
 
         @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder("ActionWithData{");
-            sb.append("action=").append(action);
+            final StringBuilder sb = new StringBuilder("ResultWithData{");
+            sb.append("result=").append(result);
             sb.append(", data='").append(data).append('\'');
+            sb.append(", actions='").append(Arrays.asList(actions)).append('\'');
             sb.append('}');
             return sb.toString();
         }

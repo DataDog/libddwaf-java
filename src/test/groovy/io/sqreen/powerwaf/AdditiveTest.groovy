@@ -59,13 +59,13 @@ class AdditiveTest implements ReactiveTrait {
         additive = ctx.openAdditive()
         metrics = ctx.createMetrics()
 
-        Powerwaf.ActionWithData awd = additive.run([arg1: 'string 1'], limits, metrics)
-        LOGGER.debug('ActionWithData after 1st runAdditive: {}', awd)
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        Powerwaf.ResultWithData awd = additive.run([arg1: 'string 1'], limits, metrics)
+        LOGGER.debug('ResultWithData after 1st runAdditive: {}', awd)
+        assertThat awd.result, is(Powerwaf.Result.OK)
 
         awd = additive.run([arg2: 'string 2'], limits, metrics)
-        LOGGER.debug('ActionWithData after 2nd runAdditive: {}', awd)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        LOGGER.debug('ResultWithData after 2nd runAdditive: {}', awd)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         assert metrics.totalRunTimeNs > 0
         assert metrics.totalDdwafRunTimeNs > 0
