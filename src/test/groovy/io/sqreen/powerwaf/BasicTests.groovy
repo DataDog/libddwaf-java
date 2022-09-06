@@ -300,4 +300,21 @@ class BasicTests implements PowerwafTrait {
         res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
         assertThat res.action, is(Powerwaf.Action.MONITOR)
     }
+
+    @Test
+    void 'rule toggling'() {
+        def ruleSet = ARACHNI_ATOM_BLOCK
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ctx.toggleRules(arachni_rule: false)
+        ActionWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.action, is(Powerwaf.Action.OK)
+
+        ctx.toggleRules(arachni_rule: true)
+        awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.action, is(Powerwaf.Action.BLOCK)
+    }
 }

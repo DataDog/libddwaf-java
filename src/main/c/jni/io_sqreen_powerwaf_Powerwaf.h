@@ -65,6 +65,14 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_updateData
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    toggleRules
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;)V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_toggleRules
+  (JNIEnv *, jclass, jobject, jobject);
+
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    getVersion
  * Signature: ()Ljava/lang/String;
  */

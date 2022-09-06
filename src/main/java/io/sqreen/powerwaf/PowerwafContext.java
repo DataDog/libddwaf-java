@@ -174,6 +174,17 @@ public class PowerwafContext {
         }
     }
 
+    public void toggleRules(Map<String, Boolean> toggleSpec) {
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            LOGGER.debug("Toggling rules for context {}", this);
+            Powerwaf.toggleRules(this.handle, toggleSpec);
+        } finally {
+            this.readLock.unlock();
+        }
+    }
+
     private void checkIfOnline() {
         if (!this.online) {
             throw new IllegalStateException("This context is already offline");

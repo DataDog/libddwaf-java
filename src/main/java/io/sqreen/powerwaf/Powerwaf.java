@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.5.0-alpha1";
+    public static final String LIB_VERSION = "1.5.0-rc0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -136,6 +136,8 @@ public final class Powerwaf {
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
     static native void updateData(PowerwafHandle handle, List<Map<String, Object>> data);
+
+    static native void toggleRules(PowerwafHandle handle, Map<String, Boolean> spec);
 
     public static native String getVersion();
 

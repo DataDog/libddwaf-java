@@ -41,6 +41,7 @@ static void _dispose_of_action_enums(JNIEnv *env);
 static void _dispose_of_action_with_data_fields(JNIEnv *env);
 static void _dispose_of_cache_references(JNIEnv *env);
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
+static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools, jobject obj, struct _limits *lims, int rec_level);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
 struct char_buffer_info {
     jchar *nat_array;
@@ -601,6 +602,50 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_updateData
 }
 
 /*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    toggleRules
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;)V
+ */
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_toggleRules(
+        JNIEnv *env, jclass clazz, jobject handle_obj, jobject jdata)
+{
+
+    UNUSED(clazz);
+
+    if (!_check_init(env)) {
+        return;
+    }
+
+    ddwaf_handle pwhandle;
+    if (!(pwhandle = get_pwaf_handle_checked(env, handle_obj))) {
+        return;
+    }
+
+    struct _limits limits = {
+            .max_depth = 1,
+            .max_elements = 2000,
+            .max_string_size = 1000,
+    };
+    ddwaf_object spec =
+            _convert_checked_ex(env, true /* use bools */, jdata, &limits, 0);
+    jthrowable thr = JNI(ExceptionOccurred);
+    if (thr) {
+        JAVA_LOG_THR(DDWAF_LOG_WARN, thr,
+                     "Exception encoding toggle specification");
+        java_wrap_exc("%s", "Exception encoding rule toggle specification");
+        JNI(DeleteLocalRef, thr);
+        return;
+    }
+
+    DDWAF_RET_CODE res = ddwaf_toggle_rules(pwhandle, &spec);
+    if (res != DDWAF_OK) {
+        JAVA_LOG(DDWAF_LOG_WARN, "Error toggling rules");
+        JNI(ThrowNew, jcls_rte, "Failure toggling rules");
+    }
+    ddwaf_object_free(&spec);
+}
+
+/*
  * Class:     io.sqreen.powerwaf.Powerwaf
  * Method:    getVersion
  * Signature: ()Ljava/lang/String;
@@ -638,7 +683,7 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive(
         return 0L;
     }
 
-    return (jlong)(intptr_t) context;
+    return (jlong) (intptr_t) context;
 }
 
 static jobject _run_additive_common(JNIEnv *env, jobject this,
@@ -1381,6 +1426,13 @@ static void _dispose_of_cache_references(JNIEnv * env)
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                                      struct _limits *lims, int rec_level)
 {
+    return _convert_checked_ex(env, false /* no bools */, obj, lims, rec_level);
+}
+
+static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
+                                        jobject obj, struct _limits *lims,
+                                        int rec_level)
+{
 #define RET_IF_EXC() do { if (JNI(ExceptionCheck)) { goto error; } } while (0)
 #define JAVA_CALL(var, meth, recv) \
     do { \
@@ -1452,8 +1504,8 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
 
             jobject element = JNI(GetObjectArrayElement, obj, i);
 
-            ddwaf_object value =
-                    _convert_checked(env, element, lims, rec_level + 1);
+            ddwaf_object value = _convert_checked_ex(env, use_bools, element,
+                                                     lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1501,8 +1553,8 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             JNI(DeleteLocalRef, key_obj);
             JNI(DeleteLocalRef, entry);
 
-            ddwaf_object value =
-                    _convert_checked(env, value_obj, lims, rec_level + 1);
+            ddwaf_object value = _convert_checked_ex(env, use_bools, value_obj,
+                                                     lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1558,8 +1610,8 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             jobject element;
             JAVA_CALL(element, iterator_next, it);
 
-            ddwaf_object value =
-                    _convert_checked(env, element, lims, rec_level + 1);
+            ddwaf_object value = _convert_checked_ex(env, use_bools, element,
+                                                     lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1681,19 +1733,26 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             goto error;
         }
 
-        // PWArgs has no boolean type
-        // PowerWAF expects this to be a string for match_regex > case_sensitive
-        bool success;
-        if (bval) {
-            success =
-                    !!ddwaf_object_stringl(&result, "true", sizeof("true") - 1);
+        if (use_bools) {
+            if (!ddwaf_object_bool(&result, (bool) bval)) {
+                JNI(ThrowNew, jcls_rte, "ddwaf_object_bool failed (OOM?)");
+                goto error;
+            }
         } else {
-            success = !!ddwaf_object_stringl(&result, "false",
-                                             sizeof("false") - 1);
-        }
-        if (!success) {
-            JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
-            goto error;
+            // PowerWAF expects this to be a string for match_regex >
+            // case_sensitive
+            bool success;
+            if (bval) {
+                success = !!ddwaf_object_stringl(&result, "true",
+                                                 sizeof("true") - 1);
+            } else {
+                success = !!ddwaf_object_stringl(&result, "false",
+                                                 sizeof("false") - 1);
+            }
+            if (!success) {
+                JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
+                goto error;
+            }
         }
     } else {
         jclass cls = JNI(GetObjectClass, obj);
