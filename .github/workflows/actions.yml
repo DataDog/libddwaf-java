@@ -77,12 +77,13 @@ jobs:
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
           -DLIBDDWAF_BUILD_STATIC=0 \
-          -DMACOSX_DEPLOYMENT_TARGET=10.9 \
+          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
+          -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6" \
           -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
           -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
       working-directory: ${{ env.tempdir }}/buildPW
     - name: Build Binaries for libddwaf
-      run: cmake --build .
+      run: cmake --build . --verbose
       working-directory: ${{ env.tempdir }}/buildPW
     - name: Install Binaries for libddwaf
       run: cmake --build . --target install
@@ -91,11 +92,11 @@ jobs:
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
           -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
-          -DMACOSX_DEPLOYMENT_TARGET=10.9 \
+          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
           -G "${{ env.generator }}" ${{ github.workspace }}
       working-directory: ${{ env.tempdir }}/buildAG
     - name: Build Binaries for JNI Binding
-      run: cmake --build .
+      run: cmake --build . --verbose
       working-directory: ${{ env.tempdir }}/buildAG
     - name: Copy libddwaf binaries to packages
       run: |
@@ -170,6 +171,8 @@ jobs:
           cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
             -DLIBDDWAF_BUILD_STATIC=0 \
+            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
+            -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6" \
             -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
             -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
         working-directory: ${{ env.tempdir }}/buildPW
@@ -184,6 +187,7 @@ jobs:
           cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
             -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
+            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
             -G "${{ env.generator }}" ${{ github.workspace }}
         working-directory: ${{ env.tempdir }}/buildAG
       - name: Build Binaries for JNI Binding
