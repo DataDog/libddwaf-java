@@ -168,6 +168,14 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         HSTRING_APPEND_CONST(str, "\n");
         break;
     }
+    case DDWAF_OBJ_BOOL:
+        HSTRING_APPEND_CONST(str, "<BOOL> ");
+        if (pwargs->boolean) {
+            HSTRING_APPEND_CONST(str, "true\n");
+        } else {
+            HSTRING_APPEND_CONST(str, "false\n");
+        }
+        break;
     case DDWAF_OBJ_STRING:
         HSTRING_APPEND_CONST(str, "<STRING> ");
         _hstring_append(str, pwargs->stringValue, pwargs->nbEntries);

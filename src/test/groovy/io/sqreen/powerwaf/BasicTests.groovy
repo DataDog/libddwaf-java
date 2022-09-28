@@ -12,8 +12,10 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.junit.Test
 
-import static io.sqreen.powerwaf.Powerwaf.ActionWithData
+import static io.sqreen.powerwaf.Powerwaf.ResultWithData
 import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.arrayContaining
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder
 import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.is
 
@@ -30,9 +32,9 @@ class BasicTests implements PowerwafTrait {
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         def json = slurper.parseText(awd.data)
 
@@ -60,9 +62,9 @@ class BasicTests implements PowerwafTrait {
         ctx = Powerwaf.createContext('test', ruleSet)
         metrics = ctx.createMetrics()
 
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         def json = slurper.parseText(awd.data)
 
@@ -93,21 +95,23 @@ class BasicTests implements PowerwafTrait {
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.BLOCK)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+        assertThat awd.actions, arrayContaining('block_request')
     }
 
     @Test
-    void 'test multiple actions'() { // not supported, we only return block xor monitor
+    void 'test multiple actions'() {
         def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
         ruleSet['rules'][0]['on_match'] = ['aaaa', 'block_request', 'bbbb']
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.BLOCK)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+        assertThat awd.actions, arrayContainingInAnyOrder('aaaa', 'block_request', 'bbbb')
     }
 
     @Test
@@ -120,9 +124,9 @@ class BasicTests implements PowerwafTrait {
             attack: ['o:1:"ee":1:{}'],
             PassWord: ['Arachni'],
         ]
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
 
     @Test
@@ -132,9 +136,9 @@ class BasicTests implements PowerwafTrait {
         ctx = Powerwaf.createContext('test', ruleSet)
 
         def data = ['foo', 'Arachni'] as String[]
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
 
     @Test
@@ -144,9 +148,9 @@ class BasicTests implements PowerwafTrait {
         ctx = Powerwaf.createContext('test', ruleSet)
 
         def data = [null, 'Arachni']
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
 
     @Test
@@ -156,9 +160,9 @@ class BasicTests implements PowerwafTrait {
         ctx = Powerwaf.createContext('test', ruleSet)
 
         def data = [true, false, 'Arachni']
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
 
     @SuppressWarnings('EmptyClass')
@@ -171,9 +175,9 @@ class BasicTests implements PowerwafTrait {
         ctx = Powerwaf.createContext('test', ruleSet)
 
         def data = [new MyClass(), 'Arachni']
-        ActionWithData awd = ctx.runRules(
+        ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
 
     @Test
@@ -264,11 +268,11 @@ class BasicTests implements PowerwafTrait {
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
-        ActionWithData res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
-        assertThat res.action, is(Powerwaf.Action.OK)
+        ResultWithData res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
+        assertThat res.result, is(Powerwaf.Result.OK)
 
         res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
-        assertThat res.action, is(Powerwaf.Action.OK)
+        assertThat res.result, is(Powerwaf.Result.OK)
 
         ctx.updateRuleData([
             [
@@ -295,9 +299,26 @@ class BasicTests implements PowerwafTrait {
         ])
 
         res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
-        assertThat res.action, is(Powerwaf.Action.MONITOR)
+        assertThat res.result, is(Powerwaf.Result.MATCH)
 
         res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
-        assertThat res.action, is(Powerwaf.Action.MONITOR)
+        assertThat res.result, is(Powerwaf.Result.MATCH)
+    }
+
+    @Test
+    void 'rule toggling'() {
+        def ruleSet = ARACHNI_ATOM_BLOCK
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ctx.toggleRules(arachni_rule: false)
+        Powerwaf.ResultWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.OK)
+
+        ctx.toggleRules(arachni_rule: true)
+        awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
 }

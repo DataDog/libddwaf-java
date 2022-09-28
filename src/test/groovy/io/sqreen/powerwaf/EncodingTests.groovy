@@ -23,7 +23,7 @@ class EncodingTests implements PowerwafTrait {
 
     @Test
     void 'user input has an unpaired leading surrogate'() {
-        Powerwaf.ActionWithData awd = runRules('Arachni\uD800')
+        Powerwaf.ResultWithData awd = runRules('Arachni\uD800')
 
         def json = slurper.parseText(awd.data)
         assert json[0].rule_matches[0].parameters[0].value == 'Arachni\uFFFD'
@@ -31,7 +31,7 @@ class EncodingTests implements PowerwafTrait {
 
     @Test
     void 'user input has unpaired leading surrogate'() {
-        Powerwaf.ActionWithData awd = runRules 'Arachni\uD800Ā'
+        Powerwaf.ResultWithData awd = runRules 'Arachni\uD800Ā'
 
         def json = slurper.parseText(awd.data)
         assert json[0].rule_matches[0].parameters[0].value == 'Arachni\uFFFDĀ'
@@ -39,7 +39,7 @@ class EncodingTests implements PowerwafTrait {
 
     @Test
     void 'user input has unpaired trailing surrogate'() {
-        Powerwaf.ActionWithData awd = runRules 'Arachni\uDC00x'
+        Powerwaf.ResultWithData awd = runRules 'Arachni\uDC00x'
 
         def json = slurper.parseText(awd.data)
         assert json[0].rule_matches[0].parameters[0].value == 'Arachni\uFFFDx'
@@ -47,14 +47,14 @@ class EncodingTests implements PowerwafTrait {
 
     @Test
     void 'user input has two adjacent leading surrogates and does not invalidate the second'() {
-        Powerwaf.ActionWithData awd = runRules 'Arachni\uD800\uD801\uDC00'
+        Powerwaf.ResultWithData awd = runRules 'Arachni\uD800\uD801\uDC00'
 
         assertThat awd.data, containsString('Arachni\uFFFD\uD801\uDC00')
     }
 
     @Test
     void 'user input has NUL character before and after matching part'() {
-        Powerwaf.ActionWithData awd = runRules '\u0000Arachni\u0000'
+        Powerwaf.ResultWithData awd = runRules '\u0000Arachni\u0000'
 
         assertThat awd.data, containsString('\\u0000Arachni\\u0000')
     }

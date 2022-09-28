@@ -30,11 +30,11 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxDepth = 3
 
-        Powerwaf.ActionWithData awd = runRules(['Arachni'])
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ResultWithData awd = runRules(['Arachni'])
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         awd = runRules([['Arachni']])
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -42,11 +42,11 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxDepth = 3
 
-        Powerwaf.ActionWithData awd = runRules(['Arachni'] as String[])
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ResultWithData awd = runRules(['Arachni'] as String[])
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         awd = runRules([['Arachni'] as String[]] as Object[])
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -54,11 +54,11 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxDepth = 3
 
-        Powerwaf.ActionWithData awd = runRules([a: 'Arachni'])
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ResultWithData awd = runRules([a: 'Arachni'])
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         awd = runRules([a: [a: 'Arachni']])
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -66,12 +66,12 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxElements = 5
 
-        Powerwaf.ActionWithData awd = runRules(['a', 'Arachni'])
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ResultWithData awd = runRules(['a', 'Arachni'])
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         // the map and list count as elements
         awd = runRules(['a', 'b', 'Arachni'])
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -79,12 +79,12 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxElements = 5
 
-        Powerwaf.ActionWithData awd = runRules(['a', 'Arachni'] as String[])
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ResultWithData awd = runRules(['a', 'Arachni'] as String[])
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         // the map and list count as elements
         awd = runRules(['a', 'b', 'Arachni'] as String[])
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -92,12 +92,12 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxElements = 5
 
-        Powerwaf.ActionWithData awd = runRules([a: 'a', b: 'Arachni'])
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ResultWithData awd = runRules([a: 'a', b: 'Arachni'])
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         // the map and list count as elements
         awd = runRules([a: 'a', b: 'b', c: 'Arachni'] as String[])
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -105,11 +105,11 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxStringSize = 100
 
-        Powerwaf.ActionWithData awd = runRules(' ' * 93 + 'Arachni')
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        Powerwaf.ResultWithData awd = runRules(' ' * 93 + 'Arachni')
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         awd = runRules(' ' * 94 + 'Arachni')
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -117,14 +117,14 @@ class LimitsTests implements PowerwafTrait {
         ctx = ctxWithArachniAtom
         maxStringSize = 100
 
-        Powerwaf.ActionWithData awd = runRules([(' ' * 93 + 'Arachni'): 'a'])
+        Powerwaf.ResultWithData awd = runRules([(' ' * 93 + 'Arachni'): 'a'])
         // expected failure: running on keys is not possible now on libddwaf
         shouldFail(AssertionError) {
-            assertThat awd.action, is(Powerwaf.Action.MONITOR)
+            assertThat awd.result, is(Powerwaf.Result.MATCH)
         }
 
         awd = runRules([(' ' * 94 + 'Arachni'): 'a'])
-        assertThat awd.action, is(Powerwaf.Action.OK)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 
     @Test
@@ -188,9 +188,9 @@ class LimitsTests implements PowerwafTrait {
         maxStringSize = Integer.MAX_VALUE
 
         def res = runRules('Arachni' * 9000)
-        assertThat res.action, isOneOf(
-                Powerwaf.Action.MONITOR,
-                Powerwaf.Action.OK) // depending if it happened on first or 2nd rule
+        assertThat res.result, isOneOf(
+                Powerwaf.Result.MATCH,
+                Powerwaf.Result.OK) // depending if it happened on first or 2nd rule
 
         def json = slurper.parseText(res.data)
         assertThat json.ret_code, hasItem(is(new TimeoutPowerwafException().code))

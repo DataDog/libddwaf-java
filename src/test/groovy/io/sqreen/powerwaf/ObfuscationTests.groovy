@@ -10,7 +10,6 @@ package io.sqreen.powerwaf
 
 import org.junit.Test
 
-import static io.sqreen.powerwaf.Powerwaf.ActionWithData
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
@@ -21,9 +20,9 @@ class ObfuscationTests implements PowerwafTrait {
         def ruleSet = ARACHNI_ATOM_V2_1
 
         ctx = Powerwaf.createContext('test', ruleSet)
-        ActionWithData awd = ctx.runRules(
+        Powerwaf.ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         def json = slurper.parseText(awd.data)
 
@@ -37,9 +36,9 @@ class ObfuscationTests implements PowerwafTrait {
         def ruleSet = ARACHNI_ATOM_V2_1
 
         ctx = Powerwaf.createContext('test', new PowerwafConfig(obfuscatorKeyRegex: ''), ruleSet)
-        ActionWithData awd = ctx.runRules(
+        Powerwaf.ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         def json = slurper.parseText(awd.data)
 
@@ -52,9 +51,9 @@ class ObfuscationTests implements PowerwafTrait {
         def ruleSet = ARACHNI_ATOM_V2_1
 
         ctx = Powerwaf.createContext('test', new PowerwafConfig(obfuscatorValueRegex: 'rachni'), ruleSet)
-        ActionWithData awd = ctx.runRules(
+        Powerwaf.ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.action, is(Powerwaf.Action.MONITOR)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
 
         def json = slurper.parseText(awd.data)
 

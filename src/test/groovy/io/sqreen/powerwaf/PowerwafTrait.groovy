@@ -141,7 +141,7 @@ trait PowerwafTrait extends JNITrait {
     }
 
     @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
-    Powerwaf.ActionWithData runRules(Object data) {
+    Powerwaf.ResultWithData runRules(Object data) {
         ctx.runRules([
                 'server.request.headers.no_cookies': [
                         'user-agent': data

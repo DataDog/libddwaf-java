@@ -118,4 +118,22 @@ class InvalidInvocationTests implements ReactiveTrait {
                     limits, metrics)
         }
     }
+
+    @Test
+    void 'error converting toggle spec'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        def exc = shouldFail(RuntimeException) {
+            ctx.toggleRules(new BadMap(delegate: [arachni_rule: false]))
+        }
+        assertThat exc.message, containsString('Exception encoding rule toggle specification')
+    }
+
+    @Test
+    void 'invalid toggle specification'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        def exc = shouldFail(RuntimeException) {
+            ctx.toggleRules([arachni_rule: 'foobar'])
+        }
+        assertThat exc.message, containsString('Failure toggling rules')
+    }
 }

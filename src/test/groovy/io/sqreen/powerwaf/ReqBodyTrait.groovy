@@ -39,7 +39,7 @@ trait ReqBodyTrait extends PowerwafTrait {
         }
         ''')
 
-    Powerwaf.ActionWithData testWithData(Object data) {
+    Powerwaf.ResultWithData testWithData(Object data) {
         def rule = REQ_BODY_ATOM
 
         def params = [
