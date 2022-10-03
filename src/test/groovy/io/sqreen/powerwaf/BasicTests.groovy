@@ -16,6 +16,7 @@ import static io.sqreen.powerwaf.Powerwaf.ResultWithData
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.arrayContaining
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder
+import static org.hamcrest.Matchers.containsInAnyOrder
 import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.is
 
@@ -303,6 +304,8 @@ class BasicTests implements PowerwafTrait {
 
         res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
         assertThat res.result, is(Powerwaf.Result.MATCH)
+
+        assertThat ctx.usedRuleIDs as List, containsInAnyOrder('ip_data', 'usr_data')
     }
 
     @Test
