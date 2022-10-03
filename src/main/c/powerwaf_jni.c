@@ -384,6 +384,63 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddre
     return ret_jarr;
 }
 
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    getRequiredRuleDataIDs
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)[Ljava/lang/String;
+ */
+JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredRuleDataIDs
+  (JNIEnv *env, jclass clazz, jobject handle_obj)
+{
+    UNUSED(clazz);
+
+    if (!_check_init(env)) {
+        return NULL;
+    }
+
+    ddwaf_handle nat_handle;
+    if (!(nat_handle = get_pwaf_handle_checked(env, handle_obj))) {
+        return NULL;
+    }
+
+    uint32_t size;
+    const char* const* ids = ddwaf_required_rule_data_ids(nat_handle, &size);
+    if (!ids || size == 0 || size > INT_MAX /* jsize == int */) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "Found no rule IDs in ruleset %u", size);
+        jobject ret_jarr = JNI(NewObjectArray, 0, string_cls, NULL);
+        UNUSED(JNI(ExceptionCheck));
+        return ret_jarr;
+    }
+
+    JAVA_LOG(DDWAF_LOG_DEBUG, "Found %u rule IDs in ruleset", size);
+
+    jobject ret_jarr = JNI(NewObjectArray, (jsize) size, string_cls, NULL);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+
+    for (jsize i = 0; i < (jsize) size; i++) {
+        const char *id = ids[i];
+        if (!id) {
+            JNI(ThrowNew, jcls_rte,
+                "Unexpected NULL ptr in returned list of rule IDs");
+            return NULL; // should not happen
+        }
+        jstring id_jstr =
+                java_utf8_to_jstring_checked(env, id, strlen(id));
+        if (!id_jstr) {
+            return NULL;
+        }
+        JNI(SetObjectArrayElement, ret_jarr, i, id_jstr);
+        if (JNI(ExceptionCheck)) {
+            return NULL;
+        }
+        JNI(DeleteLocalRef, id_jstr);
+    }
+
+    return ret_jarr;
+}
+
 // runRule overloads
 static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                                 jobject handle_obj, jobject parameters,

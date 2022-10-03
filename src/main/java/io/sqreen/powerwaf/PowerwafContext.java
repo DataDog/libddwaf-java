@@ -95,6 +95,16 @@ public class PowerwafContext {
         }
     }
 
+    public String[] getUsedRuleIDs() {
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            return Powerwaf.getRequiredRuleDataIDs(this.handle);
+        } finally {
+            this.readLock.unlock();
+        }
+    }
+
     public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
                                             Powerwaf.Limits limits,
                                             PowerwafMetrics metrics) throws AbstractPowerwafException {

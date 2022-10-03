@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.5.0-rc0";
+    public static final String LIB_VERSION = "1.5.1";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -109,6 +109,8 @@ public final class Powerwaf {
     static native void clearRules(PowerwafHandle handle);
 
     static native String[] getRequiredAddresses(PowerwafHandle handle);
+
+    static native String[] getRequiredRuleDataIDs(PowerwafHandle handle);
 
     /**
      * Runs a rule with the parameters pre-serialized into direct
