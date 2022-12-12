@@ -37,6 +37,7 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
+def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
 
 task cmakeNativeLibDebug(type: Exec) {
     outputs.upToDateWhen { false }
@@ -77,6 +78,9 @@ task cmakeNativeLibDebug(type: Exec) {
             '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
         ]
     }
+	if (project.hasProperty('macArch')) {
+		cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
+	}
 
     if (WINDOWS) {
         commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", projectDir
@@ -95,6 +99,8 @@ task buildNativeLibDebug(type: Exec) {
     inputs.dir 'src/main/c'
     if (WINDOWS) {
         outputs.file "$buildDir/Debug/Debug/libsqreen_jni.dll"
+    } else if (MACOS) {
+        outputs.file "$buildDir/Debug/libsqreen_jni.dylib"
     } else {
         outputs.file "$buildDir/Debug/libsqreen_jni.so"
     }
