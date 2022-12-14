@@ -1,5 +1,5 @@
-FROM alpine@sha256:e1c082e3d3c45cccac829840a25941e679c25d438cc8412c2fa221cf1a824e6a as build_env
-RUN apk --no-cache add alpine-sdk coreutils cmake sudo \
+FROM alpine@sha256:8914eb54f968791faf6a8638949e480fef81e697984fba772b3976835194c6d4 AS build_env
+RUN apk --no-cache add alpine-sdk coreutils cmake sudo bash samurai python3 linux-headers compiler-rt \
   && adduser -G abuild -g "Alpine Package Builder" -s /bin/ash -D builder \
   && echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
   && mkdir /packages \
@@ -17,7 +17,10 @@ ADD APKBUILD /home/builder/package/
 ADD avoid-strtoll_l.patch /home/builder/package/
 RUN abuild-keygen -ain
 RUN sudo apk update
+RUN sudo rm /bin/ash && sudo ln -s /bin/bash /bin/ash
 RUN abuild -r
+RUN find /packages
 
 FROM scratch
-COPY --from=build_apk /packages/builder/aarch64/libc++-dev-11.1.0-r1.apk /libc++-dev-11.1.0-r1.aarch64.apk
+ARG ARCH
+COPY --from=build_apk /packages/builder/$ARCH/libc++-15.0.6-r1.apk /libc++-15.0.6-r1.$ARCH.apk
