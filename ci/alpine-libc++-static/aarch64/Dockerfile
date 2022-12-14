@@ -1,10 +1,10 @@
-FROM alpine@sha256:e1c082e3d3c45cccac829840a25941e679c25d438cc8412c2fa221cf1a824e6a as build_env
-RUN apk --no-cache add clang compiler-rt compiler-rt-static wget cmake make binutils musl-dev git patchelf
-RUN mkdir /tmp/apk && \
-	echo 'a6bd768ec14c46d173a36b3de4e2cb00a74b0e48ca683f173af740bee436cd016d2c0a4cb2e3436d23a3a5942656e16ad815fc7012faf40f24592968f9fd5244  libc++-dev-11.1.0-r1.aarch64.apk' > CHECKSUM && \
-	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-dev-11.1.0-r1.aarch64.apk && \
+FROM alpine@sha256:8914eb54f968791faf6a8638949e480fef81e697984fba772b3976835194c6d4 as build_env
+RUN apk --no-cache add clang compiler-rt wget cmake make binutils musl-dev git patchelf
+RUN mkdir /tmp/apk && cd /tmp/apk && \
+	echo '47cf9d2c940f2a1f5ba556b309a10311914360444ccc269e4ea0e3da576411f466c4c6099f89a97e05104eb0f02296da0df52856363b665509ad140c33ea1054  libc++-15.0.6-r1.aarch64.apk' > CHECKSUM && \
+	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-15.0.6-r1.aarch64.apk -O libc++-15.0.6-r1.aarch64.apk && \
 	sha512sum -c CHECKSUM && \
-	apk add --allow-untrusted libc++-dev-11.1.0-r1.aarch64.apk && \
+	apk add --allow-untrusted libc++-15.0.6-r1.aarch64.apk && \
 	rm -rf /tmp/apk
 
 FROM build_env AS libddwaf_build
@@ -24,7 +24,7 @@ RUN mkdir /build && cd /build && cmake /AgentJavaNative/libddwaf \
 	-DCMAKE_CXX_FLAGS="-stdlib=libc++ -Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc" \
 	-DCMAKE_C_FLAGS="-Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc" \
 	-DLIBDDWAF_BUILD_STATIC=OFF \
-	-DLIBDDWAF_SHARED_LINKER_FLAGS='-v -nodefaultlibs -Wl,-Bstatic -lc++ /usr/lib/clang/11.1.0/lib/linux/libclang_rt.builtins-aarch64.a -lunwind -Wl,-Bdynamic -lc /usr/lib/clang/11.1.0/lib/linux/libclang_rt.builtins-aarch64.a'
+	-DLIBDDWAF_SHARED_LINKER_FLAGS='-v -nodefaultlibs -Wl,-Bstatic -lc++ /usr/lib/clang/15.0.6/lib/linux/libclang_rt.builtins-aarch64.a -lunwind -Wl,-Bdynamic -lc /usr/lib/clang/15.0.6/lib/linux/libclang_rt.builtins-aarch64.a'
 # Link line will be:
 # "/usr/bin/ld" -z now -z relro --hash-style=gnu --eh-frame-hdr -m elf_x86_64 -shared -o libddwaf.so /usr/bin/../lib/crti.o /usr/lib/clang/11.1.0/lib/linux/clang_rt.crtbegin-x86_64.o -L/usr/bin/../lib -L/lib -L/usr/lib -soname libddwaf.so CMakeFiles/libddwaf_objects.dir/src/Clock.cpp.o CMakeFiles/libddwaf_objects.dir/src/parameter.cpp.o CMakeFiles/libddwaf_objects.dir/src/PowerWAF.cpp.o CMakeFiles/libddwaf_objects.dir/src/PowerWAFInterface.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWAdditive.cpp.o CMakeFiles/libddwaf_objects.dir/src/object.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWManifest.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWProcessor.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWRet.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWRetriever.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWRule.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWRuleManager.cpp.o CMakeFiles/libddwaf_objects.dir/src/PWTransformer.cpp.o CMakeFiles/libddwaf_objects.dir/src/radixlib.c.o CMakeFiles/libddwaf_objects.dir/src/utils.cpp.o CMakeFiles/libddwaf_objects.dir/src/log.cpp.o CMakeFiles/libddwaf_objects.dir/src/rule_processor/IPWRuleProcessor.cpp.o CMakeFiles/libddwaf_objects.dir/src/rule_processor/perf_match.cpp.o CMakeFiles/libddwaf_objects.dir/src/rule_processor/re2.cpp.o -lrt -ldl -lm --no-undefined -version-script=/libddwaf/libddwaf.version --build-id=0xa75fbdf483c3016d8ae0acccea972956fe1121fe third_party/lib/libre2.a third_party/liblib_ac.a third_party/liblib_injection.a -Bstatic -lc++ /usr/lib/clang/11.1.0/lib/linux/libclang_rt.builtins-x86_64.a -lunwind -Bdynamic -lc /usr/lib/clang/11.1.0/lib/linux/libclang_rt.builtins-x86_64.a -lpthread /usr/lib/clang/11.1.0/lib/linux/clang_rt.crtend-x86_64.o /usr/bin/../lib/crtn.o
 # The apparent dynamic linking to librt, libm, libpthread doesn't happen

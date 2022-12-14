@@ -52,11 +52,23 @@ public class PowerwafGCTests {
     public void library_is_unloaded() throws Exception {
         testBody();
 
-        System.gc();
-        System.runFinalization();
-        System.gc();
+        Reference<? extends ClassLoader> poll;
+        int i = 0;
+        while (true) {
+            System.gc();
+            System.runFinalization();
+            System.gc();
+            poll = refQueue.poll();
+            if (poll != null) {
+                break;
+            }
+            if (i++ < 10) {
+                Thread.yield();
+            } else {
+                break;
+            }
+        }
 
-        Reference<? extends ClassLoader> poll = refQueue.poll();
         assertThat(poll, (Matcher) sameInstance(weakRef));
     }
 }

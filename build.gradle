@@ -6,7 +6,7 @@ import com.amazonaws.services.s3.model.*
 
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
     }
     dependencies {
         classpath 'com.amazonaws:aws-java-sdk-core:1.11.25'
@@ -23,7 +23,7 @@ plugins {
 }
 
 repositories {
-    jcenter()
+    mavenCentral()
     ivy {
         artifactPattern 'http://sqreen-ci-java.s3-website-us-east-1.amazonaws.com/jars/[organisation]/[artifact]-[revision](-[classifier]).[ext]'
         ivyPattern 'http://sqreen-ci-java.s3-website-us-east-1.amazonaws.com/jars/[organisation]/[module]-[revision].xml'
@@ -31,12 +31,13 @@ repositories {
 }
 
 group 'io.sqreen'
-version '5.1.0'
+version '5.2.0'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
+def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
 
 task cmakeNativeLibDebug(type: Exec) {
     outputs.upToDateWhen { false }
@@ -77,6 +78,9 @@ task cmakeNativeLibDebug(type: Exec) {
             '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
         ]
     }
+	if (project.hasProperty('macArch')) {
+		cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
+	}
 
     if (WINDOWS) {
         commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", projectDir
@@ -95,6 +99,8 @@ task buildNativeLibDebug(type: Exec) {
     inputs.dir 'src/main/c'
     if (WINDOWS) {
         outputs.file "$buildDir/Debug/Debug/libsqreen_jni.dll"
+    } else if (MACOS) {
+        outputs.file "$buildDir/Debug/libsqreen_jni.dylib"
     } else {
         outputs.file "$buildDir/Debug/libsqreen_jni.so"
     }
@@ -116,20 +122,34 @@ task buildNativeLibDebug(type: Exec) {
 jacocoTestReport {
     executionData fileTree(project.buildDir.absolutePath).include("jacoco/*.exec")
     reports {
-        html.enabled true
-        xml.enabled true
-        csv.enabled false
+        html.required = true
+        xml.required = true
+        csv.required = false
     }
+}
+
+sourceSets {
+    testGC {
+        java.srcDir "src/test_gc/java"
+        groovy.srcDir "src/test_gc/groovy"
+        resources.srcDir "src/test_gc/resources"
+    }
+}
+configurations {
+    testGCCompileClasspath.extendsFrom(testCompileClasspath)
+    testGCRuntimeClasspath.extendsFrom(testRuntimeClasspath)
 }
 
 def SLF4J_VERSION = '1.7.30'
 dependencies {
-    compile group: 'org.slf4j', name: 'slf4j-api', version: SLF4J_VERSION
-    testRuntime group: 'org.slf4j', name: 'slf4j-simple', version: SLF4J_VERSION
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: SLF4J_VERSION
 
-    testCompile group: 'org.hamcrest', name: 'hamcrest-library', version: '2.2'
-    testCompile group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.4.17'
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testRuntimeOnly group: 'org.slf4j', name: 'slf4j-simple', version: SLF4J_VERSION
+    testImplementation group: 'org.hamcrest', name: 'hamcrest-library', version: '2.2'
+    testImplementation group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.4.17'
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
+
+    testGCRuntimeOnly files(sourceSets.main.output)
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
@@ -263,21 +283,6 @@ task copyNativeLibs(type: Copy) {
 
 jar.dependsOn(copyNativeLibs)
 
-sourceSets {
-    testGC {
-        java.srcDir "src/test_gc/java"
-        groovy.srcDir "src/test_gc/groovy"
-        resources.srcDir "src/test_gc/resources"
-
-        compileClasspath += sourceSets.main.output + sourceSets.test.output
-        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
-    }
-}
-configurations {
-    testGCCompile.extendsFrom(testCompile)
-    testGCRuntime.extendsFrom(testRuntime)
-}
-
 task testgc(type: Test) {
     description = 'Tests that the library can be unloaded'
     group = 'verification'
@@ -317,7 +322,7 @@ tasks.withType(Test).each {
 // see https://bugs.openjdk.java.net/browse/JDK-8145897
 task generateJniHeaders(type: JavaCompile) {
     classpath = sourceSets.main.compileClasspath
-    destinationDir file("${buildDir}/generated/jni")
+    destinationDirectory = file("${buildDir}/generated/jni")
     source = sourceSets.main.java
     options.compilerArgs += [
             '-h', file("${buildDir}/generated/jni"),
