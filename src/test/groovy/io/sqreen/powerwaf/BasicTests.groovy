@@ -311,6 +311,87 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
+    void 'input exclusion'() {
+        def ruleSet = new JsonSlurper().parseText '''{
+           "version": "2.2",
+           "metadata": {
+             "rules_version": "1.2.6"
+           },
+           "exclusions": [
+             {
+               "id": 1,
+               "rules_target": [
+                 {
+                   "tags": {
+                     "type": "path-exclusion-flow"
+                   }
+                 }
+               ],
+               "conditions": [
+                 {
+                   "operator": "match_regex",
+                   "parameters": {
+                     "inputs": [
+                       {
+                         "address": "server.request.query",
+                         "key_path": ["activate_exclusion"]
+                       }
+                     ],
+                     "regex": "true"
+                   }
+                 }
+               ],
+               "inputs": [
+                 {
+                   "address": "server.request.query",
+                   "key_path": ["excluded_key"]
+                 }
+               ]
+             }
+
+           ],
+           "rules": [
+             {
+               "id": "rule-for-path-exclusion",
+               "name": "rule-for-path-exclusion",
+               "tags": {
+                 "type": "path-exclusion-flow"
+               },
+               "conditions": [
+                 {
+                   "operator": "match_regex",
+                   "parameters": {
+                     "inputs": [
+                       {
+                         "address": "server.request.query",
+                         "key_path": [
+                           "excluded_key"
+                         ]
+                       }
+                     ],
+                     "regex": "true"
+                   }
+                 }
+               ]
+             }
+           ]
+         }'''
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ResultWithData res = ctx.runRules(['server.request.query': [excluded_key: 'true']], limits, metrics)
+        assertThat res.result, is(Powerwaf.Result.MATCH)
+
+        res = ctx.runRules(
+                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'false']], limits, metrics)
+        assertThat res.result, is(Powerwaf.Result.MATCH)
+
+        res = ctx.runRules(
+                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'true']], limits, metrics)
+        assertThat res.result, is(Powerwaf.Result.OK)
+    }
+
+    @Test
     void 'rule toggling'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
