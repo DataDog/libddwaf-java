@@ -16,7 +16,6 @@ import static io.sqreen.powerwaf.Powerwaf.ResultWithData
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.arrayContaining
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder
-import static org.hamcrest.Matchers.containsInAnyOrder
 import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.is
 import static org.hamcrest.Matchers.empty
@@ -215,7 +214,6 @@ class BasicTests implements PowerwafTrait {
             }'''
         ctx = Powerwaf.createContext('test', ruleSet)
         assertThat ctx.usedAddresses as List, is(empty())
-        assertThat ctx.usedRuleIDs as List, is(empty())
     }
 
     @Test
@@ -277,37 +275,38 @@ class BasicTests implements PowerwafTrait {
         res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
         assertThat res.result, is(Powerwaf.Result.OK)
 
-        ctx.updateRuleData([
-            [
-                    id: 'ip_data',
-                    type: 'ip_with_expiration',
-                    data: [
-                        [
-                                value: '1.2.3.4',
-                                expiration: '0',
+        def newData = [
+                [
+                        id: 'ip_data',
+                        type: 'ip_with_expiration',
+                        data: [
+                                [
+                                        value: '1.2.3.4',
+                                        expiration: '0',
+                                ]
                         ]
-                    ]
-            ],
-            [
-                    id: 'usr_data',
-                    type: 'data_with_expiration',
-                    data: [
-                            [
-                                    value: 'paco',
-                                    expiration: '0',
-                            ]
-                    ]
+                ],
+                [
+                        id: 'usr_data',
+                        type: 'data_with_expiration',
+                        data: [
+                                [
+                                        value: 'paco',
+                                        expiration: '0',
+                                ]
+                        ]
 
-            ]
-        ])
+                ]
+        ]
+        ctx.withCloseable {
+            ctx = ctx.update('test2', [rules_data: newData], null)
+        }
 
         res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
         assertThat res.result, is(Powerwaf.Result.MATCH)
 
         res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
         assertThat res.result, is(Powerwaf.Result.MATCH)
-
-        assertThat ctx.usedRuleIDs as List, containsInAnyOrder('ip_data', 'usr_data')
     }
 
     @Test
@@ -397,12 +396,34 @@ class BasicTests implements PowerwafTrait {
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
-        ctx.toggleRules(arachni_rule: false)
+        Map<String, Object> overrideSpec = [
+                metadata: [
+                        rules_version: '1.2.7'
+                ],
+                rules_override: [
+                        [
+                                rules_target: [
+                                        [
+                                                rule_id: 'arachni_rule'
+                                        ]
+                                ],
+                                enabled: false
+                        ]
+                ]
+        ]
+        ctx.withCloseable {
+            RuleSetInfo[] arr = new RuleSetInfo[1]
+            ctx = ctx.update('test2', overrideSpec, arr)
+            assertThat arr[0].fileVersion, is('1.2.7')
+        }
         Powerwaf.ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.result, is(Powerwaf.Result.OK)
 
-        ctx.toggleRules(arachni_rule: true)
+        overrideSpec['rules_override'][0]['enabled'] = true
+        ctx.withCloseable {
+            ctx = ctx.update('test3', overrideSpec, null)
+        }
         awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.result, is(Powerwaf.Result.MATCH)

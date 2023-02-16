@@ -12,20 +12,19 @@ import io.sqreen.powerwaf.exception.AbstractPowerwafException;
 import io.sqreen.powerwaf.exception.InvalidRuleSetException;
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
+import java.io.Closeable;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Represents a PowerWAF rule, ensuring that no runs happen after the rule
  * is destroyed and that the rule is not destroyed during runs.
  */
-public class PowerwafContext {
+public class PowerwafContext implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(PowerwafContext.class);
 
     private final String uniqueName;
@@ -38,7 +37,6 @@ public class PowerwafContext {
     private final Lock readLock;
 
     private final RuleSetInfo ruleSetInfo;
-    private final AtomicInteger refcount = new AtomicInteger(1);
     private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
     PowerwafContext(String uniqueName, PowerwafConfig config, Map<String, Object> definition) throws AbstractPowerwafException {
@@ -50,13 +48,13 @@ public class PowerwafContext {
         this.uniqueName = uniqueName;
 
         if (!definition.containsKey("version")) {
-            throw new IllegalArgumentException(
+            throw new UnclassifiedPowerwafException(
                     "Invalid definition. Expected key 'version' to exist");
         }
 
         if (!definition.containsKey("events") &&
                 !definition.containsKey("rules")) {
-            throw new IllegalArgumentException(
+            throw new UnclassifiedPowerwafException(
                     "Invalid definition. Expected keys 'events' or 'rules' to exist");
         }
         if (config == null) {
@@ -85,21 +83,27 @@ public class PowerwafContext {
         LOGGER.debug("Successfully create PowerWAF context {}", uniqueName);
     }
 
+    private PowerwafContext(String uniqueName, PowerwafHandle handle, RuleSetInfo ruleSetInfo) {
+        this.uniqueName = uniqueName;
+        this.handle = handle;
+        this.ruleSetInfo = ruleSetInfo;
+        ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+        this.readLock = rwLock.readLock();
+        this.writeLock = rwLock.writeLock();
+        this.online = true;
+        if (Powerwaf.EXIT_ON_LEAK) {
+            this.selfRef = LeakDetection.registerCloseable(this);
+        } else {
+            this.selfRef = null;
+        }
+        LOGGER.debug("Successfully create PowerWAF context {} (update)", uniqueName);
+    }
+
     public String[] getUsedAddresses() {
         this.readLock.lock();
         try {
             checkIfOnline();
             return Powerwaf.getRequiredAddresses(this.handle);
-        } finally {
-            this.readLock.unlock();
-        }
-    }
-
-    public String[] getUsedRuleIDs() {
-        this.readLock.lock();
-        try {
-            checkIfOnline();
-            return Powerwaf.getRequiredRuleDataIDs(this.handle);
         } finally {
             this.readLock.unlock();
         }
@@ -164,32 +168,34 @@ public class PowerwafContext {
     }
 
     public Additive openAdditive() {
-        addReference();
-        try {
-            return new Additive(this);
-        } catch (RuntimeException | Error e) {
-            delReference();
-            throw e;
-        }
-    }
-
-    public void updateRuleData(List<Map<String, Object>> newData) {
         this.readLock.lock();
         try {
-            checkIfOnline();
-            LOGGER.debug("Updating rule data for context {}", this);
-            Powerwaf.updateData(this.handle, newData);
+            return new Additive(this);
         } finally {
             this.readLock.unlock();
         }
     }
 
-    public void toggleRules(Map<String, Boolean> toggleSpec) {
+    public PowerwafContext update(String uniqueId,
+                                  Map<String, Object> specification,
+                                  RuleSetInfo[] ruleSetInfoRef) throws AbstractPowerwafException {
+        if (ruleSetInfoRef != null && ruleSetInfoRef.length != 1) {
+            throw new IllegalArgumentException("ruleSetInfo is not an array of size 1");
+        }
+
+        // lock to ensure visibility of state of powerwaf handle in this thread
         this.readLock.lock();
         try {
-            checkIfOnline();
-            LOGGER.debug("Toggling rules for context {}", this);
-            Powerwaf.toggleRules(this.handle, toggleSpec);
+            // all updates need to be serialized, because powerwaf handles may share state
+            synchronized (PowerwafContext.class) {
+                try {
+                    PowerwafHandle newHandle = Powerwaf.update(this.handle, specification, ruleSetInfoRef);
+                    return new PowerwafContext(uniqueName, newHandle,
+                            ruleSetInfoRef != null ? ruleSetInfoRef[0] : null);
+                } catch (RuntimeException rte) {
+                    throw new UnclassifiedPowerwafException(rte);
+                }
+            }
         } finally {
             this.readLock.unlock();
         }
@@ -200,46 +206,18 @@ public class PowerwafContext {
             throw new IllegalStateException("This context is already offline");
         }
     }
-
-    private void addReference() {
-        // read lock to prevent concurrent destruction, which uses a write lock
-        this.readLock.lock();
+    public void close() {
+        this.writeLock.lock();
         try {
             checkIfOnline();
-            this.refcount.incrementAndGet();
+            this.online = false;
+            Powerwaf.clearRules(this.handle);
+            LOGGER.debug("Deleted WAF context {}", this);
+            if (this.selfRef != null) {
+                LeakDetection.notifyClose(this.selfRef);
+            }
         } finally {
-            this.readLock.unlock();
-        }
-    }
-
-    public void delReference() {
-        int curRefcount = this.refcount.get();
-        if (curRefcount <= 1) {
-            // possible destruction, unless a reference is added in the interim
-            this.writeLock.lock();
-            boolean success;
-            try {
-                checkIfOnline();
-                success = this.refcount.compareAndSet(curRefcount, curRefcount - 1);
-                if (success) {
-                    this.online = false;
-                    Powerwaf.clearRules(this.handle);
-                    LOGGER.debug("Deleted WAF context {}", this);
-                    if (this.selfRef != null) {
-                        LeakDetection.notifyClose(this.selfRef);
-                    }
-                }
-            } finally {
-                this.writeLock.unlock();
-            }
-            if (!success) {
-                delReference(); // try again
-            }
-        } else {
-            boolean success = this.refcount.compareAndSet(curRefcount, curRefcount - 1);
-            if (!success) {
-                delReference(); // try again
-            }
+            this.writeLock.unlock();
         }
     }
 

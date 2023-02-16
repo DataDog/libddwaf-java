@@ -37,7 +37,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         def exc = shouldFail(RuntimeException) {
             ctx = Powerwaf.createContext('test', new BadMap(delegate: [version: '1.0', events: []]))
         }
-        assert exc.message =~ 'Exception encoding rule definitions'
+        assert exc.message =~ 'Exception encoding init/update rule specification'
         assert exc.cause instanceof IllegalStateException
         assert exc.cause.message == 'error here'
     }
@@ -68,7 +68,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     @Test
     void 'rule is run on closed context'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        ctx.delReference()
+        ctx.close()
         def exc = shouldFail(UnclassifiedPowerwafException) {
             ctx.runRules([:], limits, metrics)
         }
@@ -79,7 +79,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     @Test
     void 'addresses are fetched on closed context'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        ctx.delReference()
+        ctx.close()
         def exc = shouldFail(IllegalStateException) {
             ctx.usedAddresses
         }
@@ -120,20 +120,29 @@ class InvalidInvocationTests implements ReactiveTrait {
     }
 
     @Test
-    void 'error converting toggle spec'() {
+    void 'error converting update spec'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        def exc = shouldFail(RuntimeException) {
-            ctx.toggleRules(new BadMap(delegate: [arachni_rule: false]))
+        def exc = shouldFail(UnclassifiedPowerwafException) {
+            ctx.update('test2', new BadMap(delegate: [arachni_rule: false]), null)
         }
-        assertThat exc.message, containsString('Exception encoding rule toggle specification')
+        assertThat exc.message, containsString('Exception encoding init/update rule specification')
     }
 
     @Test
-    void 'invalid toggle specification'() {
+    void 'empty update call'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        def exc = shouldFail(RuntimeException) {
-            ctx.toggleRules([arachni_rule: 'foobar'])
+        def exc = shouldFail(UnclassifiedPowerwafException) {
+            ctx.update('test2', [foo: 'bar'], null)
         }
-        assertThat exc.message, containsString('Failure toggling rules')
+        assertThat exc.message, containsString('Call to ddwaf_update failed')
+    }
+
+    @Test
+    void 'invalid update call'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
+        def exc = shouldFail(UnclassifiedPowerwafException) {
+            ctx.update('test2', [rules: 'foobar'], null)
+        }
+        assertThat exc.message, containsString('Call to ddwaf_update failed')
     }
 }

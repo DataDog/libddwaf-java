@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.6.2";
+    public static final String LIB_VERSION = "1.8.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -110,8 +110,6 @@ public final class Powerwaf {
 
     static native String[] getRequiredAddresses(PowerwafHandle handle);
 
-    static native String[] getRequiredRuleDataIDs(PowerwafHandle handle);
-
     /**
      * Runs a rule with the parameters pre-serialized into direct
      * ByteBuffers. The initial PWArgs must be the object at offset 0
@@ -139,9 +137,9 @@ public final class Powerwaf {
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
-    static native void updateData(PowerwafHandle handle, List<Map<String, Object>> data);
-
-    static native void toggleRules(PowerwafHandle handle, Map<String, Boolean> spec);
+    static native PowerwafHandle update(PowerwafHandle handle,
+                                        Map<String, Object> specification,
+                                        RuleSetInfo[] ruleSetInfoRef);
 
     public static native String getVersion();
 

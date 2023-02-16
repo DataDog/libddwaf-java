@@ -33,14 +33,6 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddre
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
- * Method:    getRequiredRuleDataIDs
- * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)[Ljava/lang/String;
- */
-JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredRuleDataIDs
-  (JNIEnv *, jclass, jobject);
-
-/*
- * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    runRules
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
@@ -65,19 +57,11 @@ JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
- * Method:    updateData
- * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/List;)V
+ * Method:    update
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;[Lio/sqreen/powerwaf/RuleSetInfo;)Lio/sqreen/powerwaf/PowerwafHandle;
  */
-JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_updateData
-  (JNIEnv *, jclass, jobject, jobject);
-
-/*
- * Class:     io_sqreen_powerwaf_Powerwaf
- * Method:    toggleRules
- * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;)V
- */
-JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_toggleRules
-  (JNIEnv *, jclass, jobject, jobject);
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_update
+  (JNIEnv *, jclass, jobject, jobject, jobjectArray);
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
