@@ -148,8 +148,6 @@ public final class Additive implements Closeable {
         }
 
         // if we reach this point, we were originally online
-        this.ctx.delReference();
-
         if (this.selfRef != null) {
             LeakDetection.notifyClose(this.selfRef);
         }

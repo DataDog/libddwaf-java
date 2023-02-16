@@ -129,9 +129,7 @@ trait PowerwafTrait extends JNITrait {
 
     @After
     void after() {
-        if (ctx) {
-            ctx.delReference()
-        }
+        ctx?.close()
     }
 
     @AfterClass

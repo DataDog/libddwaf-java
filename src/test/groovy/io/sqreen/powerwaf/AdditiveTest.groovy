@@ -99,18 +99,15 @@ class AdditiveTest implements ReactiveTrait {
     }
 
     @Test
-    void 'should defer context destruction if the context is closed'() {
-        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
-        additive = ctx.openAdditive()
-        assert ctx.refcount.get() == 2
-        ctx.delReference()
-        additive.run([:], limits, metrics)
-        assert ctx.refcount.get() == 1
+    void 'context can be destroyed with live additive'() {
+        new PowerwafContext('test', null, ARACHNI_ATOM_V2_1).withCloseable {
+            additive = it.openAdditive()
+        }
+        Powerwaf.ResultWithData rwd = additive.run([:], limits, metrics)
+        assertThat rwd.result, is(Powerwaf.Result.OK)
         additive.close()
-        assert ctx.refcount.get() == 0
 
-        /* prevent @After hooks from trying to close them */
-        ctx = null
+        /* prevent @After hooks from trying to close it */
         additive = null
     }
 }
