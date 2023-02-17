@@ -299,7 +299,7 @@ class BasicTests implements PowerwafTrait {
                 ]
         ]
         ctx.withCloseable {
-            ctx = ctx.update('test2', [rules_data: newData], null)
+            ctx = ctx.update('test2', [rules_data: newData])
         }
 
         res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
@@ -412,9 +412,8 @@ class BasicTests implements PowerwafTrait {
                 ]
         ]
         ctx.withCloseable {
-            RuleSetInfo[] arr = new RuleSetInfo[1]
-            ctx = ctx.update('test2', overrideSpec, arr)
-            assertThat arr[0].fileVersion, is('1.2.7')
+            ctx = ctx.update('test2', overrideSpec)
+            assertThat ctx.ruleSetInfo.fileVersion, is('1.2.7')
         }
         Powerwaf.ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
@@ -422,7 +421,7 @@ class BasicTests implements PowerwafTrait {
 
         overrideSpec['rules_override'][0]['enabled'] = true
         ctx.withCloseable {
-            ctx = ctx.update('test3', overrideSpec, null)
+            ctx = ctx.update('test3', overrideSpec)
         }
         awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
