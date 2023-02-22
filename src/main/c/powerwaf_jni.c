@@ -1632,17 +1632,21 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
                 goto error;
             }
 
+            bool delete_obj = false;
             if (utf16_len > max_utf16_len) {
                 jobject new_obj = java_meth_call(env, &charSequence_subSequence,
                                                  obj, 0, max_utf16_len);
                 if (JNI(ExceptionCheck)) {
                     goto error;
                 }
-                JNI(DeleteLocalRef, obj);
                 obj = new_obj;
+                delete_obj = true;
             }
 
             jstring str = java_meth_call(env, &to_string, obj);
+            if (delete_obj) {
+                JNI(DeleteLocalRef, obj);
+            }
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
