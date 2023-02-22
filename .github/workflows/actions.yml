@@ -487,6 +487,8 @@ jobs:
       libdir: linux/aarch64/glibc
       artifactsDirectory: ${{ github.workspace }}/artifacts
     steps:
+      - name: Fix permissions
+        run: sudo chown -R $USER:$USER /home/ubuntu/actions-runner/_work/AgentJavaNative/
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
