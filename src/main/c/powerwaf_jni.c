@@ -1746,12 +1746,12 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
                 goto error;
             }
         }
-    } else {
+    } else if (log_level_enabled(DDWAF_LOG_DEBUG)) {
         jclass cls = JNI(GetObjectClass, obj);
         jobject name = java_meth_call(env, &_class_get_name, cls);
-        static char unknown[] = "<unknown class>";
+        static const char unknown[] = "<unknown class>";
         static const size_t unknown_len = sizeof(unknown) - 1;
-        char *name_c;
+        const char *name_c;
         size_t name_len;
         if (JNI(ExceptionCheck)) {
             JNI(ExceptionClear);
@@ -1771,7 +1771,7 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
                  "encoding as invalid",
                  (int) name_len /* should be safe */, name_c);
         if (name_c != unknown) {
-            free(name_c);
+            free((void *) (uintptr_t) name_c);
         }
     }
 
