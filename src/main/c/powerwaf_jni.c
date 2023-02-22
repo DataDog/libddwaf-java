@@ -121,6 +121,9 @@ struct j_method buffer_limit;
 jclass charBuffer_cls;
 struct j_method charBuffer_hasArray;
 struct j_method charBuffer_array;
+static struct j_method _charBuffer_order;
+// weak, but assumed never to be gced
+static jobject _native_order;
 
 jclass string_cls;
 struct j_method to_string;
@@ -1037,6 +1040,25 @@ static bool _fetch_native_handle_field(JNIEnv *env)
     return ret;
 }
 
+static bool _fetch_native_order_obj(JNIEnv *env) {
+    struct j_method meth;
+    if (!java_meth_init_checked(env, &meth, "java/nio/ByteOrder", "nativeOrder",
+                                "()Ljava/nio/ByteOrder;", JMETHOD_STATIC)) {
+        return false;
+    }
+
+    jobject nat_ord_obj = java_meth_call(env, &meth, NULL);
+    java_meth_destroy(env, &meth);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+
+    _native_order = JNI(NewWeakGlobalRef, nat_ord_obj);
+
+    JNI(DeleteLocalRef, nat_ord_obj);
+    return true;
+}
+
 static void _dispose_of_action_enums(JNIEnv *env)
 {
     if (_action_ok) {
@@ -1113,6 +1135,14 @@ static void _dispose_of_weak_classes(JNIEnv *env)
     // leave jcls_rte for last in OnUnload; we might still need it
 }
 
+static void _dispose_of_native_order_obj(JNIEnv *env)
+{
+    if (_native_order) {
+        JNI(DeleteWeakGlobalRef, _native_order);
+        _native_order = NULL;
+    }
+}
+
 static bool _cache_methods(JNIEnv *env)
 {
     if (!java_meth_init_checked(
@@ -1162,6 +1192,12 @@ static bool _cache_methods(JNIEnv *env)
 
     if (!java_meth_init_checked(env, &charBuffer_array, "java/nio/CharBuffer", "array",
                                 "()[C", JMETHOD_NON_VIRTUAL)) {
+        goto error;
+    }
+
+    if (!java_meth_init_checked(env, &_charBuffer_order, "java/nio/CharBuffer",
+                                "order", "()Ljava/nio/ByteOrder;",
+                                JMETHOD_VIRTUAL)) {
         goto error;
     }
 
@@ -1289,6 +1325,7 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     DESTROY_METH(charSequence_subSequence)
     DESTROY_METH(charBuffer_hasArray)
     DESTROY_METH(charBuffer_array)
+    DESTROY_METH(_charBuffer_order)
     DESTROY_METH(buffer_position)
     DESTROY_METH(buffer_limit)
     DESTROY_METH(to_string)
@@ -1351,6 +1388,10 @@ static bool _cache_references(JNIEnv *env)
         goto error;
     }
 
+    if (!_fetch_native_order_obj(env)) {
+        goto error;
+    }
+
     if (!_cache_methods(env)) {
         goto error;
     }
@@ -1366,6 +1407,7 @@ static void _dispose_of_cache_references(JNIEnv * env)
     _dispose_of_action_enums(env);
     _dispose_of_result_with_data_fields(env);
     _dispose_of_weak_classes(env);
+    _dispose_of_native_order_obj(env);
     _dispose_of_cached_methods(env);
 }
 
@@ -1632,17 +1674,21 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
                 goto error;
             }
 
+            bool delete_obj = false;
             if (utf16_len > max_utf16_len) {
                 jobject new_obj = java_meth_call(env, &charSequence_subSequence,
                                                  obj, 0, max_utf16_len);
                 if (JNI(ExceptionCheck)) {
                     goto error;
                 }
-                JNI(DeleteLocalRef, obj);
                 obj = new_obj;
+                delete_obj = true;
             }
 
             jstring str = java_meth_call(env, &to_string, obj);
+            if (delete_obj) {
+                JNI(DeleteLocalRef, obj);
+            }
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1700,12 +1746,12 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
                 goto error;
             }
         }
-    } else {
+    } else if (log_level_enabled(DDWAF_LOG_DEBUG)) {
         jclass cls = JNI(GetObjectClass, obj);
         jobject name = java_meth_call(env, &_class_get_name, cls);
-        static char unknown[] = "<unknown class>";
+        static const char unknown[] = "<unknown class>";
         static const size_t unknown_len = sizeof(unknown) - 1;
-        char *name_c;
+        const char *name_c;
         size_t name_len;
         if (JNI(ExceptionCheck)) {
             JNI(ExceptionClear);
@@ -1725,7 +1771,7 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
                  "encoding as invalid",
                  (int) name_len /* should be safe */, name_c);
         if (name_c != unknown) {
-            free(name_c);
+            free((void *) (uintptr_t) name_c);
         }
     }
 
@@ -1766,7 +1812,7 @@ static bool _get_char_buffer_data(JNIEnv *env, jobject obj,
     jboolean has_array =
             JNI(CallNonvirtualBooleanMethod, obj,
                 charBuffer_hasArray.class_glob, charBuffer_hasArray.meth_id);
-    if (!JNI(ExceptionCheck)) {
+    if (JNI(ExceptionCheck)) {
         return false;
     }
 
@@ -1788,11 +1834,23 @@ static bool _get_char_buffer_data(JNIEnv *env, jobject obj,
         info->call_release = true;
         return true;
     } else {
-        void *addr = JNI(GetDirectBufferAddress, obj);
-        if (addr) {
-            info->nat_array = addr;
-            return true;
+        jobject order = java_meth_call(env, &_charBuffer_order, obj);
+        if (JNI(ExceptionCheck)) {
+            return false;
         }
+
+        bool has_nat_order = JNI(IsSameObject, order, _native_order);
+        JNI(DeleteLocalRef, order);
+        if (has_nat_order) {
+            void *addr = JNI(GetDirectBufferAddress, obj);
+            if (addr) {
+                info->javaArray = NULL;
+                info->nat_array = addr;
+                info->call_release = false;
+                return true;
+            }
+        }
+
         return false;
     }
 }

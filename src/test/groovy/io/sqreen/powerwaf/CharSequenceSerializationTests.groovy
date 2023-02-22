@@ -11,6 +11,7 @@ package io.sqreen.powerwaf
 import org.junit.Test
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.CharBuffer
 
 import static org.hamcrest.MatcherAssert.assertThat
@@ -35,9 +36,23 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
     }
 
     @Test
-    void 'Should MATCH with data passed as direct CharBuffer'() {
+    void 'Should MATCH with data passed as direct CharBuffer with native order'() {
         char[] storedBody = 'my string' as char[]
-        CharBuffer cs = ByteBuffer.allocateDirect(100).asCharBuffer()
+        CharBuffer cs = ByteBuffer.allocateDirect(100).order(ByteOrder.nativeOrder()).asCharBuffer()
+        cs.put(storedBody)
+        cs.flip()
+        Powerwaf.ResultWithData awd = testWithData(cs)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+        assertThat cs.remaining(), is(storedBody.length)
+    }
+
+    @Test
+    void 'Should MATCH with data passed as direct CharBuffer — variant with flipped order'() {
+        ByteOrder flippedOrder = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN ?
+                ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN
+        char[] storedBody = 'my string' as char[]
+        CharBuffer cs = ByteBuffer.allocateDirect(100).order(flippedOrder).asCharBuffer()
+        cs.order()
         cs.put(storedBody)
         cs.flip()
         Powerwaf.ResultWithData awd = testWithData(cs)
@@ -67,5 +82,22 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
         CharBuffer buf = CharBuffer.wrap('my string')
         Powerwaf.ResultWithData awd = testWithData(buf)
         assertThat awd.result, is(Powerwaf.Result.MATCH)
+    }
+
+    @Test
+    void 'Should not match if signature is past string limit — array CharBuffer variant'() {
+        maxStringSize = 10
+        char[] storedBody = '12my string' as char[]
+        CharBuffer cs = CharBuffer.wrap(storedBody, 0, storedBody.length)
+        Powerwaf.ResultWithData awd = testWithData(cs)
+        assertThat awd.result, is(Powerwaf.Result.OK)
+    }
+
+    @Test
+    void 'Should not match if signature is past string limit — StringCharBuffer variant'() {
+        maxStringSize = 10
+        CharBuffer cs = CharBuffer.wrap('12my string')
+        Powerwaf.ResultWithData awd = testWithData(cs)
+        assertThat awd.result, is(Powerwaf.Result.OK)
     }
 }

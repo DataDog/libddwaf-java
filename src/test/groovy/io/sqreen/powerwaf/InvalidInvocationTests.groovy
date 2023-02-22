@@ -10,6 +10,7 @@ package io.sqreen.powerwaf
 
 import groovy.transform.CompileStatic
 import io.sqreen.powerwaf.exception.InvalidObjectPowerwafException
+import io.sqreen.powerwaf.exception.InvalidRuleSetException
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException
 import org.junit.Assume
 import org.junit.Test
@@ -18,7 +19,10 @@ import java.nio.ByteBuffer
 
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.arrayContaining
 import static org.hamcrest.Matchers.containsString
+import static org.hamcrest.Matchers.equalTo
+import static org.hamcrest.Matchers.hasEntry
 
 class InvalidInvocationTests implements ReactiveTrait {
     @CompileStatic
@@ -123,7 +127,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     void 'error converting update spec'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.update('test2', new BadMap(delegate: [arachni_rule: false]), null)
+            ctx.update('test2', new BadMap(delegate: [arachni_rule: false]))
         }
         assertThat exc.message, containsString('Exception encoding init/update rule specification')
     }
@@ -132,7 +136,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     void 'empty update call'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.update('test2', [foo: 'bar'], null)
+            ctx.update('test2', [foo: 'bar'])
         }
         assertThat exc.message, containsString('Call to ddwaf_update failed')
     }
@@ -140,9 +144,15 @@ class InvalidInvocationTests implements ReactiveTrait {
     @Test
     void 'invalid update call'() {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
-        def exc = shouldFail(UnclassifiedPowerwafException) {
-            ctx.update('test2', [rules: 'foobar'], null)
+        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+            ctx.update('test2', [rules: [[id: 'foobar']]])
         }
+        assertThat exc.ruleSetInfo.numRulesError, equalTo(1)
+        assertThat exc.ruleSetInfo.numRulesOK, equalTo(0)
+        assertThat exc.ruleSetInfo.errors, hasEntry(
+                equalTo('missing key \'conditions\''),
+                arrayContaining(equalTo('foobar'))
+        )
         assertThat exc.message, containsString('Call to ddwaf_update failed')
     }
 }

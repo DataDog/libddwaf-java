@@ -12,14 +12,12 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import io.sqreen.powerwaf.exception.AbstractPowerwafException
 import io.sqreen.powerwaf.exception.InvalidRuleSetException
-import org.junit.Ignore
 import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail
 
 class BadRuleTests implements PowerwafTrait {
 
-    @Ignore('bug on libddwaf 1.8.0')
     @Test(expected = AbstractPowerwafException)
     void 'no events'() {
         ctx = Powerwaf.createContext('test', [version: '0.0', events: []])

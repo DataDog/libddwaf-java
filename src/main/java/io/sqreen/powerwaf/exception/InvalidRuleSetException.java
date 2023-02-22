@@ -10,10 +10,10 @@ package io.sqreen.powerwaf.exception;
 
 import io.sqreen.powerwaf.RuleSetInfo;
 
-public class InvalidRuleSetException extends IllegalArgumentException {
+public class InvalidRuleSetException extends UnclassifiedPowerwafException {
     public final RuleSetInfo ruleSetInfo;
 
-    public InvalidRuleSetException(RuleSetInfo ruleSetInfo, IllegalArgumentException orig) {
+    public InvalidRuleSetException(RuleSetInfo ruleSetInfo, Throwable orig) {
         super(orig);
         this.ruleSetInfo = ruleSetInfo;
     }

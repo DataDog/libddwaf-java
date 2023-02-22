@@ -177,23 +177,21 @@ public class PowerwafContext implements Closeable {
     }
 
     public PowerwafContext update(String uniqueId,
-                                  Map<String, Object> specification,
-                                  RuleSetInfo[] ruleSetInfoRef) throws AbstractPowerwafException {
-        if (ruleSetInfoRef != null && ruleSetInfoRef.length != 1) {
-            throw new IllegalArgumentException("ruleSetInfo is not an array of size 1");
-        }
-
+                                  Map<String, Object> specification) throws AbstractPowerwafException {
         // lock to ensure visibility of state of powerwaf handle in this thread
         this.readLock.lock();
         try {
             // all updates need to be serialized, because powerwaf handles may share state
+            RuleSetInfo[] ruleSetInfoRef = new RuleSetInfo[1];
             synchronized (PowerwafContext.class) {
                 try {
                     PowerwafHandle newHandle = Powerwaf.update(this.handle, specification, ruleSetInfoRef);
-                    return new PowerwafContext(uniqueName, newHandle,
-                            ruleSetInfoRef != null ? ruleSetInfoRef[0] : null);
+                    return new PowerwafContext(uniqueId, newHandle, ruleSetInfoRef[0]);
                 } catch (RuntimeException rte) {
-                    throw new UnclassifiedPowerwafException(rte);
+                    if (ruleSetInfoRef[0] == null) {
+                        throw new UnclassifiedPowerwafException(rte);
+                    }
+                    throw new InvalidRuleSetException(ruleSetInfoRef[0], rte);
                 }
             }
         } finally {
