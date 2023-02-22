@@ -1766,7 +1766,7 @@ static bool _get_char_buffer_data(JNIEnv *env, jobject obj,
     jboolean has_array =
             JNI(CallNonvirtualBooleanMethod, obj,
                 charBuffer_hasArray.class_glob, charBuffer_hasArray.meth_id);
-    if (!JNI(ExceptionCheck)) {
+    if (JNI(ExceptionCheck)) {
         return false;
     }
 
