@@ -131,7 +131,7 @@ public final class Powerwaf {
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native ResultWithData runRules(PowerwafHandle handle,
-                                          Map<String, Object> parameters,
+                                          Object parameters,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 

@@ -101,8 +101,9 @@ class InvalidInvocationTests implements ReactiveTrait {
         ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
         serializer.serialize([a: 'b']).withCloseable { lease ->
             ByteBuffer buffer = lease.firstPWArgsByteBuffer
+            buffer.limit(buffer.capacity())
+            buffer.position(ByteBufferSerializer.SIZEOF_PWARGS)
             def slice = buffer.slice()
-            slice.position(ByteBufferSerializer.SIZEOF_PWARGS)
             shouldFail(InvalidObjectPowerwafException) {
                 additive.runAdditive(slice, limits, metrics)
             }

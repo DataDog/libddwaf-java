@@ -139,6 +139,9 @@ jclass *number_cls = &number_longValue.class_glob;
 static struct j_method _boolean_booleanValue;
 static jclass *_boolean_cls = &_boolean_booleanValue.class_glob;
 
+// MapIterableWithSize
+static jclass _miws_cls;
+
 static struct j_method _hashmap_init;
 static struct j_method _map_put;
 struct j_method map_entryset;
@@ -577,7 +580,7 @@ end:
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
+Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_lang_Object_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
         JNIEnv *env, jclass clazz, jobject handle_obj, jobject parameters,
         jobject limits_obj, jobject metrics_obj)
 {
@@ -789,10 +792,10 @@ err:
  * Class:     io_sqreen_powerwaf_Additive
  * Method:    runAdditive
  * Signature:
- * (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
+ * (Ljava/lang/Object;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
+Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_lang_Object_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
         JNIEnv *env, jobject this, jobject parameters, jobject limits_obj,
         jobject metrics_obj)
 {
@@ -1106,17 +1109,18 @@ static bool _cache_single_class_weak(JNIEnv *env,
 
 static bool _cache_classes(JNIEnv *env)
 {
-  return _cache_single_class_weak(env, "java/lang/RuntimeException",
-                                  &jcls_rte) &&
-         _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
-                                  &jcls_iae) &&
-         _cache_single_class_weak(env, "java/lang/CharSequence",
-                                  &charSequence_cls) &&
-         _cache_single_class_weak(env, "java/nio/Buffer",
-                                  &buffer_cls) &&
-         _cache_single_class_weak(env, "java/nio/CharBuffer",
-                                  &charBuffer_cls) &&
-         _cache_single_class_weak(env, "java/lang/String", &string_cls);
+    return _cache_single_class_weak(env, "java/lang/RuntimeException",
+                                    &jcls_rte) &&
+           _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
+                                    &jcls_iae) &&
+           _cache_single_class_weak(env, "java/lang/CharSequence",
+                                    &charSequence_cls) &&
+           _cache_single_class_weak(env, "java/nio/Buffer", &buffer_cls) &&
+           _cache_single_class_weak(env, "java/nio/CharBuffer",
+                                    &charBuffer_cls) &&
+           _cache_single_class_weak(env, "java/lang/String", &string_cls) &&
+           _cache_single_class_weak(
+                   env, "io/sqreen/powerwaf/MapIterableWithSize", &_miws_cls);
 }
 
 static void _dispose_of_weak_classes(JNIEnv *env)
@@ -1132,6 +1136,7 @@ static void _dispose_of_weak_classes(JNIEnv *env)
     DESTROY_CLASS_REF(charSequence_cls)
     DESTROY_CLASS_REF(buffer_cls)
     DESTROY_CLASS_REF(charBuffer_cls)
+    DESTROY_CLASS_REF(_miws_cls)
     // leave jcls_rte for last in OnUnload; we might still need it
 }
 
@@ -1465,6 +1470,10 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
         JNI(DeleteLocalRef, clazz);
     }
 
+    // shared between two branches
+    jobject entry_set = NULL;
+    jobject entry_set_it; 
+
     if (JNI(IsSameObject, obj, NULL)) {
         // replace NULLs with empty maps.
         // DDWAF_OBJ_NULL is actually invalid; it can't be added to containers
@@ -1504,6 +1513,18 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
                 goto error;
             }
         }
+    } else if (JNI(IsInstanceOf, obj, _miws_cls)) {
+        ddwaf_object_map(&result);
+        if (rec_level >= lims->max_depth) {
+            JAVA_LOG(DDWAF_LOG_DEBUG,
+                     "Leaving map empty because max depth of %d "
+                     "has been reached",
+                     lims->max_depth);
+            goto early_return;
+        }
+        JAVA_CALL(entry_set_it, iterable_iterator, obj);
+        goto iterator_map_entry;
+
     } else if (JNI(IsInstanceOf, obj, *map_cls)) {
         ddwaf_object_map(&result); // can't fail
         if (rec_level >= lims->max_depth) {
@@ -1514,10 +1535,10 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
             goto early_return;
         }
 
-        jobject entry_set, entry_set_it;
         JAVA_CALL(entry_set, map_entryset, obj);
         JAVA_CALL(entry_set_it, iterable_iterator, entry_set);
 
+iterator_map_entry:
         while (JNI(CallBooleanMethod, entry_set_it, iterator_hasNext.meth_id)) {
             if (JNI(ExceptionCheck)) {
                 goto error;
@@ -1570,7 +1591,9 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
         }
 
         JNI(DeleteLocalRef, entry_set_it);
-        JNI(DeleteLocalRef, entry_set);
+        if (entry_set) {
+            JNI(DeleteLocalRef, entry_set);
+        }
 
     } else if (JNI(IsInstanceOf, obj, *iterable_cls)) {
         ddwaf_object_array(&result);

@@ -115,11 +115,11 @@ if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
             COMMAND ${STRIP} -S -x $<TARGET_FILE:sqreen_jni>
             COMMAND mv ${SYMBOL_FILE}.dwarf ${SYMBOL_FILE})
     elseif(NOT WIN32)
-        set(SYMBOL_FILE $<TARGET_FILE:sqreen_jni>.debug)
-        add_custom_command(TARGET sqreen_jni POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:sqreen_jni> ${SYMBOL_FILE}
-            COMMAND ${CMAKE_STRIP} --only-keep-debug ${SYMBOL_FILE}
-            COMMAND ${CMAKE_STRIP} $<TARGET_FILE:sqreen_jni>)
+        #        set(SYMBOL_FILE $<TARGET_FILE:sqreen_jni>.debug)
+        #add_custom_command(TARGET sqreen_jni POST_BUILD
+        #    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:sqreen_jni> ${SYMBOL_FILE}
+        #    COMMAND ${CMAKE_STRIP} --only-keep-debug ${SYMBOL_FILE}
+        #    COMMAND ${CMAKE_STRIP} $<TARGET_FILE:sqreen_jni>)
     endif()
 endif()
 

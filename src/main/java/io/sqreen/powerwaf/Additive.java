@@ -48,7 +48,7 @@ public final class Additive implements Closeable {
     private static native long initAdditive(PowerwafHandle handle);
 
     private native Powerwaf.ResultWithData runAdditive(
-            Map<String, Object> parameters, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
+            Object parameters, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     private native Powerwaf.ResultWithData runAdditive(
             ByteBuffer firstPWArgsBuffer, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
@@ -70,9 +70,30 @@ public final class Additive implements Closeable {
      * @return                              execution results
      * @throws AbstractPowerwafException    rethrow from native code, timeout or param serialization failure
      */
-    public Powerwaf.ResultWithData run(Map<String, Object> parameters,
+    public Powerwaf.ResultWithData run(Map<?, Object> parameters,
                                        Powerwaf.Limits limits,
                                        PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return run((Object) parameters, limits, metrics);
+    }
+
+    /**
+     * Push params to PowerWAF with given limits
+     *
+     * @param parameters                    data to push to PowerWAF
+     * @param limits                        request execution limits
+     * @param metrics                       a metrics collector, or null
+     * @return                              execution results
+     * @throws AbstractPowerwafException    rethrow from native code, timeout or param serialization failure
+     */
+    public Powerwaf.ResultWithData run(MapIterableWithSize<?> parameters,
+                                       Powerwaf.Limits limits,
+                                       PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return run((Object) parameters, limits, metrics);
+    }
+
+    private Powerwaf.ResultWithData run(Object parameters,
+                                        Powerwaf.Limits limits,
+                                        PowerwafMetrics metrics) throws AbstractPowerwafException {
         if (limits == null) {
             throw new IllegalArgumentException("limits must be provided");
         }

@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory
 
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.containsString
 import static org.hamcrest.Matchers.is
 
 class AdditiveTest implements ReactiveTrait {
@@ -73,19 +74,36 @@ class AdditiveTest implements ReactiveTrait {
     }
 
     @Test
+    void 'variant with MapIterableWithSize'() {
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+        additive = ctx.openAdditive()
+        Map map = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+        def miws = [
+                size: { -> map.size() },
+                iterator: { -> map.entrySet().iterator() }
+        ] as MapIterableWithSize
+
+        Powerwaf.ResultWithData awd = additive.run(miws, limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+    }
+
+    @Test
     void 'constructor throws if given a null context'() {
         shouldFail(NullPointerException) {
             new Additive(null)
         }
     }
 
-    @Test(expected = RuntimeException)
+    @Test
     void 'Should throw RuntimeException if double free'() {
-        ctx = new PowerwafContext('test', ARACHNI_ATOM)
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
         additive.close()
         try {
-            additive.close()
+            def exc = shouldFail(IllegalStateException) {
+                additive.close()
+            }
+            assertThat exc.message, containsString('is no longer online')
         } finally {
             additive = null
         }
