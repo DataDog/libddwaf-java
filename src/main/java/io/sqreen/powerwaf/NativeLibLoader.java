@@ -92,31 +92,35 @@ public class NativeLibLoader {
         String os = System.getProperty("os.name");
         if ("Linux".equals(os)) {
             File file = new File(LINUX_JVM_PROC_MAP);
-            Scanner sc = null;
-            try {
-                sc = new Scanner(file, "ISO-8859-1");
-                while (sc.hasNextLine()){
+            boolean isMusl = false;
+            try (Scanner sc = new Scanner(file, "ISO-8859-1")) {
+                while (sc.hasNextLine()) {
                     String module = sc.nextLine();
+                    // in recent versions of Alpine, the name of the C library
+                    // is /lib/ld-musl-<ARCH>.so.1. /lib/libc.musl-<ARCH>.so.1
+                    // symlinks there
                     if (module.contains("libc.musl-") || module.contains("ld-musl-")) {
-                        if (aarch64) {
-                            return OsType.LINUX_AARCH64_MUSL;
-                        } else {
-                            return NativeLibLoader.OsType.LINUX_x86_64_MUSL;
-                        }
-                    } else if (module.contains("-linux-gnu") || module.contains("libc-")) {
-                        if (aarch64) {
-                            return NativeLibLoader.OsType.LINUX_AARCH64_GLIBC;
-                        } else {
-                            return NativeLibLoader.OsType.LINUX_x86_64_GLIBC;
-                        }
+                        isMusl = true;
+                        break;
                     }
                 }
+            } catch (IOException e) {
+                LOGGER.warn("Unable to read jvm maps; assuming glibc", e);
             }
-            catch (IOException e) {
-                LOGGER.debug("Unable to read jvm maps", e);
-            } finally {
-                if (sc != null) {
-                    sc.close();
+
+            if (isMusl) {
+                LOGGER.debug("Musl detected");
+                if (aarch64) {
+                    return OsType.LINUX_AARCH64_MUSL;
+                } else {
+                    return OsType.LINUX_x86_64_MUSL;
+                }
+            } else {
+                LOGGER.debug("Musl was not detected; assuming glibc");
+                if (aarch64) {
+                    return NativeLibLoader.OsType.LINUX_AARCH64_GLIBC;
+                } else {
+                    return NativeLibLoader.OsType.LINUX_x86_64_GLIBC;
                 }
             }
         } else if ("Mac OS X".equals(os)) {
