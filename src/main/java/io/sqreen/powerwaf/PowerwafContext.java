@@ -110,8 +110,20 @@ public class PowerwafContext implements Closeable {
     }
 
     public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
-                                            Powerwaf.Limits limits,
-                                            PowerwafMetrics metrics) throws AbstractPowerwafException {
+                                             Powerwaf.Limits limits,
+                                             PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return runRules((Object) parameters, limits, metrics);
+    }
+
+    public Powerwaf.ResultWithData runRules(MapIterableWithSize<?> parameters,
+                                             Powerwaf.Limits limits,
+                                             PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return runRules((Object) parameters, limits, metrics);
+    }
+
+    private Powerwaf.ResultWithData runRules(Object parameters,
+                                             Powerwaf.Limits limits,
+                                             PowerwafMetrics metrics) throws AbstractPowerwafException {
         this.readLock.lock();
         try {
             checkIfOnline();

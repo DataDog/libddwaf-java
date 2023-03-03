@@ -13,6 +13,7 @@ import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.CharBuffer
+import java.nio.charset.StandardCharsets
 
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
@@ -23,6 +24,13 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
     void 'Should MATCH with data passed as String'() {
         String str = 'my string'
         Powerwaf.ResultWithData awd = testWithData(str)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+    }
+
+    @Test
+    void 'Should MATCH with data passed as NativeStringAddressable'() {
+        NativeStringAddressable nsa = new NSAImpl('my string')
+        Powerwaf.ResultWithData awd = testWithData(nsa)
         assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
 
@@ -99,5 +107,29 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
         CharBuffer cs = CharBuffer.wrap('12my string')
         Powerwaf.ResultWithData awd = testWithData(cs)
         assertThat awd.result, is(Powerwaf.Result.OK)
+    }
+
+    static class NSAImpl implements NativeStringAddressable {
+        @Delegate
+        CharSequence s
+        ByteBuffer bb
+
+        NSAImpl(String s) {
+            this.s = s
+            def bytes = s.getBytes(StandardCharsets.UTF_8)
+            this.bb = ByteBuffer.allocateDirect(bytes.length + 1)
+            this.bb.put(bytes)
+            this.bb.put((byte)0)
+        }
+
+        @Override
+        ByteBuffer getNativeStringBuffer() {
+            bb
+        }
+
+        @Override
+        String toString() {
+            s.toString()
+        }
     }
 }

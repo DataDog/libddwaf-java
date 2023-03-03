@@ -1,6 +1,7 @@
 Component,Origin,License,Copyright
 main,slf4j,mit,QOS.ch
 main,libddwaf,apache-2.0,DataDog
+main,weak-lock-free,apache-2.0,Rafael Winterhalter
 tests,junit,epl-1.0,various
 tests,ant,apache-2.0,Apache Software Foundation
 tests,groovy,apache-2.0,various

@@ -62,6 +62,18 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
+    void 'maxDepth is respected — MapIterableWithSize variant'() {
+        ctx = ctxWithArachniAtom
+        maxDepth = 3
+
+        Powerwaf.ResultWithData awd = runRules(asMiws(a: 'Arachni'))
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+
+        awd = runRules([a: asMiws(a: 'Arachni')])
+        assertThat awd.result, is(Powerwaf.Result.OK)
+    }
+
+    @Test
     void 'maxElements is respected'() {
         ctx = ctxWithArachniAtom
         maxElements = 5
@@ -194,5 +206,12 @@ class LimitsTests implements PowerwafTrait {
 
         def json = slurper.parseText(res.data)
         assertThat json.ret_code, hasItem(is(new TimeoutPowerwafException().code))
+    }
+
+    private MapIterableWithSize asMiws(Map m) {
+        [
+                size: { -> m.size() },
+                iterator: { -> m.entrySet().iterator() }
+        ] as MapIterableWithSize
     }
 }
