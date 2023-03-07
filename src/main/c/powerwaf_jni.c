@@ -18,6 +18,9 @@
 #include "compat.h"
 #include <ddwaf.h>
 #include <assert.h>
+#ifndef _MSC_VER
+#include <dlfcn.h>
+#endif
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
@@ -189,6 +192,25 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
         }
         goto error;
     }
+
+    // If the glibc version was loaded on musl, raise an exception at this
+    // point (which is as soon as possible once jcls_rte is defined)
+    // In general, it is unsafe to continue, as symbols may be missing.
+    // In practice, the release glibc binary is currently compatible with musl,
+    // but that compatibility relies on an old glibc version to compile the
+    // binary against, as well as the glibc functionality used and the value of
+    // compilation switches such as _FORTIFY_SOURCE.
+#ifdef __GLIBC__
+    void *glibc_version_f = dlsym(NULL, "gnu_get_libc_version");
+    if (!glibc_version_f) {
+        JNI(ThrowNew, jcls_rte,
+            "JNI library was compiled against glibc, "
+            "but at runtime the function gnu_get_libc_version was not found. "
+            "Not a glibc process?");
+        goto error;
+    }
+#endif
+
     bool log_ok = java_log_init(vm, env);
     if (!log_ok) {
         if (!JNI(ExceptionCheck)) {
