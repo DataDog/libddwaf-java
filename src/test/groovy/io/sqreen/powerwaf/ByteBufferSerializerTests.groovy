@@ -14,8 +14,8 @@ import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 
-import static groovy.util.GroovyAssert.shouldFail
-import static org.junit.Assert.assertThat
+import static groovy.test.GroovyAssert.shouldFail
+import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.*
 
 class ByteBufferSerializerTests implements PowerwafTrait {

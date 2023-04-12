@@ -8,22 +8,20 @@
 
 package io.sqreen.powerwaf;
 
-import io.sqreen.powerwaf.test.ChildFirstURLClassLoader;
-import org.hamcrest.Matcher;
-import org.junit.Test;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.sameInstance;
 
+import io.sqreen.powerwaf.test.ChildFirstURLClassLoader;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.net.URL;
-
-import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assert.assertThat;
+import org.junit.Test;
 
 public class PowerwafGCTests {
-    ReferenceQueue refQueue;
-    WeakReference weakRef;
+    ReferenceQueue<ClassLoader> refQueue;
+    WeakReference<ClassLoader> weakRef;
 
     private void testBody() throws Exception {
         ClassLoader parentCl = PowerwafGCTests.class.getClassLoader();
@@ -36,15 +34,15 @@ public class PowerwafGCTests {
         cl = new ChildFirstURLClassLoader(
                 new URL[] { new URL("file://" + srcClassesDir), }, parentCl);
 
-        refQueue = new ReferenceQueue();
-        weakRef = new WeakReference(cl, refQueue);
+        refQueue = new ReferenceQueue<>();
+        weakRef = new WeakReference<>(cl, refQueue);
 
         Class<?> clazz = cl.loadClass("io.sqreen.powerwaf.Powerwaf");
-        Method initialize = clazz.getMethod("initialize", new Class[] { boolean.class });
+        Method initialize = clazz.getMethod("initialize", boolean.class);
         boolean simpleInit = System.getProperty("useReleaseBinaries") == null;
         initialize.invoke(null, simpleInit);
 
-        Method deinitialize = clazz.getMethod("deinitialize", new Class[0]);
+        Method deinitialize = clazz.getMethod("deinitialize");
         deinitialize.invoke(null);
     }
 
@@ -69,6 +67,6 @@ public class PowerwafGCTests {
             }
         }
 
-        assertThat(poll, (Matcher) sameInstance(weakRef));
+        assertThat(poll, sameInstance(weakRef));
     }
 }
