@@ -13,6 +13,8 @@ find_package(libddwaf REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(CMAKE_C_STANDARD 11)
+
 if(MSVC)
     foreach(flag_var
             CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
@@ -27,6 +29,10 @@ endif()
 
 if(NOT(MSVC))
     add_compile_options(-Wall -Wno-padded -Wno-unknown-pragmas -Wno-switch -Werror)
+endif()
+
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	add_compile_options(-Wno-declaration-after-statement -Wno-reserved-identifier -Wno-implicit-fallthrough)
 endif()
 
 set(SOURCE_FILES

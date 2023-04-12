@@ -66,8 +66,10 @@ task cmakeNativeLibDebug(type: Exec) {
     def cmakeOpts
     if (project.hasProperty('withASAN')) {
         cmakeOpts = [
+            '-DCMAKE_C_COMPILER=clang',
+            '-DCMAKE_CXX_COMPILER=clang++',
             '-DCMAKE_C_FLAGS=-fsanitize=address -fsanitize=undefined -fsanitize=leak --coverage',
-            '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address -fsanitize=undefined -fsanitize=leak --coverage',
+            '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address -fsanitize=undefined -fsanitize=leak -lubsan -lasan --coverage',
         ]
         if (WINDOWS) {
             logger.warn('Address sanitizer not supported on Windows')
@@ -78,9 +80,9 @@ task cmakeNativeLibDebug(type: Exec) {
             '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
         ]
     }
-	if (project.hasProperty('macArch')) {
-		cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
-	}
+    if (project.hasProperty('macArch')) {
+        cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
+    }
 
     if (WINDOWS) {
         commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", projectDir

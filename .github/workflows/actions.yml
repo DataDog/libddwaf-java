@@ -592,24 +592,17 @@ jobs:
 
   Native_binaries_Stage_asan:
     name: ASAN/static analyzer on Linux
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout project
       uses: actions/checkout@v2
       with:
         submodules: recursive
-    - name: Install GCC 9 and clang 8
+    - name: Install GCC and clang
       run: |
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main | sudo tee -a /etc/apt/sources.list
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
         sudo apt-get update
-        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-9-dev gcc-9 g++-9 \
-          clang-8 clang-tools-8 ruby
-        sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-9 100
-        sudo update-alternatives --set cc /usr/bin/gcc-9
-        sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-9 100
-        sudo update-alternatives --set c++ /usr/bin/g++-9
+        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++ \
+          clang clang-tools ruby
       shell: bash
     - name: Build libddwaf
       run: |
@@ -617,10 +610,13 @@ jobs:
         cd libddwaf
         mkdir Debug && cd Debug
         cmake .. -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_COMPILER="clang" \
+          -DCMAKE_CXX_COMPILER="clang++" \
           -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
           -DCMAKE_C_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
-          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
-          -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak -lasan -lubsan" \
+          -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak -lasan -lubsan" \
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak -lasan -lubsan"
         VERBOSE=1 make -j
         DESTDIR=out make install
       shell: bash
@@ -642,7 +638,7 @@ jobs:
         set -ex
         VERBOSE=1 ./gradlew --build-cache buildNativeLibDebug -PwithASAN --info
         ASAN_OPTIONS="verbosity=1 handle_segv=0 fast_unwind_on_malloc=0 detect_leaks=0" \
-          LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.5 \
+          LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.8 \
           ./gradlew --build-cache -x buildNativeLibDebug --info test
         ./gradlew --stop
       shell: bash
