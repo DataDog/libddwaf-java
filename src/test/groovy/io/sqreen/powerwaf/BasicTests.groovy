@@ -427,4 +427,41 @@ class BasicTests implements PowerwafTrait {
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.result, is(Powerwaf.Result.MATCH)
     }
+
+    @Test
+    void 'custom rules'() {
+        def ruleSet = ARACHNI_ATOM_BLOCK
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        Map<String, Object> customRules = [
+            rules: [],
+            custom_rules: [[
+                 id: 'my rule',
+                 name: 'My Rule',
+                 tags: [
+                        type: 'security_scanner',
+                        category: 'attack_attempt'
+                 ],
+                 conditions: [[
+                     parameters: [
+                            inputs: [
+                                [
+                                    address: 'server.request.headers.no_cookies',
+                                    key_path: ['user-agent']
+                                ]],
+                            regex: 'foobar'
+                     ],
+                     operator: 'match_regex'
+        ]]]]]
+        ctx.withCloseable {
+            ctx = ctx.update('test2', customRules)
+        }
+        def awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.OK)
+        awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+    }
 }

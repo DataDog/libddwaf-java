@@ -17,7 +17,7 @@ import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.hasItem
 import static org.hamcrest.Matchers.is
-import static org.hamcrest.Matchers.isOneOf
+import static org.hamcrest.Matchers.oneOf
 
 class LimitsTests implements PowerwafTrait {
 
@@ -188,9 +188,9 @@ class LimitsTests implements PowerwafTrait {
         maxStringSize = Integer.MAX_VALUE
 
         def res = runRules('Arachni' * 9000)
-        assertThat res.result, isOneOf(
+        assertThat res.result, is(oneOf(
                 Powerwaf.Result.MATCH,
-                Powerwaf.Result.OK) // depending if it happened on first or 2nd rule
+                Powerwaf.Result.OK)) // depending if it happened on first or 2nd rule
 
         def json = slurper.parseText(res.data)
         assertThat json.ret_code, hasItem(is(new TimeoutPowerwafException().code))
