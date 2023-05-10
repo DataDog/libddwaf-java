@@ -91,6 +91,45 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
+    void 'test running basic rule v2_1 — MapIterableWithSizeVariant'() {
+        def ruleSet = ARACHNI_ATOM_V2_1
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+        metrics = ctx.createMetrics()
+
+        Map map = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+        def miws = [
+                size: { -> map.size() },
+                iterator: { -> map.entrySet().iterator() }
+        ] as MapIterableWithSize
+
+        ResultWithData awd = ctx.runRules(miws, limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+
+        def json = slurper.parseText(awd.data)
+
+        assert json[0].rule.id == 'arachni_rule'
+        assert json[0].rule.name == 'Arachni'
+        assert json[0].rule.tags == [category: 'attack_attempt', type: 'security_scanner']
+        assert json[0].rule_matches[0]['operator'] == 'match_regex'
+        assert json[0].rule_matches[0]['operator_value'] == '^Arachni\\/v'
+        assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
+        assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
+        assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
+        assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
+
+        def rsi = ctx.ruleSetInfo
+        assert rsi.numRulesOK == 1
+        assert rsi.numRulesError == 0
+        assert rsi.errors == [:]
+        assert rsi.fileVersion == '1.2.6'
+
+        assert metrics.totalRunTimeNs > 0
+        assert metrics.totalDdwafRunTimeNs > 0
+        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
+    }
+
+    @Test
     void 'test blocking action'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 

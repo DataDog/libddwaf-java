@@ -155,6 +155,24 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
+    void 'can serialize MapIterableWithSize'() {
+        def sdata = [foo: 1, bar: '2', (null): '3']
+        def data = [
+                size: { -> sdata.size() },
+                iterator: { -> sdata.entrySet().iterator() }
+        ] as MapIterableWithSize
+        lease = serializer.serialize(data)
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          foo: <SIGNED> 1
+          bar: <STRING> 2
+          : <STRING> 3
+        '''
+        assertThat res, is(exp)
+    }
+
+    @Test
     void 'unknown values are serialized as empty maps'() {
         lease = serializer.serialize([my_key: new Object()])
         String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
@@ -308,24 +326,57 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
+    @SuppressWarnings('LineLength')
     void 'additive basic usage'() {
+        ByteBufferSerializer.release()
+
         lease = ByteBufferSerializer.blankLease
-        ByteBuffer bb1 = lease.serializeMore(limits, [a: 'b'])
-        ByteBuffer bb2 = lease.serializeMore(limits, [c: 'd'])
+        ByteBuffer bb1 = lease.serializeMore(limits, [a: ['b', 'c']])
 
         String res = Powerwaf.pwArgsBufferToString(bb1)
         def exp = p '''
         <MAP>
-          a: <STRING> b
+          a: <ARRAY>
+            <STRING> b
+            <STRING> c
         '''
         assertThat res, is(exp)
 
+        ByteBuffer bb2 = lease.serializeMore(limits, [c: 'd'])
         res = Powerwaf.pwArgsBufferToString(bb2)
         exp = p '''
         <MAP>
           c: <STRING> d
         '''
         assertThat res, is(exp)
+
+        // the original root map has been written over
+        assertThat ByteBufferSerializer.getByteBufferAddress(bb1),
+                is(ByteBufferSerializer.getByteBufferAddress(bb2))
+
+        // though not the contents of the root map
+        bb1.position(ByteBufferSerializer.SIZEOF_PWARGS)
+        res = Powerwaf.pwArgsBufferToString(bb1.slice())
+        exp = p '''
+        a: <ARRAY>
+          <STRING> b
+          <STRING> c
+        '''
+        assertThat res, is(exp)
+
+        lease.close()
+        lease = null
+
+        def sw = new StringWriter()
+        def pw = new PrintWriter(sw)
+        ByteBufferSerializer.debugDump pw
+        exp = p '''
+        Number of parked arenas: 1
+        Arena 1: {num_str_seg=1, total_str_mem=81920, total_pwargs_buf_pooled=3, total_pwargs_mem=20480, num_pwargs_seg=1}
+        Total native memory: 102400
+        Total pooled PWArgsArrayBuffer objects: 3
+        '''
+        assertThat sw.toString(), is(exp)
     }
 
     @Test
