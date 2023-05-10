@@ -87,7 +87,7 @@ task cmakeNativeLibDebug(type: Exec) {
     if (WINDOWS) {
         commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", projectDir
     } else {
-        commandLine('cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
+        commandLine('cmake', '-B', '.', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
                              *cmakeOpts, projectDir)
     }
 
