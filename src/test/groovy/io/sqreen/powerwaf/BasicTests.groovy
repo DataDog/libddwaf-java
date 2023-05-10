@@ -41,7 +41,7 @@ class BasicTests implements PowerwafTrait {
 
         assert json[0].rule.id == 'arachni_rule'
         assert json[0].rule.name == 'Arachni'
-        assert json[0].rule.tags == [category: '', type: 'arachni_detection']
+        assert json[0].rule.tags == [type: 'arachni_detection']
         assert json[0].rule_matches[0]['operator'] == 'match_regex'
         assert json[0].rule_matches[0]['operator_value'] == 'Arachni'
         assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
