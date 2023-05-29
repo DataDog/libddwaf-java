@@ -2150,6 +2150,12 @@ static void _update_metrics(JNIEnv *env, jobject metrics_obj,
                             bool is_byte_buffer, const ddwaf_result *ret,
                             struct timespec start)
 {
+    // save exception if any
+    jthrowable earlier_exc = JNI(ExceptionOccurred);
+    if (earlier_exc) {
+        JNI(ExceptionClear);
+    }
+
     // metrics update
     if (!JNI(IsSameObject, metrics_obj, NULL)) {
         if (is_byte_buffer) {
@@ -2164,6 +2170,22 @@ static void _update_metrics(JNIEnv *env, jobject metrics_obj,
                                        (jlong) ret->total_runtime);
             }
         }
+    }
+
+    if (earlier_exc) {
+        {
+            jthrowable subseq_exc = JNI(ExceptionOccurred);
+            if (subseq_exc) {
+                JAVA_LOG_THR(
+                        DDWAF_LOG_ERROR, subseq_exc, "%s",
+                        "Exception updating metrics will be suppressed due to "
+                        "earlier exception");
+                JNI(DeleteLocalRef, subseq_exc);
+                JNI(ExceptionClear);
+            }
+        }
+        JNI(Throw, earlier_exc);
+        JNI(DeleteLocalRef, earlier_exc);
     }
 }
 
