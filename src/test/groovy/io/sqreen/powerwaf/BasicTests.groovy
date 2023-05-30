@@ -50,10 +50,11 @@ class BasicTests implements PowerwafTrait {
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni']
 
         def rsi = ctx.ruleSetInfo
+        assert rsi.rules.loaded == ['arachni_rule']
         assert rsi.numRulesOK == 1
         assert rsi.numRulesError == 0
         assert rsi.errors == [:]
-        assert rsi.fileVersion == null
+        assert rsi.rulesetVersion == null
     }
 
     @Test
@@ -83,7 +84,7 @@ class BasicTests implements PowerwafTrait {
         assert rsi.numRulesOK == 1
         assert rsi.numRulesError == 0
         assert rsi.errors == [:]
-        assert rsi.fileVersion == '1.2.6'
+        assert rsi.rulesetVersion == '1.2.6'
 
         assert metrics.totalRunTimeNs > 0
         assert metrics.totalDdwafRunTimeNs > 0
@@ -413,7 +414,7 @@ class BasicTests implements PowerwafTrait {
         ]
         ctx.withCloseable {
             ctx = ctx.update('test2', overrideSpec)
-            assertThat ctx.ruleSetInfo.fileVersion, is('1.2.7')
+            assertThat ctx.ruleSetInfo.rulesetVersion, is('1.2.7')
         }
         Powerwaf.ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)

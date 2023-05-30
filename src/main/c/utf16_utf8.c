@@ -8,6 +8,7 @@
 
 #include "utf16_utf8.h"
 #include "common.h"
+#include "json.h"
 #include "logging.h"
 #include <stdbool.h>
 #include <limits.h>
@@ -381,4 +382,74 @@ char *java_to_utf8_limited_checked(
     free(utf16_str);
 
     return (char *)out;
+}
+
+jstring java_json_to_jstring_checked(JNIEnv *env, const struct json_segment *seg)
+{
+    struct json_iterator it = { .seg = seg };
+    // at most we'll have as many UTF-16 code units as UTF-8 code units
+    // (in case of only ASCII characters)
+    size_t out_cap = json_length(seg); // not including NUL
+    size_t out_len = 0;
+
+    jchar *out;
+    if (out_cap > ((size_t)-1) / sizeof(*out) - 1) {
+        JNI(ThrowNew, jcls_rte, "string is too large");
+        return NULL;
+    }
+    out = malloc((out_cap + 1) * sizeof(*out));
+    if (!out) {
+        JNI(ThrowNew, jcls_rte, "out of memory");
+        return NULL;
+    }
+
+    uint8_t buffer[256];
+    size_t buffer_len = 0;
+    size_t buffer_cursor = 0;
+    bool eof = false;
+    while (true) {
+        size_t left_in_buffer = buffer_len - buffer_cursor;
+        if (left_in_buffer < 4 && !eof) {
+            memcpy(buffer, buffer + buffer_cursor, left_in_buffer); // compact
+            size_t max_read = sizeof(buffer) - left_in_buffer;
+            size_t read = json_it_read(&it, (char *) (buffer + left_in_buffer),
+                                       max_read);
+            buffer_cursor = 0;
+            buffer_len = left_in_buffer + read;
+            if (read < max_read) {
+                eof = true;
+            }
+            left_in_buffer = buffer_len;
+        }
+        if (left_in_buffer == 0) {
+            break;
+        }
+
+        bool status;
+        uint32_t cp = _get_next_codepoint_utf8(
+                    buffer, buffer_len, &buffer_cursor, &status);
+
+        if (!status) {
+            cp = REPL_CHAR;
+        }
+
+        if (out_cap < out_len + 1 ||
+                (cp > 0xFFFF && out_cap < out_len + 2)) {
+            JNI(ThrowNew, jcls_rte, "output string is unexpectedly too short");
+            free(out);
+            return NULL;
+        }
+        out_len += _write_utf16_codeunits(&out[out_len], cp);
+    }
+
+    out[out_len] = '\0';
+    if (out_len > INT_MAX) {
+        JNI(ThrowNew, jcls_rte, "string is too long");
+        free(out);
+        return NULL;
+    }
+
+    jstring ret = JNI(NewString, out, (jint)out_len);
+    free(out);
+    return ret;
 }
