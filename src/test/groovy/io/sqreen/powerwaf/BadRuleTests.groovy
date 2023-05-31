@@ -34,7 +34,21 @@ class BadRuleTests implements PowerwafTrait {
         def rsi = exc.ruleSetInfo
         assert rsi.numRulesOK == 0
         assert rsi.numRulesError == 1
-        assert rsi.errors == [:]
+        assert rsi.errors == ['missing key \'id\'':['index:0']]
+    }
+
+    @Test
+    void 'rules have the wrong form'() {
+        def rules = copyMap(ARACHNI_ATOM_V2_1)
+        rules['rules'] = [:]
+        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+            ctx = Powerwaf.createContext('test', rules)
+        }
+
+        def rsi = exc.ruleSetInfo
+        assert rsi.numRulesOK == 0
+        assert rsi.numRulesError == 0
+        assert rsi.rules.error == "bad cast, expected 'array', obtained 'map'"
     }
 
     @Test

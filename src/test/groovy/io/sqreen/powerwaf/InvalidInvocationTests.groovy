@@ -19,7 +19,7 @@ import java.nio.ByteBuffer
 
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
-import static org.hamcrest.Matchers.arrayContaining
+import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.containsString
 import static org.hamcrest.Matchers.equalTo
 import static org.hamcrest.Matchers.hasEntry
@@ -151,7 +151,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         assertThat exc.ruleSetInfo.numRulesOK, equalTo(0)
         assertThat exc.ruleSetInfo.errors, hasEntry(
                 equalTo('missing key \'conditions\''),
-                arrayContaining(equalTo('foobar'))
+                contains(equalTo('foobar'))
         )
         assertThat exc.message, containsString('Call to ddwaf_update failed')
     }

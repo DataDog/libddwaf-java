@@ -1,5 +1,5 @@
+cmake_minimum_required(VERSION 3.12.0)
 project(libsqreen_java)
-cmake_minimum_required(VERSION 2.8.12)
 
 include(FindJNI)
 if (JNI_FOUND)
@@ -32,13 +32,15 @@ if(NOT(MSVC))
 endif()
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-	add_compile_options(-Wno-declaration-after-statement -Wno-reserved-identifier -Wno-implicit-fallthrough)
+    add_compile_options(-Wno-declaration-after-statement -Wno-reserved-identifier
+        -Wno-implicit-fallthrough -Wno-gnu-auto-type -Wno-c++98-compat)
 endif()
 
 set(SOURCE_FILES
     src/main/c/byte_buffer.c
     src/main/c/cs_wrapper.c
     src/main/c/debug_helpers.c
+    src/main/c/output.c
     src/main/c/powerwaf_jni.c
     src/main/c/java_call.c
     src/main/c/metrics.c
