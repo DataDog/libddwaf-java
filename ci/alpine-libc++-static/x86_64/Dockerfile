@@ -1,10 +1,10 @@
 FROM alpine@sha256:8914eb54f968791faf6a8638949e480fef81e697984fba772b3976835194c6d4 as build_env
 RUN apk --no-cache add clang compiler-rt compiler-rt wget cmake make binutils musl-dev git patchelf
 RUN mkdir /tmp/apk && cd /tmp/apk && \
-	echo '73d064712462cc4728bb4c617d84dbea10af43d7384f7f08a64bafd8255e49fb0f80dd7c7ad57f502c483c995ff29919e384c8ec78daf136c29faf13aa2a30ee  libc++-15.0.6-r1.x86_64.apk' > CHECKSUM && \
-	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-15.0.6-r1.x86_64.apk -O libc++-15.0.6-r1.x86_64.apk && \
+	echo 'db4c0012fabaf1aa86455d3e1cf8f15176429a799455b86d75ce450b75863dcef3fefcf183fc50ba977517398b7bf4e185820f3ebc1627456df9a2e1206d2013  libc++-15.0.6-r2.x86_64.apk' > CHECKSUM && \
+	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-15.0.6-r2.x86_64.apk -O libc++-15.0.6-r2.x86_64.apk && \
 	sha512sum -c CHECKSUM && \
-	apk add --allow-untrusted libc++-15.0.6-r1.x86_64.apk && \
+	apk add --allow-untrusted libc++-15.0.6-r2.x86_64.apk && \
 	rm -rf /tmp/apk
 
 FROM build_env AS libddwaf_build
@@ -21,8 +21,8 @@ RUN mkdir /build && cd /build && cmake /AgentJavaNative/libddwaf \
 	-DCMAKE_INSTALL_PREFIX=/usr \
 	-DCMAKE_C_COMPILER=clang \
 	-DCMAKE_CXX_COMPILER=clang++ \
-	-DCMAKE_CXX_FLAGS="-stdlib=libc++ -Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc" \
-	-DCMAKE_C_FLAGS="-Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc" \
+	-DCMAKE_CXX_FLAGS="-stdlib=libc++ -Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc -fno-omit-frame-pointer" \
+	-DCMAKE_C_FLAGS="-Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc -fno-omit-frame-pointer" \
 	-DLIBDDWAF_BUILD_STATIC=OFF \
 	-DLIBDDWAF_SHARED_LINKER_FLAGS='-v -nodefaultlibs -Wl,-Bstatic -lc++ /usr/lib/clang/15.0.7/lib/linux/libclang_rt.builtins-x86_64.a -lunwind -Wl,-Bdynamic -lc /usr/lib/clang/15.0.7/lib/linux/libclang_rt.builtins-x86_64.a'
 # Link line will be:

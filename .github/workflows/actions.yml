@@ -77,8 +77,8 @@ jobs:
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
           -DLIBDDWAF_BUILD_STATIC=0 \
-          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
-          -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6" \
+          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
+          -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
           -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
           -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
       working-directory: ${{ env.tempdir }}/buildPW
@@ -92,7 +92,7 @@ jobs:
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
           -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
-          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
+          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
           -G "${{ env.generator }}" ${{ github.workspace }}
       working-directory: ${{ env.tempdir }}/buildAG
     - name: Build Binaries for JNI Binding
@@ -171,8 +171,8 @@ jobs:
           cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
             -DLIBDDWAF_BUILD_STATIC=0 \
-            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
-            -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6" \
+            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
+            -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
             -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
             -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
         working-directory: ${{ env.tempdir }}/buildPW
@@ -187,7 +187,7 @@ jobs:
           cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
             -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
-            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6" \
+            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
             -G "${{ env.generator }}" ${{ github.workspace }}
         working-directory: ${{ env.tempdir }}/buildAG
       - name: Build Binaries for JNI Binding
@@ -403,7 +403,7 @@ jobs:
             export LIBDDWAF_INSTALL_PREFIX=/;
             tar --strip-components=1 -xf ${{ env.artifactsDirectory }}/libddwaf-x86_64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
             cp -v /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
             cp -v *.so ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
@@ -456,7 +456,7 @@ jobs:
             export LIBDDWAF_INSTALL_PREFIX=/;
             tar --strip-components=1 -xvf ${{ env.artifactsDirectory }}/libddwaf-x86_64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
             cp -v /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
             cp -v *.so ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
@@ -512,7 +512,7 @@ jobs:
             git config --global --add safe.directory /home/ubuntu/actions-runner/_work/AgentJavaNative/AgentJavaNative &&
             tar --strip-components=1 -xf ${{ env.artifactsDirectory }}/libddwaf-aarch64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
             cp -v /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64 &&
             cp -v *.so /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
@@ -568,7 +568,7 @@ jobs:
             export LIBDDWAF_INSTALL_PREFIX=/;
             tar --strip-components=1 -xvf ${{ env.artifactsDirectory }}/libddwaf-aarch64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} &&
+            cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
             cp -v /usr/local/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64 &&
             cp -v *.so ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
