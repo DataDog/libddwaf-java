@@ -33,14 +33,14 @@ function extract {
   dir=/usr/lib/debug/.build-id/$sha1_pref
   mkdir -p $dir
 
-  bsdtar -O -xf "$zip" "$arpath" > $dir/$sha1_rest.debug
+  bsdtar -O -xf "$zip" "$arpath" > "$dir"/$sha1_rest.debug
 }
 
 function main {
   local readonly version=$1
   dl_zip $version
-  extract $version linux_64_glibc/libsqreen_jni
-  extract $version linux_64/libddwaf
+  extract $version linux/x86_64/glibc/libsqreen_jni
+  extract $version linux/x86_64/libddwaf
 }
 
 main $1

@@ -14,7 +14,7 @@ ENV REPODEST /packages
 
 FROM build_env AS build_apk
 ADD APKBUILD /home/builder/package/
-ADD avoid-strtoll_l.patch /home/builder/package/
+#ADD avoid-strtoll_l.patch /home/builder/package/
 RUN abuild-keygen -ain
 RUN sudo apk update
 RUN sudo rm /bin/ash && sudo ln -s /bin/bash /bin/ash
@@ -23,4 +23,4 @@ RUN find /packages
 
 FROM scratch
 ARG ARCH
-COPY --from=build_apk /packages/builder/$ARCH/libc++-15.0.6-r1.apk /libc++-15.0.6-r1.$ARCH.apk
+COPY --from=build_apk /packages/builder/$ARCH/libc++-15.0.6-r2.apk /libc++-15.0.6-r2.$ARCH.apk

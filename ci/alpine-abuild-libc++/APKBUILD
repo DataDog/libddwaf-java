@@ -5,7 +5,7 @@
 
 pkgname=libc++
 pkgver=15.0.6
-pkgrel=1
+pkgrel=2
 url="https://libcxx.llvm.org/"
 license=('custom:Apache 2.0 with LLVM Exception')
 pkgdesc='LLVM C++ standard library.'
@@ -30,7 +30,9 @@ build() {
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_C_FLAGS=-fno-omit-frame-pointer \
     -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_CXX_FLAGS=-fno-omit-frame-pointer \
     \
     -DLIBUNWIND_ENABLE_SHARED=OFF \
     -DLIBUNWIND_USE_COMPILER_RT=ON \
