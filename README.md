@@ -38,12 +38,28 @@ cd ../..
 
 Then the jni lib can be built with `./gradlew buildNativeLibDebug --rerun-tasks`.
 
-To build native libraries, recommended use `--rerun-tasks` option to enforce rebuild task, because of gradle can skip building tasks due caches and lead to unexpected results. 
+To build native libraries, recommended use `--rerun-tasks` option to enforce rebuild task, because of gradle can skip building tasks due caches and lead to unexpected results.
 
 Tests are run with `./gradlew check`. This implicitly invokes
 `buildNativeLibDebug` if needed.
 
-On Windows libddwaf can be built with:
+### On MacOS libddwaf can be built with:
+
+You can set MacOSX SDK version with `CMAKE_OSX_SYSROOT` option (13.3)
+```sh
+cd libddwaf
+mkdir Debug && cd Debug
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX13.3.sdk
+make -j
+DESTDIR=out make install
+cd ../..
+```
+If you need specify architecture (x86_64, arm64) with gradle parameter `macArch`
+```sh
+ ./gradlew buildNativeLibDebug --rerun-tasks -PmacArch=arm64
+```
+
+### On Windows libddwaf can be built with:
 
 ```sh
 cd libddwaf
@@ -53,4 +69,4 @@ cmake --build . --target install -j --config Debug
 
 ```
 
-  [libddwaf_repos]: https://github.com/DataDog/libddwaf
+[libddwaf_repos]: https://github.com/DataDog/libddwaf
