@@ -1,10 +1,10 @@
 FROM alpine@sha256:8914eb54f968791faf6a8638949e480fef81e697984fba772b3976835194c6d4 as build_env
 RUN apk --no-cache add clang compiler-rt wget cmake make binutils musl-dev git patchelf
 RUN mkdir /tmp/apk && cd /tmp/apk && \
-	echo 'cc1aaa7d68b51c1b8ac1b9de198f76a93923bf120f9e23f49a9ef591c0752487f0ba678503373ef5899241087745fca4f0cd2ca0aa7ab6f8c2316fc5f0166093  libc++-15.0.6-r2.aarch64.apk' > CHECKSUM && \
-	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-15.0.6-r2.aarch64.apk -O libc++-15.0.6-r2.aarch64.apk && \
+	echo '973a397556c3e208088c64301ddd30abe2f0884fcdf637fcf0eba6c7a0d46706232056773792abd6188b4d0e86a029f94d66ba9656cb659be676f46f1776eb6a  libc++-16.0.0-r1.aarch64.apk' > CHECKSUM && \
+	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-16.0.0-r1.aarch64.apk -O libc++-16.0.0-r1.aarch64.apk && \
 	sha512sum -c CHECKSUM && \
-	apk add --allow-untrusted libc++-15.0.6-r2.aarch64.apk && \
+	apk add --allow-untrusted libc++-16.0.0-r1.aarch64.apk && \
 	rm -rf /tmp/apk
 
 FROM build_env AS libddwaf_build

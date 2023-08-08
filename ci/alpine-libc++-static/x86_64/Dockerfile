@@ -1,10 +1,10 @@
 FROM alpine@sha256:8914eb54f968791faf6a8638949e480fef81e697984fba772b3976835194c6d4 as build_env
 RUN apk --no-cache add clang compiler-rt compiler-rt wget cmake make binutils musl-dev git patchelf
 RUN mkdir /tmp/apk && cd /tmp/apk && \
-	echo 'db4c0012fabaf1aa86455d3e1cf8f15176429a799455b86d75ce450b75863dcef3fefcf183fc50ba977517398b7bf4e185820f3ebc1627456df9a2e1206d2013  libc++-15.0.6-r2.x86_64.apk' > CHECKSUM && \
-	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-15.0.6-r2.x86_64.apk -O libc++-15.0.6-r2.x86_64.apk && \
+	echo 'bbdfad704f51623ab3ae8691385f0b43a974e5ce4ac5ccb1cefb1ba9b38b4abb504cb0cad2a54e32fef6e946de97ad4fc7208532c4e5d9e842d021afc97b2d02  libc++-16.0.0-r1.x86_64.apk' > CHECKSUM && \
+	wget -q https://sqreen-ci-java.s3.amazonaws.com/apk/libc%2B%2B-16.0.0-r1.x86_64.apk -O libc++-16.0.0-r1.x86_64.apk && \
 	sha512sum -c CHECKSUM && \
-	apk add --allow-untrusted libc++-15.0.6-r2.x86_64.apk && \
+	apk add --allow-untrusted libc++-16.0.0-r1.x86_64.apk && \
 	rm -rf /tmp/apk
 
 FROM build_env AS libddwaf_build

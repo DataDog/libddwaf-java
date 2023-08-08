@@ -23,4 +23,4 @@ RUN find /packages
 
 FROM scratch
 ARG ARCH
-COPY --from=build_apk /packages/builder/$ARCH/libc++-15.0.6-r2.apk /libc++-15.0.6-r2.$ARCH.apk
+COPY --from=build_apk /packages/builder/$ARCH/libc++-16.0.0-r1.apk /libc++-16.0.0-r1.$ARCH.apk

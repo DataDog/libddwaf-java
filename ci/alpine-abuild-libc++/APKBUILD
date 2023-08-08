@@ -4,8 +4,8 @@
 # Contributor: MThinkCpp <mtc [dot] maintainer [at] outlook [dot] com>
 
 pkgname=libc++
-pkgver=15.0.6
-pkgrel=2
+pkgver=16.0.0
+pkgrel=1
 url="https://libcxx.llvm.org/"
 license=('custom:Apache 2.0 with LLVM Exception')
 pkgdesc='LLVM C++ standard library.'
@@ -14,7 +14,7 @@ makedepends=('clang' 'cmake' 'samurai' 'python3' 'linux-headers' 'compiler-rt')
 checkdepends=('llvm')
 options=(!lto 'staticlibs' !strip)
 source=("https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/llvm-project-$pkgver.src.tar.xz"{,.sig})
-sha512sums=('6fc6eeb60fac698702d1aac495fc0161eb7216a1f8db2020af8fccec5837831f7cc20dc2a169bf4f0b5f520748280b4a86621f3697d622aa58faaa45dbfaad13'
+sha512sums=('3f040abc1b03205693824aeff2ee6efb0cff25fe04bd5265141c093f294655a1f3fcda73cab9c57cbed7523c8f186a7e2484afce0792c55e90e3fb80450fabb7 llvm-project-16.0.0.src.tar.xz'
             'SKIP')
 validpgpkeys=('474E22316ABF4785A88C6E8EA2C794A986419D8A') # Tom Stellard <tstellar@redhat.com>
 
@@ -61,6 +61,3 @@ check() {
 package () {
   DESTDIR="$pkgdir" ninja -C src/build install-unwind install-cxxabi install-cxx
 }
-sha512sums="
-3311d85f4e02610af52f06e83c8c6d2b93950d24324b831b7afc47c39a20a546d39683a14e1a315da87d226379042de900a3f36a0351053547482af9035ab949  llvm-project-15.0.6.src.tar.xz
-"
