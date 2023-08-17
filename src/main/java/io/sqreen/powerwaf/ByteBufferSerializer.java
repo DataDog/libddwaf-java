@@ -8,6 +8,7 @@
 
 package io.sqreen.powerwaf;
 
+import java.math.BigDecimal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,8 +115,8 @@ public class ByteBufferSerializer {
         }
 
         if (value == null) {
-            if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
-                throw new RuntimeException("Error writing empty map for null value");
+            if (!pwargsSlot.writeNull(arena, parameterName)) {
+                throw new RuntimeException("Error writing null value");
             }
         } else if (value instanceof CharSequence) {
             CharSequence svalue = (CharSequence) value;
@@ -128,7 +129,13 @@ public class ByteBufferSerializer {
                 throw new RuntimeException("Could not write string");
             }
         } else if (value instanceof Number) {
-            if (!pwargsSlot.writeLong(arena, parameterName, ((Number) value).longValue())) {
+            boolean res;
+            if (value instanceof Double || value instanceof Float || value instanceof BigDecimal) {
+                res = pwargsSlot.writeDouble(arena, parameterName, ((Number) value).doubleValue());
+            } else {
+                res = pwargsSlot.writeLong(arena, parameterName, ((Number) value).longValue());
+            }
+            if (!res) {
                 throw new RuntimeException("Could not write number");
             }
         } else if (value instanceof Collection) {
@@ -181,14 +188,14 @@ public class ByteBufferSerializer {
                 throw new ConcurrentModificationException("i=" + i + ", size=" + size);
             }
         } else if (value instanceof Boolean) {
-            String svalue = ((Boolean) value).toString();
-            if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
-                throw new RuntimeException("Could not write string");
+            if (!pwargsSlot.writeBool(arena, parameterName, (Boolean) value)) {
+                throw new RuntimeException("Could not write boolean");
             }
         } else {
-            // unknown value; write empty map
-            if (pwargsSlot.writeMap(arena, parameterName, 0) == null) {
-                throw new RuntimeException("Error writing empty map for unknown type");
+            // unknown value; write null
+            LOGGER.info("Do not know how to serialize value of type {}", value.getClass());
+            if (!pwargsSlot.writeNull(arena, parameterName)) {
+                throw new RuntimeException("Error writing null for unknown type");
             }
         }
     }
@@ -532,7 +539,8 @@ public class ByteBufferSerializer {
      *          uint64_t uintValue;
      *          int64_t intValue;
      *          const PWArgs* array;
-     *          const void* rawHandle;
+     *          bool boolean;
+     *          double f64;
      *      };
      *      uint64_t nbEntries;
      *      PW_INPUT_TYPE type;
@@ -550,6 +558,26 @@ public class ByteBufferSerializer {
         void reset(int start) {
             this.buffer.limit(start + SIZEOF_PWARGS);
             this.buffer.position(start);
+        }
+
+        boolean writeNull(Arena arena, String parameterName) {
+            if (!putParameterName(arena, parameterName)) { // string too large
+                return false;
+            }
+            this.buffer.putLong(0).putLong(0).putInt(PWInputType.PWI_NULL.value);
+            return true;
+        }
+
+        private final static byte[] BOOL_TRUE_REPR = new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 };
+        private final static byte[] BOOL_FALSE_REPR = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        boolean writeBool(Arena arena, String parameterName, boolean value) {
+            if (!putParameterName(arena, parameterName)) { // string too large
+                return false;
+            }
+            this.buffer.put(value ? BOOL_TRUE_REPR : BOOL_FALSE_REPR)
+                    .putLong(0).putInt(PWInputType.PWI_BOOL.value);
+            return true;
         }
 
         boolean writeString(Arena arena, String parameterName, CharSequence value) {
@@ -572,6 +600,15 @@ public class ByteBufferSerializer {
             }
             this.buffer.putLong(value).putLong(0)
                     .putInt(PWInputType.PWI_SIGNED_NUMBER.value);
+            return true;
+        }
+
+        boolean writeDouble(Arena arena, String parameterName, double value) {
+            if (!putParameterName(arena, parameterName)) { // string too large
+                return false;
+            }
+            this.buffer.putDouble(value).putLong(0)
+                    .putInt(PWInputType.PWI_FLOAT.value);
             return true;
         }
 
@@ -632,7 +669,10 @@ public class ByteBufferSerializer {
         PWI_UNSIGNED_NUMBER(2),
         PWI_STRING(4),
         PWI_ARRAY(8),
-        PWI_MAP(16);
+        PWI_MAP(16),
+        PWI_BOOL(32),
+        PWI_FLOAT(64),
+        PWI_NULL(128);
 
         int value;
 

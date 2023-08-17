@@ -6,7 +6,7 @@
  * (https://www.datadoghq.com/). Copyright 2021 Datadog, Inc.
  */
 
-#include "jni.h"
+#include <jni.h>
 #include "jni/io_sqreen_powerwaf_Powerwaf.h"
 #include "jni/io_sqreen_powerwaf_Additive.h"
 #include "common.h"
@@ -57,7 +57,6 @@ struct _init_or_update {
 };
 static jobject _ddwaf_init_or_update_checked(JNIEnv *env, struct _init_or_update *s);
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
-static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools, jobject obj, struct _limits *lims, int rec_level);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
 struct char_buffer_info {
     jchar *nat_array;
@@ -79,7 +78,8 @@ static void _throw_pwaf_timeout_exception(JNIEnv *env);
 static void _update_metrics(JNIEnv *env, jobject metrics_obj, bool is_byte_buffer, const ddwaf_result *ret, struct timespec start);
 static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig, ddwaf_config *out_config);
 static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
-static jobject _create_match_result_with_data_checked(JNIEnv *env, const ddwaf_result *ret);
+static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code, const ddwaf_result *ret);
+static inline bool _has_derivative(const ddwaf_result *res);
 
 #define MAX_DEPTH_UPPER_LIMIT ((uint32_t)32)
 
@@ -137,6 +137,9 @@ struct j_method number_longValue;
 struct j_method number_doubleValue;
 // weak, but assumed never to be gced
 jclass *number_cls = &number_longValue.class_glob;
+static jclass double_cls;
+static jclass float_cls;
+static jclass bigdecimal_cls;
 
 static struct j_method _boolean_booleanValue;
 static jclass *_boolean_cls = &_boolean_booleanValue.class_glob;
@@ -562,10 +565,8 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
     switch (ret_code) {
         case DDWAF_OK:
-            result = _result_with_data_ok_null;
-            goto freeRet;
         case DDWAF_MATCH: {
-            result = _create_match_result_with_data_checked(env, &ret);
+            result = _create_result_checked(env, ret_code, &ret);
             goto freeRet;
         }
         case DDWAF_ERR_INTERNAL: {
@@ -775,10 +776,8 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
 
     switch (ret_code) {
         case DDWAF_OK:
-            result = _result_with_data_ok_null;
-            goto freeRet;
         case DDWAF_MATCH:
-            result = _create_match_result_with_data_checked(env, &ret);
+            result = _create_result_checked(env, ret_code, &ret);
             break;
         case DDWAF_ERR_INTERNAL: {
             JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
@@ -1137,7 +1136,10 @@ static bool _cache_classes(JNIEnv *env)
                                   &buffer_cls) &&
          _cache_single_class_weak(env, "java/nio/CharBuffer",
                                   &charBuffer_cls) &&
-         _cache_single_class_weak(env, "java/lang/String", &string_cls);
+         _cache_single_class_weak(env, "java/lang/String", &string_cls) &&
+         _cache_single_class_weak(env, "java/lang/Double", &double_cls) &&
+         _cache_single_class_weak(env, "java/lang/Float", &float_cls) &&
+         _cache_single_class_weak(env, "java/math/BigDecimal", &bigdecimal_cls);
 }
 
 static void _dispose_of_weak_classes(JNIEnv *env)
@@ -1149,10 +1151,13 @@ static void _dispose_of_weak_classes(JNIEnv *env)
     }
 
     DESTROY_CLASS_REF(jcls_iae)
-    DESTROY_CLASS_REF(string_cls)
     DESTROY_CLASS_REF(charSequence_cls)
     DESTROY_CLASS_REF(buffer_cls)
     DESTROY_CLASS_REF(charBuffer_cls)
+    DESTROY_CLASS_REF(string_cls)
+    DESTROY_CLASS_REF(double_cls)
+    DESTROY_CLASS_REF(float_cls)
+    DESTROY_CLASS_REF(bigdecimal_cls)
     // leave jcls_rte for last in OnUnload; we might still need it
 }
 
@@ -1246,7 +1251,8 @@ static bool _cache_methods(JNIEnv *env)
     if (!java_meth_init_checked(
                 env, &result_with_data_init,
                 "io/sqreen/powerwaf/Powerwaf$ResultWithData", "<init>",
-                "(Lio/sqreen/powerwaf/Powerwaf$Result;Ljava/lang/String;[Ljava/lang/String;)V",
+                "(Lio/sqreen/powerwaf/Powerwaf$Result;Ljava/lang/String;"
+                "[Ljava/lang/String;Ljava/util/Map;)V",
                 JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
@@ -1416,13 +1422,6 @@ static void _dispose_of_cache_references(JNIEnv * env)
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                                      struct _limits *lims, int rec_level)
 {
-    return _convert_checked_ex(env, false /* no bools */, obj, lims, rec_level);
-}
-
-static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
-                                        jobject obj, struct _limits *lims,
-                                        int rec_level)
-{
 #define RET_IF_EXC() do { if (JNI(ExceptionCheck)) { goto error; } } while (0)
 #define JAVA_CALL(var, meth, recv) \
     do { \
@@ -1468,9 +1467,7 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
     }
 
     if (JNI(IsSameObject, obj, NULL)) {
-        // replace NULLs with empty maps.
-        // DDWAF_OBJ_NULL is actually invalid; it can't be added to containers
-        ddwaf_object_map(&result); // can't fail
+        ddwaf_object_null(&result); // can't fail
     } else if (is_array == JNI_TRUE) {
         ddwaf_object_array(&result); // can't fail
 
@@ -1494,8 +1491,8 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
 
             jobject element = JNI(GetObjectArrayElement, obj, i);
 
-            ddwaf_object value = _convert_checked_ex(env, use_bools, element,
-                                                     lims, rec_level + 1);
+            ddwaf_object value =
+                    _convert_checked(env, element, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1543,8 +1540,8 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
             JNI(DeleteLocalRef, key_obj);
             JNI(DeleteLocalRef, entry);
 
-            ddwaf_object value = _convert_checked_ex(env, use_bools, value_obj,
-                                                     lims, rec_level + 1);
+            ddwaf_object value =
+                    _convert_checked(env, value_obj, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1600,8 +1597,8 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
             jobject element;
             JAVA_CALL(element, iterator_next, it);
 
-            ddwaf_object value = _convert_checked_ex(env, use_bools, element,
-                                                     lims, rec_level + 1);
+            ddwaf_object value =
+                    _convert_checked(env, element, lims, rec_level + 1);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
@@ -1709,14 +1706,26 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
             }
         }
     } else if (JNI(IsInstanceOf, obj, *number_cls)) {
-        jlong lval = JNI(CallLongMethod, obj, number_longValue.meth_id);
-        if (JNI(ExceptionCheck)) {
-            goto error;
+        bool success;
+        if (JNI(IsInstanceOf, obj, double_cls) ||
+            JNI(IsInstanceOf, obj, float_cls) ||
+            JNI(IsInstanceOf, obj, bigdecimal_cls)) {
+            jdouble dval =
+                    JNI(CallDoubleMethod, obj, number_doubleValue.meth_id);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+            success = !!ddwaf_object_float(&result, dval);
+        } else {
+            jlong lval = JNI(CallLongMethod, obj, number_longValue.meth_id);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+            success = !!ddwaf_object_signed(&result, lval);
         }
 
-        bool success = !!ddwaf_object_signed(&result, lval);
         if (!success) {
-            JNI(ThrowNew, jcls_rte, "ddwaf_object_signed failed (OOM?)");
+            JNI(ThrowNew, jcls_rte, "ddwaf_object_signed failed");
             goto error;
         }
     } else if (JNI(IsInstanceOf, obj, *_boolean_cls)) {
@@ -1727,26 +1736,9 @@ static ddwaf_object _convert_checked_ex(JNIEnv *env, bool use_bools,
             goto error;
         }
 
-        if (use_bools) {
-            if (!ddwaf_object_bool(&result, (bool) bval)) {
-                JNI(ThrowNew, jcls_rte, "ddwaf_object_bool failed (OOM?)");
-                goto error;
-            }
-        } else {
-            // PowerWAF expects this to be a string for match_regex >
-            // case_sensitive
-            bool success;
-            if (bval) {
-                success = !!ddwaf_object_stringl(&result, "true",
-                                                 sizeof("true") - 1);
-            } else {
-                success = !!ddwaf_object_stringl(&result, "false",
-                                                 sizeof("false") - 1);
-            }
-            if (!success) {
-                JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
-                goto error;
-            }
+        if (!ddwaf_object_bool(&result, (bool) bval)) {
+            JNI(ThrowNew, jcls_rte, "ddwaf_object_bool failed (OOM?)");
+            goto error;
         }
     } else if (log_level_enabled(DDWAF_LOG_DEBUG)) {
         jclass cls = JNI(GetObjectClass, obj);
@@ -2181,9 +2173,13 @@ static void _dispose_of_ddwaf_config(ddwaf_config *cfg)
     free((void *) (uintptr_t) cfg->obfuscator.value_regex);
 }
 
-static jobject _create_match_result_with_data_checked(JNIEnv *env,
-                                                      const ddwaf_result *ret)
+static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
+                                      const ddwaf_result *ret)
 {
+    if (code == DDWAF_OK && !_has_derivative(ret)) {
+        return _result_with_data_ok_null;
+    }
+
     jobject actions_jarr;
     bool del_actions_jarr = false;
     if (ret->actions.type != DDWAF_OBJ_ARRAY || ret->actions.nbEntries == 0) {
@@ -2234,8 +2230,20 @@ static jobject _create_match_result_with_data_checked(JNIEnv *env,
         }
     }
 
-    jobject result = java_meth_call(env, &result_with_data_init, NULL,
-                                    _action_match, data_obj, actions_jarr);
+    jobject schema = NULL;
+    if (ret->derivatives.type == DDWAF_OBJ_MAP &&
+        ret->derivatives.nbEntries > 0) {
+        schema = output_convert_schema_checked(env, &ret->derivatives);
+        if (!schema) {
+            java_wrap_exc("%s", "Failed encoding inferred schema");
+            goto err;
+        }
+    }
+
+    jobject result =
+            java_meth_call(env, &result_with_data_init, NULL,
+                           code == DDWAF_OK ? _action_ok : _action_match,
+                           data_obj, actions_jarr, schema);
     if (del_actions_jarr) {
         JNI(DeleteLocalRef, actions_jarr);
     }
@@ -2247,4 +2255,9 @@ err:
         JNI(DeleteLocalRef, actions_jarr);
     }
     return NULL;
+}
+
+static inline bool _has_derivative(const ddwaf_result *res) {
+    return res->derivatives.type == DDWAF_OBJ_MAP 
+    && res->derivatives.nbEntries > 0;
 }

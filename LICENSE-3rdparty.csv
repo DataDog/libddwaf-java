@@ -1,6 +1,8 @@
 Component,Origin,License,Copyright
 main,slf4j,mit,QOS.ch
 main,libddwaf,apache-2.0,DataDog
+main,zlib,zlib,Jean-loup Gailly and Mark Adler
+main,base64,bsd-2-clause,"Nick Galbreath, Wojciech Muła, Matthieu Darbois and Alfred Klomp"
 tests,junit,epl-1.0,various
 tests,ant,apache-2.0,Apache Software Foundation
 tests,groovy,apache-2.0,various

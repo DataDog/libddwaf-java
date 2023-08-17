@@ -21,3 +21,5 @@ jobject output_convert_diagnostics_checked(JNIEnv *env,
                                            const ddwaf_object *obj);
 
 struct json_segment *output_convert_json(const ddwaf_object *obj);
+struct json_segment *output_convert_json(const ddwaf_object *obj);
+jobject output_convert_schema_checked(JNIEnv *env, const ddwaf_object *obj);

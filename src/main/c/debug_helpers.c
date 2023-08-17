@@ -146,6 +146,9 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
     case DDWAF_OBJ_INVALID:
         HSTRING_APPEND_CONST(str, "<INVALID>\n");
         break;
+    case DDWAF_OBJ_NULL:
+        HSTRING_APPEND_CONST(str, "<NULL>\n");
+        break;
     case DDWAF_OBJ_SIGNED: {
         HSTRING_APPEND_CONST(str, "<SIGNED> ");
         char scratch[sizeof("-9223372036854775808")];
@@ -168,6 +171,15 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         HSTRING_APPEND_CONST(str, "\n");
         break;
     }
+    case DDWAF_OBJ_FLOAT:
+        HSTRING_APPEND_CONST(str, "<FLOAT> ");
+        char scratch[sizeof("6.324040266767955765e-322")];
+        int len = snprintf(scratch, sizeof(scratch), "%.18e", pwargs->f64);
+        if ((size_t) len < sizeof scratch) {
+            _hstring_append(str, scratch, (size_t) len);
+        } // else should never happen
+        HSTRING_APPEND_CONST(str, "\n");
+        break;
     case DDWAF_OBJ_BOOL:
         HSTRING_APPEND_CONST(str, "<BOOL> ");
         if (pwargs->boolean) {

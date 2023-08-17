@@ -36,7 +36,10 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -Wno-implicit-fallthrough -Wno-gnu-auto-type -Wno-c++98-compat)
 endif()
 
+add_subdirectory(deps EXCLUDE_FROM_ALL)
+
 set(SOURCE_FILES
+    src/main/c/base64.c
     src/main/c/byte_buffer.c
     src/main/c/cs_wrapper.c
     src/main/c/debug_helpers.c
@@ -80,7 +83,7 @@ endif()
 if(NOT (CMAKE_CXX_COMPILER_ID MATCHES MSVC OR APPLE))
     target_link_libraries(sqreen_jni PRIVATE rt)
 endif()
-target_link_libraries(sqreen_jni PRIVATE ${LIBDDWAF_TARGET} ${JAVA_JVM_LIBRARY})
+target_link_libraries(sqreen_jni PRIVATE ${LIBDDWAF_TARGET} ${JAVA_JVM_LIBRARY} zlibstatic)
 
 if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
     if(APPLE)
