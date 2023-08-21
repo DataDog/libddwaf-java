@@ -14,7 +14,7 @@
 #include <string.h>
 
 #define MIN_JSON_SEGMENT_SIZE ((uint32_t) 216)
-#define MAX_JSON_DEPTH 10
+#define MAX_JSON_DEPTH 20
 
 struct json_segment {
     uint32_t size, len;
@@ -51,7 +51,8 @@ static inline size_t json_it_read(struct json_iterator *it, char *out,
         size_t to_copy =
                 avail_in_seg < left_in_out ? avail_in_seg : left_in_out;
         memcpy(out + written, it->seg->data + it->pos, to_copy);
-        it->pos += to_copy;
+        // cast and addition are safe. to_copy is never bigger than avail_in_seg
+        it->pos += (uint32_t) to_copy;
         written += to_copy;
     }
     return written;
@@ -110,7 +111,8 @@ json_append(struct json_segment *seg, const char *data, size_t data_len)
     }
 
     memcpy(actual_seg->data + actual_seg->len, data, data_len);
-    actual_seg->len += data_len;
+    // cast and addition is safe, o/wise _json_seg_ensure would return NULL
+    actual_seg->len += (uint32_t) data_len;
     return actual_seg;
 }
 
@@ -178,6 +180,7 @@ static inline struct json_segment *json_encode_str(struct json_segment *seg,
     } else {
         _json_encode_str(raw_str, raw_str_len, cur_seg->data + cur_seg->len);
     }
-    cur_seg->len += encoded_len;
+    // cast and addition are safe (see _json_seg_ensure)
+    cur_seg->len += (uint32_t) encoded_len;
     return cur_seg;
 }

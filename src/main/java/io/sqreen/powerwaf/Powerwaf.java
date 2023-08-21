@@ -11,9 +11,7 @@ package io.sqreen.powerwaf;
 import io.sqreen.powerwaf.exception.AbstractPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.12.0";
+    public static final String LIB_VERSION = "1.13.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -175,16 +173,18 @@ public final class Powerwaf {
         private static final String[] EMPTY_ACTIONS = new String[0];
 
         // reuse this from JNI when there is no actions or data
-        public static final ResultWithData OK_NULL = new ResultWithData(Result.OK, null, EMPTY_ACTIONS);
+        public static final ResultWithData OK_NULL = new ResultWithData(Result.OK, null, EMPTY_ACTIONS, null);
 
         public final Result result;
         public final String data;
         public final String[] actions;
+        public final Map<String, String> schemas;
 
-        public ResultWithData(Result result, String data, String[] actions) {
+        public ResultWithData(Result result, String data, String[] actions, Map<String, String> schemas) {
             this.result = result;
             this.data = data;
             this.actions = actions;
+            this.schemas = schemas;
         }
 
         @Override
@@ -193,6 +193,7 @@ public final class Powerwaf {
             sb.append("result=").append(result);
             sb.append(", data='").append(data).append('\'');
             sb.append(", actions='").append(Arrays.asList(actions)).append('\'');
+            sb.append(", schemas='").append(schemas).append('\'');
             sb.append('}');
             return sb.toString();
         }

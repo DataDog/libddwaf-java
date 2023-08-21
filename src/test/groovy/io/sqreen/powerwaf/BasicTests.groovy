@@ -236,7 +236,7 @@ class BasicTests implements PowerwafTrait {
                        }
                     }
                  ],
-                 "id" : 1,
+                 "id" : "1",
                  "name" : "rule1",
                  "tags" : {
                     "category" : "category1",
@@ -257,7 +257,7 @@ class BasicTests implements PowerwafTrait {
                        }
                     }
                  ],
-                 "id" : 2,
+                 "id" : "2" ,
                  "name" : "rule2",
                  "tags" : {
                     "category" : "category2",
@@ -319,7 +319,7 @@ class BasicTests implements PowerwafTrait {
            },
            "exclusions": [
              {
-               "id": 1,
+               "id": "1",
                "rules_target": [
                  {
                    "tags": {

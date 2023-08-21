@@ -13,7 +13,7 @@ env:
   tempdir: ${{ github.workspace }}/build
 jobs:
   Coverage:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: "!(contains(github.ref, 'refs/tags/v'))"
     steps:
       - uses: actions/checkout@v2

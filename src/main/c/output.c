@@ -13,12 +13,15 @@
 #include <string.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <zlib.h>
 
 #include "common.h"
 #include "java_call.h"
 #include "jni.h"
 #include "json.h"
 #include "utf16_utf8.h"
+#include "base64.h"
+#include "logging.h"
 
 #define LSTR(x) "" x, sizeof(x) - 1
 #define MAX_JINT ((jint) 0x7FFFFFFF)
@@ -458,4 +461,147 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
     }
 
     return cur_seg;
+}
+
+static uint8_t *_encode_gzip(const struct json_segment *json, size_t json_len,
+                          size_t *out_size)
+{
+    z_stream strm = {0};
+    if (deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 31, 8,
+                     Z_DEFAULT_STRATEGY) != Z_OK) {
+        return NULL;
+    }
+
+    size_t deflated_size =  json_len < 1024 ? 1024 : json_len;
+    uint8_t *ret = malloc(deflated_size);
+    if (ret == NULL) {
+        deflateEnd(&strm);
+        return NULL;
+    }
+
+    // Compress each string
+    struct json_iterator it = {0};
+    for (it.seg = json; it.seg != NULL; it.seg = it.seg->next) {
+        strm.avail_in = it.seg->len;
+        strm.next_in = (const uint8_t *) it.seg->data;
+
+        do {
+            if (strm.total_out >= deflated_size) {
+                deflated_size *= 2;
+                uint8_t *new_ret = realloc(ret, deflated_size);
+                if (new_ret == NULL) {
+                    free(ret);
+                    deflateEnd(&strm);
+                    return NULL;
+                }
+                ret = new_ret;
+            }
+
+            size_t avail_out = deflated_size - strm.total_out;
+            if (avail_out > (unsigned)-1) {
+                avail_out = (unsigned)-1;
+            }
+            strm.avail_out = (unsigned)avail_out;
+            strm.next_out = ret + strm.total_out;
+
+            if (deflate(&strm, it.seg->next == NULL ? Z_FINISH : Z_NO_FLUSH) ==
+                Z_STREAM_ERROR) {
+                free(ret);
+                deflateEnd(&strm);
+                return NULL;
+            }
+        } while (strm.avail_out == 0);
+    }
+
+    *out_size =  strm.total_out;
+    if (deflateEnd(&strm) == Z_OK) {
+        return ret;
+    }
+    free(ret);
+    return NULL;
+}
+
+#define MAX_SIZE_OF_SCHEMA 2500
+static jstring _encode_json_gzip_base64_checked(JNIEnv *env,
+                                                const ddwaf_object *obj)
+{
+    struct json_segment *json = output_convert_json(obj);
+    if (json == NULL) {
+        // too deep (or OOM)
+        return NULL;
+    }
+
+    size_t json_len = json_length(json);
+    if (json_len > MAX_SIZE_OF_SCHEMA) {
+        json_seg_free(json);
+        return NULL;
+    }
+
+    // deflate
+    size_t gzip_size;
+    uint8_t *gzip = _encode_gzip(json, json_len, &gzip_size);
+    json_seg_free(json);
+    if (gzip == NULL) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "%s", "gzip encoding of schema failed");
+        return NULL;
+    }
+
+    // base64 encode
+    size_t base64_capacity = ((4 * gzip_size / 3) + 3) & ~3UL;
+    char *base64 = malloc(base64_capacity);
+    if (base64 == NULL) {
+        free(gzip);
+        return NULL;
+    }
+    size_t base64_len;
+    base64_encode((const char *) gzip, gzip_size, base64, &base64_len);
+    free(gzip);
+
+    // finally, java string
+    jstring ret = java_utf8_to_jstring_checked(env, base64, base64_len);
+    free(base64);
+    return ret;
+}
+
+jobject output_convert_schema_checked(JNIEnv *env, const ddwaf_object *obj)
+{
+    assert(obj->type == DDWAF_OBJ_MAP);
+
+    jobject ret = java_meth_call(env, &_linked_hm_init, NULL);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < obj->nbEntries; i++) {
+        ddwaf_object *entry = &obj->array[i];
+        jstring key = java_utf8_to_jstring_checked(env, entry->parameterName, entry->parameterNameLength);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
+
+        jstring value = _encode_json_gzip_base64_checked(env, entry);
+        if (JNI(ExceptionCheck)) {
+            JNI(DeleteLocalRef, key);
+            goto error;
+        } else if (value == NULL) {
+            JAVA_LOG(DDWAF_LOG_DEBUG,
+                     "Failed serializing schema entry for %*.s",
+                     (int) entry->parameterNameLength, entry->parameterName);
+            JNI(DeleteLocalRef, key);
+            continue;
+        }
+
+        java_meth_call(env, &_map_put, ret, key, value);
+        JNI(DeleteLocalRef, key);
+        JNI(DeleteLocalRef, value);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
+    }
+
+    return ret;
+
+error:
+    JNI(DeleteLocalRef, ret);
+    return NULL;
 }

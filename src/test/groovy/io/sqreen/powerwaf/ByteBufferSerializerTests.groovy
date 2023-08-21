@@ -81,14 +81,28 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
-    void 'can serialize a boolean as a string'() {
+    void 'can serialize a boolean'() {
         lease = serializer.serialize([my_key: [true, false]])
         String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
         def exp = p '''
         <MAP>
           my_key: <ARRAY>
-            <STRING> true
-            <STRING> false
+            <BOOL> true
+            <BOOL> false
+        '''
+        assertThat res, is(exp)
+    }
+
+    @Test
+    void 'can serialize decimals and floats'() {
+        lease = serializer.serialize([my_key: [8.5d, 8.5f, 8.5]])
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <ARRAY>
+            <FLOAT> 8.500000000000000000e+00
+            <FLOAT> 8.500000000000000000e+00
+            <FLOAT> 8.500000000000000000e+00
         '''
         assertThat res, is(exp)
     }
@@ -155,12 +169,12 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
-    void 'unknown values are serialized as empty maps'() {
+    void 'unknown values are serialized as nulls'() {
         lease = serializer.serialize([my_key: new Object()])
         String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
         def exp = p '''
         <MAP>
-          my_key: <MAP>
+          my_key: <NULL>
         '''
         assertThat res, is(exp)
     }
