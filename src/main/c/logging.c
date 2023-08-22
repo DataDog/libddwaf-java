@@ -433,7 +433,7 @@ static JNIEnv *_attach_vm(bool *attached)
         return NULL;
     }
 }
-static void _detach_vm()
+static void _detach_vm(void)
 {
     (*_vm)->DetachCurrentThread(_vm); // error ignored, nothing we can do
 }

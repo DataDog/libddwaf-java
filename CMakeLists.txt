@@ -69,6 +69,9 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -Wno-gnu-statement-expression -Wno-reserved-id-macro
         -Wno-atomic-implicit-seq-cst -Wno-covered-switch-default
         -Wno-switch-enum)
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "16.0")
+        target_compile_options(sqreen_jni PRIVATE -Wno-unsafe-buffer-usage)
+    endif()
 endif()
 
 set_target_properties(sqreen_jni PROPERTIES
