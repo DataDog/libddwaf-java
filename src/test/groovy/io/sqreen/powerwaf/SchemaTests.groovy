@@ -49,7 +49,7 @@ class SchemaTests implements PowerwafTrait {
               "generator": "extract_schema",
               "conditions": [
                 {
-                  "operator": "match_regex",
+                  "operator": "equals",
                   "parameters": {
                     "inputs": [
                       {
@@ -59,11 +59,8 @@ class SchemaTests implements PowerwafTrait {
                         ]
                       }
                     ],
-                    "regex": "^true$",
-                    "options": {
-                      "case_sensitive": false,
-                      "min_length": 4
-                    }
+                    "type": "boolean",
+                    "value": true
                   }
                 }
               ],
@@ -95,7 +92,7 @@ class SchemaTests implements PowerwafTrait {
 
         def data = [
                 'waf.context.settings': [
-                        'extract-schema': 'true'
+                        'extract-schema': true
                 ],
                 'server.request.body': [
                         a: 'foo',
