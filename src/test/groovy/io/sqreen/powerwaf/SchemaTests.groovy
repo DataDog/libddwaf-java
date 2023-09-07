@@ -43,7 +43,7 @@ class SchemaTests implements PowerwafTrait {
               ]
             }
           ],
-          "preprocessors": [
+          "processors": [
             {
               "id": "preprocessor-001",
               "generator": "extract_schema",
