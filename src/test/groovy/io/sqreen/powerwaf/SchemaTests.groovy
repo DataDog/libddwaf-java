@@ -74,10 +74,47 @@ class SchemaTests implements PowerwafTrait {
                     ],
                     "output": "server.request.body.schema"
                   }
-                ]
+                ],
+                "scanners": [
+                  {
+                    "tags": {
+                      "category": "pii"
+                    }
+                  }
+                ],
               },
               "evaluate": false,
               "output": true
+            }
+          ],
+          "scanners": [
+            {
+              "id": "ac6d683cbac77f6e399a14990793dd8fd0fca333",
+              "name": "US Vehicle Identification Number Scanner",
+              "key": {
+                "operator": "match_regex",
+                "parameters": {
+                  "regex": "vehicle[_\\\\s-]*identification[_\\\\s-]*number|vin",
+                  "options": {
+                    "case_sensitive": false,
+                    "min_length": 3
+                  }
+                }
+              },
+              "value": {
+                "operator": "match_regex",
+                "parameters": {
+                  "regex": "\\\\b[A-HJ-NPR-Z0-9]{17}\\\\b",
+                  "options": {
+                    "case_sensitive": false,
+                    "min_length": 17
+                  }
+                }
+              },
+              "tags": {
+                "type": "vin",
+                "category": "pii"
+              }
             }
           ],
           "output": true
@@ -104,7 +141,8 @@ class SchemaTests implements PowerwafTrait {
                         g: 800.3,
                         h: [
                                 4, 5, '6', [4, 5], [a: 'b'], 'foo', 'bar'
-                        ]
+                        ],
+                        vehicle_identification_number: 'WWW5R56GNG0000000'
                 ]
         ]
 
@@ -122,6 +160,7 @@ class SchemaTests implements PowerwafTrait {
                  'f':[16],
                  'g':[16],
                  'h':[['len':7], [[4], [8], [['a':[8]]], [[[4]], ['len':2]]]],
+                 'vehicle_identification_number':[8, ['category':'pii', 'type':'vin']]
                 ]
         ]
     }
