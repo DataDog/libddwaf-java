@@ -104,7 +104,7 @@ class InvalidInvocationTests implements ReactiveTrait {
             def slice = buffer.slice()
             slice.position(ByteBufferSerializer.SIZEOF_PWARGS)
             shouldFail(InvalidObjectPowerwafException) {
-                additive.runAdditive(slice, limits, metrics)
+                additive.runAdditive(slice, null, limits, metrics)
             }
         }
     }
@@ -118,7 +118,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
         shouldFail(IllegalArgumentException) {
             additive.runAdditive(
-                    ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS),
+                    ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS), null,
                     limits, metrics)
         }
     }

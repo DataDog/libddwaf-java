@@ -25,10 +25,10 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_clearRules
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
- * Method:    getRequiredAddresses
+ * Method:    getKnownAddresses
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)[Ljava/lang/String;
  */
-JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddresses
+JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getKnownAddresses
   (JNIEnv *, jclass, jobject);
 
 /*
@@ -36,16 +36,16 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getRequiredAddre
  * Method:    runRules
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
-  (JNIEnv *, jclass, jobject, jobject, jobject, jobject);
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
+  (JNIEnv *, jclass, jobject, jobject, jobject, jobject, jobject);
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    runRules
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
-  (JNIEnv *, jclass, jobject, jobject, jobject, jobject);
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
+  (JNIEnv *, jclass, jobject, jobject, jobject, jobject, jobject);
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf

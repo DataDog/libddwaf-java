@@ -13,7 +13,7 @@ import io.sqreen.powerwaf.exception.InvalidRuleSetException;
 import io.sqreen.powerwaf.exception.TimeoutPowerwafException;
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException;
 import java.io.Closeable;
-import java.util.List;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -103,13 +103,14 @@ public class PowerwafContext implements Closeable {
         this.readLock.lock();
         try {
             checkIfOnline();
-            return Powerwaf.getRequiredAddresses(this.handle);
+            return Powerwaf.getKnownAddresses(this.handle);
         } finally {
             this.readLock.unlock();
         }
     }
 
-    public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
+    public Powerwaf.ResultWithData runRules(Map<String, Object> persistentData,
+                                            Map<String, Object> ephemeralData,
                                             Powerwaf.Limits limits,
                                             PowerwafMetrics metrics) throws AbstractPowerwafException {
         this.readLock.lock();
@@ -123,11 +124,23 @@ public class PowerwafContext implements Closeable {
                 // serialization could be extracted out of the lock
                 ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
                 long before = System.nanoTime();
-                ByteBufferSerializer.ArenaLease lease;
-                try {
-                    lease = serializer.serialize(parameters);
-                } catch (Exception e) {
-                    throw new RuntimeException("Exception encoding parameters", e);
+
+                ByteBuffer persistentBuffer = null;
+                if (persistentData != null) {
+                    try (ByteBufferSerializer.ArenaLease lease = serializer.serialize(persistentData)) {
+                        persistentBuffer = lease.getFirstPWArgsByteBuffer();
+                    } catch (Exception e) {
+                        throw new RuntimeException("Exception encoding parameters", e);
+                    }
+                }
+
+                ByteBuffer ephemeralBuffer = null;
+                if (ephemeralData != null) {
+                    try (ByteBufferSerializer.ArenaLease lease = serializer.serialize(ephemeralData)) {
+                        ephemeralBuffer = lease.getFirstPWArgsByteBuffer();
+                    } catch (Exception e) {
+                        throw new RuntimeException("Exception encoding parameters", e);
+                    }
                 }
                 try {
                     long elapsedNs = System.nanoTime() - before;
@@ -140,9 +153,9 @@ public class PowerwafContext implements Closeable {
                         throw new TimeoutPowerwafException();
                     }
                     res = Powerwaf.runRules(
-                            this.handle, lease.getFirstPWArgsByteBuffer(), limits, metrics);
+                            this.handle, persistentBuffer, ephemeralBuffer, limits, metrics);
                 } finally {
-                    lease.close();
+
                     if (metrics != null) {
                         long after = System.nanoTime();
                         long totalTimeNs = after - before;
@@ -152,7 +165,7 @@ public class PowerwafContext implements Closeable {
                     }
                 }
             } else {
-                res = Powerwaf.runRules(this.handle, parameters, limits, metrics);
+                res = Powerwaf.runRules(this.handle, persistentData, ephemeralData, limits, metrics);
             }
 
             LOGGER.debug("Rule of context {} ran successfully with return {}", this, res);
@@ -165,6 +178,12 @@ public class PowerwafContext implements Closeable {
         } finally {
             this.readLock.unlock();
         }
+    }
+
+    public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
+                                            Powerwaf.Limits limits,
+                                            PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return runRules(parameters, null, limits, metrics);
     }
 
     public Additive openAdditive() {
