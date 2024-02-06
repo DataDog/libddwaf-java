@@ -92,7 +92,8 @@ public final class Additive implements Closeable {
                             persistentBuffer = this.lease.serializeMore(limits, persistentData);
                         }
                         if (ephemeralData != null) {
-                            ephemeralBuffer = this.lease.serializeMore(limits, ephemeralData);
+                            ByteBufferSerializer.ArenaLease ephemeralLease = ByteBufferSerializer.getBlankLease();
+                            ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
                         }
                     } catch (Exception e) {
                         // extra exception is here just to match what happens when bytebuffers are disabled
@@ -136,6 +137,12 @@ public final class Additive implements Closeable {
                                        Powerwaf.Limits limits,
                                        PowerwafMetrics metrics) throws AbstractPowerwafException {
         return run(parameters, null, limits, metrics);
+    }
+
+    public Powerwaf.ResultWithData runEphemeral(Map<String, Object> ephemeralData,
+                                       Powerwaf.Limits limits,
+                                       PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return run(null, ephemeralData, limits, metrics);
     }
 
     @Override

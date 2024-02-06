@@ -57,7 +57,7 @@ struct _init_or_update {
 };
 static jobject _ddwaf_init_or_update_checked(JNIEnv *env, struct _init_or_update *s);
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
-static ddwaf_object _convert_buffer_checked(JNIEnv *env, jobject buffer);
+static ddwaf_object* _convert_buffer_checked(JNIEnv *env, jobject buffer);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
 struct char_buffer_info {
     jchar *nat_array;
@@ -478,8 +478,12 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
     UNUSED(clazz);
 
     jobject result = NULL;
+
     ddwaf_object persistent_input = _pwinput_invalid;
     ddwaf_object ephemeral_input = _pwinput_invalid;
+
+    ddwaf_object * persistent_input_ptr = NULL;
+    ddwaf_object * ephemeral_input_ptr = NULL;
     ddwaf_context ctx = NULL;
     struct _limits limits;
     ddwaf_result ret;
@@ -505,7 +509,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
     int64_t rem_gen_budget_in_us;
     if (is_byte_buffer) {
-        persistent_input = _convert_buffer_checked(env, persistent_data);
+        persistent_input_ptr = _convert_buffer_checked(env, persistent_data);
         jthrowable thr = JNI(ExceptionOccurred);
         if (thr) {
             JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
@@ -515,7 +519,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
             goto end;
         }
 
-        ephemeral_input = _convert_buffer_checked(env, ephemeral_data);
+        ephemeral_input_ptr = _convert_buffer_checked(env, ephemeral_data);
         thr = JNI(ExceptionOccurred);
         if (thr) {
             JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
@@ -527,16 +531,26 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
         // let's pretend nothing we did till now took time
         rem_gen_budget_in_us = limits.general_budget_in_us;
+
+        if (persistent_input_ptr == NULL && ephemeral_input_ptr == NULL) {
+            JAVA_LOG(DDWAF_LOG_WARN, "Both persistent and ephemeral data are null");
+            _throw_pwaf_exception(env, DDWAF_ERR_INVALID_ARGUMENT);
+            goto end;
+        }
     } else {
         struct timespec conv_end;
         persistent_input = _convert_checked(env, persistent_data, &limits, 0);
         jthrowable thr = JNI(ExceptionOccurred);
         if (thr) {
+            ddwaf_object_free(&persistent_input);
             JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
             JNI(DeleteLocalRef, thr);
-            goto end;
+            goto err;
+        }
+        if (persistent_input.type != DDWAF_OBJ_NULL) {
+            persistent_input_ptr = &persistent_input;
         }
 
         ephemeral_input = _convert_checked(env, ephemeral_data, &limits, 0);
@@ -546,11 +560,14 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
             JNI(DeleteLocalRef, thr);
-            goto end;
+            goto err;
+        }
+        if (ephemeral_input.type != DDWAF_OBJ_NULL) {
+            ephemeral_input_ptr = &ephemeral_input;
         }
 
         if (!_get_time_checked(env, &conv_end)) {
-            goto end;
+            goto err;
         }
         rem_gen_budget_in_us = get_remaining_budget(start, conv_end, &limits);
         if (rem_gen_budget_in_us == 0) {
@@ -559,7 +576,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                      "native conversion",
                      limits.general_budget_in_us);
             _throw_pwaf_timeout_exception(env);
-            goto end;
+            goto err;
         }
     }
 
@@ -570,16 +587,6 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         JAVA_LOG(DDWAF_LOG_WARN, "Call to ddwaf_context_init failed");
         _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
         goto end;
-    }
-
-    ddwaf_object * persistent_input_ptr = NULL;
-    if (persistent_input.type != DDWAF_OBJ_NULL) {
-        persistent_input_ptr = &persistent_input;
-    }
-
-    ddwaf_object * ephemeral_input_ptr = NULL;
-    if (ephemeral_input.type != DDWAF_OBJ_NULL) {
-        ephemeral_input_ptr = &ephemeral_input;
     }
 
     DDWAF_RET_CODE ret_code = ddwaf_run(ctx, persistent_input_ptr, ephemeral_input_ptr, &ret, run_budget);
@@ -609,10 +616,6 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
             goto freeRet;
         }
         case DDWAF_ERR_INVALID_ARGUMENT:
-            if (!is_byte_buffer) {
-                ddwaf_object_free(&persistent_input);
-                ddwaf_object_free(&ephemeral_input);
-            }
             // break intentionally missing
         default: {
             // any errors or unknown statuses
@@ -630,6 +633,15 @@ end:
     }
 
     return result;
+err:
+    if (ctx) {
+        ddwaf_context_destroy(ctx);
+    }
+    if (!is_byte_buffer) {
+        ddwaf_object_free(&persistent_input);
+        ddwaf_object_free(&ephemeral_input);
+    }
+    return NULL;
 }
 
 /*
@@ -726,6 +738,10 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     ddwaf_context context = NULL;
     ddwaf_object persistent_input = _pwinput_invalid;
     ddwaf_object ephemeral_input = _pwinput_invalid;
+
+    ddwaf_object * persistent_input_ptr = NULL;
+    ddwaf_object * ephemeral_input_ptr = NULL;
+
     struct _limits limits;
     ddwaf_result ret;
     struct timespec start;
@@ -759,48 +775,60 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     }
 
     if (is_byte_buffer) {
-        persistent_input = _convert_buffer_checked(env, persistent_data);
+        persistent_input_ptr = _convert_buffer_checked(env, persistent_data);
         jthrowable thr = JNI(ExceptionOccurred);
         if (thr) {
             JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
                          "Exception converting 'persistent' ByteBuffer into ddwaf_object");
             java_wrap_exc("%s", "Exception converting 'persistent' ByteBuffer into ddwaf_object");
             JNI(DeleteLocalRef, thr);
-            JNI(ThrowNew, jcls_iae, "Unable to convert ByteBuffer into ddwaf_object");
             return NULL;
         }
 
-        ephemeral_input = _convert_buffer_checked(env, ephemeral_data);
+        ephemeral_input_ptr = _convert_buffer_checked(env, ephemeral_data);
         thr = JNI(ExceptionOccurred);
         if (thr) {
             JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
                          "Exception converting 'ephemeral' ByteBuffer into ddwaf_object");
             java_wrap_exc("%s", "Exception converting 'ephemeral' ByteBuffer into ddwaf_object");
             JNI(DeleteLocalRef, thr);
-            JNI(ThrowNew, jcls_iae, "Unable to convert ByteBuffer into ddwaf_object");
+            return NULL;
+        }
+
+        if (persistent_input_ptr == NULL && ephemeral_input_ptr == NULL) {
+            JAVA_LOG(DDWAF_LOG_WARN, "Both persistent and ephemeral data are null");
+            _throw_pwaf_exception(env, DDWAF_ERR_INVALID_ARGUMENT);
             return NULL;
         }
     } else {
         persistent_input = _convert_checked(env, persistent_data, &limits, 0);
         jthrowable thr = JNI(ExceptionOccurred);
         if (thr) {
+            ddwaf_object_free(&persistent_input);
             JAVA_LOG_THR(DDWAF_LOG_WARN, thr,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
             JNI(DeleteLocalRef, thr);
             return NULL;
+        }
+        if (persistent_input.type != DDWAF_OBJ_NULL) {
+            persistent_input_ptr = &persistent_input;
         }
 
         ephemeral_input = _convert_checked(env, ephemeral_data, &limits, 0);
         thr = JNI(ExceptionOccurred);
         if (thr) {
+            ddwaf_object_free(&persistent_input);
+            ddwaf_object_free(&ephemeral_input);
             JAVA_LOG_THR(DDWAF_LOG_WARN, thr,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
             JNI(DeleteLocalRef, thr);
             return NULL;
         }
-        // after this point input must be accounted for
+        if (ephemeral_input.type != DDWAF_OBJ_NULL) {
+            ephemeral_input_ptr = &ephemeral_input;
+        }
     }
 
     struct timespec conv_end;
@@ -820,16 +848,6 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
     }
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
-
-    ddwaf_object * persistent_input_ptr = NULL;
-    if (persistent_input.type != DDWAF_OBJ_NULL) {
-        persistent_input_ptr = &persistent_input;
-    }
-
-    ddwaf_object * ephemeral_input_ptr = NULL;
-    if (ephemeral_input.type != DDWAF_OBJ_NULL) {
-        ephemeral_input_ptr = &ephemeral_input;
-    }
 
     DDWAF_RET_CODE ret_code =
             ddwaf_run(context, persistent_input_ptr, ephemeral_input_ptr, &ret, run_budget);
@@ -1845,27 +1863,23 @@ error:
     return _pwinput_invalid;
 }
 
-static ddwaf_object _convert_buffer_checked(JNIEnv *env, jobject buffer)
+static ddwaf_object * _convert_buffer_checked(JNIEnv *env, jobject buffer)
 {
-    ddwaf_object result;
-
     if (buffer == NULL) {
-        ddwaf_object_null(&result);
-        return result;
+        return NULL;
     }
 
     void *input_p = JNI(GetDirectBufferAddress, buffer);
     if (!input_p) {
         JNI(ThrowNew, jcls_iae, "Not a DirectBuffer passed");
-        return _pwinput_invalid;
+        return NULL;
     }
     jlong capacity = JNI(GetDirectBufferCapacity, buffer);
-    if (capacity < (jlong) sizeof(result)) {
+    if (capacity < (jlong) sizeof(ddwaf_object)) {
         JNI(ThrowNew, jcls_iae, "Capacity of DirectBuffer is insufficient");
-        return _pwinput_invalid;
+        return NULL;
     }
-    memcpy(&result, input_p, sizeof result);
-    return result;
+    return input_p;
 }
 
 // can return false with and without exception

@@ -9,6 +9,7 @@
 package io.sqreen.powerwaf
 
 import groovy.json.JsonSlurper
+import io.sqreen.powerwaf.exception.AbstractPowerwafException
 import org.junit.Test
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -70,6 +71,98 @@ class AdditiveTest implements ReactiveTrait {
         assert metrics.totalRunTimeNs > 0
         assert metrics.totalDdwafRunTimeNs > 0
         assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
+    }
+
+    @Test
+    void 'Reference sample for rules 2_2'() {
+        def rule = '''
+          {
+            "version": "2.2",
+            "metadata": {
+              "rules_version": "1.10.0"
+            },
+            "rules": [
+              {
+                "id": "rule1",
+                "name": "rule1",
+                "tags": {
+                  "type": "flow1",
+                  "category": "category1"
+                },
+                "conditions": [
+                  {
+                    "parameters": {
+                      "inputs": [
+                        {
+                          "address": "server_request_body"
+                        }
+                      ],
+                      "list": [
+                        "bodytest"
+                      ]
+                    },
+                    "operator": "phrase_match"
+                  }
+                ]
+              },
+              {
+                "id": "rule2",
+                "name": "rule2",
+                "tags": {
+                  "type": "flow2",
+                  "category": "category2"
+                },
+                "conditions": [
+                  {
+                    "parameters": {
+                      "inputs": [
+                        {
+                          "address": "graphql_server_all_resolvers"
+                        }
+                      ],
+                      "list": [
+                        "graphqltest"
+                      ]
+                    },
+                    "operator": "phrase_match"
+                  }
+                ]
+              }
+            ],
+          }'''
+
+        ctx = new PowerwafContext('test', null, new JsonSlurper().parseText(rule))
+        additive = ctx.openAdditive()
+        metrics = ctx.createMetrics()
+
+        Powerwaf.ResultWithData awd = additive.run([server_request_body: 'bodytest'], limits, metrics)
+        LOGGER.debug('ResultWithData after 1st runAdditive: {}', awd)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+
+        awd = additive.runEphemeral([graphql_server_all_resolvers: 'graphqltest'], limits, metrics)
+        LOGGER.debug('ResultWithData after 2st runAdditive: {}', awd)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+    }
+
+    @Test
+    void 'throw an exception when both persistent and ephemeral are null in additive'() {
+        shouldFail(AbstractPowerwafException) {
+            ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+            additive = ctx.openAdditive()
+            metrics = ctx.createMetrics()
+
+            additive.run(null, null, limits, metrics)
+        }
+    }
+
+    @Test
+    void 'throw an exception when both persistent and ephemeral are null'() {
+        shouldFail(AbstractPowerwafException) {
+            ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+            metrics = ctx.createMetrics()
+
+            ctx.runRules(null, null, limits, metrics)
+        }
     }
 
     @Test
