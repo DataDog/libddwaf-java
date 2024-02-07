@@ -345,17 +345,17 @@ jobs:
 
   Native_binaries_Stage_libddwaf_linux_aarch64:
     name: Linux aarch64 (semi-static libddwaf.so)
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     env:
       dockerfile: ci/alpine-libc++-static/aarch64
     steps:
-      - name: Fix permissions
-        run: sudo chown -R $USER:$USER /home/ubuntu/actions-runner/_work/AgentJavaNative/
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
           submodules: recursive
           clean: true
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v1
         id: buildx
         with:
@@ -363,7 +363,7 @@ jobs:
       - name: Create packages directory
         run: mkdir -p ${{ env.tempdir }}/packages
       - name: Build semi-statically compiled dynamic library
-        run: docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --progress=plain -o ${{ env.tempdir }}/packages .
+        run: docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --platform linux/arm64 --progress=plain -o ${{ env.tempdir }}/packages .
       - name: Save Artifacts
         uses: actions/upload-artifact@v2
         with:
@@ -478,7 +478,7 @@ jobs:
 
   Native_binaries_Stage_linux_aarch64_glibc:
     name: Linux aarch64 (glibc)
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     needs:
       - Native_binaries_Stage_libddwaf_linux_aarch64
     env:
@@ -487,13 +487,13 @@ jobs:
       libdir: linux/aarch64/glibc
       artifactsDirectory: ${{ github.workspace }}/artifacts
     steps:
-      - name: Fix permissions
-        run: sudo chown -R $USER:$USER /home/ubuntu/actions-runner/_work/AgentJavaNative/
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
           submodules: recursive
           clean: true
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       - name: Create artifacts directory
         run: mkdir -p ${{ env.artifactsDirectory }}
       - name: Download libddwaf artifact
@@ -502,14 +502,14 @@ jobs:
           name: libddwaf_linux-aarch64
           path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
-        run: docker build ${{ env.dockerfile  }} -t linux_cmake_aarch64
+        run: docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake_aarch64
       - name: Clean previous docker container
         run: docker rm -f pwaf_java_build || true
       - name: Build and test JNI binding
         run: |
-          docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
+          docker run --platform arm64 --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
-            git config --global --add safe.directory /home/ubuntu/actions-runner/_work/AgentJavaNative/AgentJavaNative &&
+            git config --global --add safe.directory /home/runner/work/AgentJavaNative/AgentJavaNative &&
             tar --strip-components=1 -xf ${{ env.artifactsDirectory }}/libddwaf-aarch64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
@@ -536,7 +536,7 @@ jobs:
 
   Native_binaries_Stage_linux_aarch64_musl:
     name: Linux aarch64 (musl)
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     needs:
       #- Native_binaries_Stage_libddwaf_linux_aarch64
       - Native_binaries_Stage_linux_aarch64_glibc
@@ -551,6 +551,8 @@ jobs:
         with:
           submodules: recursive
           clean: true
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       - name: Create artifacts directory
         run: mkdir -p ${{ env.artifactsDirectory }}
       - name: Download libddwaf artifact
@@ -559,12 +561,12 @@ jobs:
           name: libddwaf_linux-aarch64
           path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
-        run: docker build ${{ env.dockerfile  }} -t linux_cmake
+        run: docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake
       - name: Clean previous docker container
         run: docker rm -f pwaf_java_build || true
       - name: Build and test with release binaries
         run: |
-          docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
+          docker run --platform linux/arm64 --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
             tar --strip-components=1 -xvf ${{ env.artifactsDirectory }}/libddwaf-aarch64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
