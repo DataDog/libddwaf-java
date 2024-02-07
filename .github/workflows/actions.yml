@@ -600,12 +600,6 @@ jobs:
       uses: actions/checkout@v2
       with:
         submodules: recursive
-    - name: Install GCC and clang
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++ \
-          clang clang-tools ruby
-      shell: bash
     - name: Build libddwaf
       run: |
         set -ex
