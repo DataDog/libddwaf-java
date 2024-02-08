@@ -87,30 +87,38 @@ public final class Additive implements Closeable {
                     }
                     ByteBuffer persistentBuffer = null;
                     ByteBuffer ephemeralBuffer = null;
+                    ByteBufferSerializer.ArenaLease ephemeralLease = null;
+                    Powerwaf.ResultWithData result;
+
                     try {
-                        if (persistentData != null) {
-                            persistentBuffer = this.lease.serializeMore(limits, persistentData);
+                        try {
+                            if (persistentData != null) {
+                                persistentBuffer = this.lease.serializeMore(limits, persistentData);
+                            }
+                            if (ephemeralData != null) {
+                                ephemeralLease = ByteBufferSerializer.getBlankLease();
+                                ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
+                            }
+                        } catch (Exception e) {
+                            // extra exception is here just to match what happens when bytebuffers are disabled
+                            throw new UnclassifiedPowerwafException(
+                                    new RuntimeException("Exception encoding parameters", e));
                         }
-                        if (ephemeralData != null) {
-                            ByteBufferSerializer.ArenaLease ephemeralLease = ByteBufferSerializer.getBlankLease();
-                            ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
+
+                        long elapsedNs = System.nanoTime() - before;
+                        Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
+                        if (newLimits.generalBudgetInUs == 0L) {
+                            LOGGER.debug(
+                                    "Budget exhausted after serialization; " +
+                                            "not running on additive {}", this);
+                            throw new TimeoutPowerwafException();
                         }
-                    } catch (Exception e) {
-                        // extra exception is here just to match what happens when bytebuffers are disabled
-                        throw new UnclassifiedPowerwafException(
-                                new RuntimeException("Exception encoding parameters", e));
-                    }
-                    long elapsedNs = System.nanoTime() - before;
-                    Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
-                    if (newLimits.generalBudgetInUs == 0L) {
-                        LOGGER.debug(
-                                "Budget exhausted after serialization; " +
-                                        "not running on additive {}", this);
-                        throw new TimeoutPowerwafException();
-                    }
-                    try {
-                        return runAdditive(persistentBuffer, ephemeralBuffer, newLimits, metrics);
+
+                        result = runAdditive(persistentBuffer, ephemeralBuffer, newLimits, metrics);
                     } finally {
+                        if (ephemeralLease != null) {
+                            ephemeralLease.close();
+                        }
                         if (metrics != null) {
                             long after = System.nanoTime();
                             long totalTimeNs = after - before;
@@ -119,6 +127,7 @@ public final class Additive implements Closeable {
                             }
                         }
                     }
+                    return result;
                 }
             } else {
                 synchronized (this) {

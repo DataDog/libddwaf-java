@@ -531,18 +531,11 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
         // let's pretend nothing we did till now took time
         rem_gen_budget_in_us = limits.general_budget_in_us;
-
-        if (persistent_input_ptr == NULL && ephemeral_input_ptr == NULL) {
-            JAVA_LOG(DDWAF_LOG_WARN, "Both persistent and ephemeral data are null");
-            _throw_pwaf_exception(env, DDWAF_ERR_INVALID_ARGUMENT);
-            goto end;
-        }
     } else {
         struct timespec conv_end;
         persistent_input = _convert_checked(env, persistent_data, &limits, 0);
         jthrowable thr = JNI(ExceptionOccurred);
         if (thr) {
-            ddwaf_object_free(&persistent_input);
             JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
@@ -581,6 +574,12 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
     }
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
+
+    if (persistent_input_ptr == NULL && ephemeral_input_ptr == NULL) {
+        JAVA_LOG(DDWAF_LOG_WARN, "Both persistent and ephemeral data are null");
+        _throw_pwaf_exception(env, DDWAF_ERR_INVALID_ARGUMENT);
+        goto end;
+    }
 
     ctx = ddwaf_context_init(pwhandle);
     if (!ctx) {
@@ -804,7 +803,6 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
         persistent_input = _convert_checked(env, persistent_data, &limits, 0);
         jthrowable thr = JNI(ExceptionOccurred);
         if (thr) {
-            ddwaf_object_free(&persistent_input);
             JAVA_LOG_THR(DDWAF_LOG_WARN, thr,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
@@ -819,7 +817,6 @@ static jobject _run_additive_common(JNIEnv *env, jobject this,
         thr = JNI(ExceptionOccurred);
         if (thr) {
             ddwaf_object_free(&persistent_input);
-            ddwaf_object_free(&ephemeral_input);
             JAVA_LOG_THR(DDWAF_LOG_WARN, thr,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
