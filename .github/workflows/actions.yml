@@ -610,13 +610,13 @@ jobs:
         cd libddwaf
         mkdir Debug && cd Debug
         cmake .. -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_C_COMPILER="clang" \
-          -DCMAKE_CXX_COMPILER="clang++" \
+          -DCMAKE_C_COMPILER="gcc-13" \
+          -DCMAKE_CXX_COMPILER="g++-13" \
           -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
           -DCMAKE_C_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
-          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak -lasan -lubsan" \
-          -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak -lasan -lubsan" \
-          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak -lasan -lubsan"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
+          -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak"
         VERBOSE=1 make -j
         DESTDIR=out make install
       shell: bash
