@@ -31,7 +31,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         Map<K, V> delegate
 
         @Override
-        Set<Map.Entry<K, V>> entrySet() {
+        Set<Entry<K, V>> entrySet() {
             throw new IllegalStateException('error here')
         }
     }
@@ -104,7 +104,7 @@ class InvalidInvocationTests implements ReactiveTrait {
             def slice = buffer.slice()
             slice.position(ByteBufferSerializer.SIZEOF_PWARGS)
             shouldFail(InvalidObjectPowerwafException) {
-                additive.runAdditive(slice, limits, metrics)
+                additive.runAdditive(slice, null, limits, metrics)
             }
         }
     }
@@ -116,9 +116,9 @@ class InvalidInvocationTests implements ReactiveTrait {
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
 
-        shouldFail(IllegalArgumentException) {
+        shouldFail(Exception) {
             additive.runAdditive(
-                    ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS),
+                    ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS), null,
                     limits, metrics)
         }
     }

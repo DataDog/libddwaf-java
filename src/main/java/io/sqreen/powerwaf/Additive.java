@@ -48,10 +48,10 @@ public final class Additive implements Closeable {
     private static native long initAdditive(PowerwafHandle handle);
 
     private native Powerwaf.ResultWithData runAdditive(
-            Map<String, Object> parameters, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
+            Map<String, Object> persistentData, Map<String, Object> ephemeralData, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     private native Powerwaf.ResultWithData runAdditive(
-            ByteBuffer firstPWArgsBuffer, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
+            ByteBuffer persistentBuffer, ByteBuffer ephemeralBuffer, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     /**
      * Clear given Additive (free PWAddContext in PowerWAF)
@@ -64,13 +64,15 @@ public final class Additive implements Closeable {
     /**
      * Push params to PowerWAF with given limits
      *
-     * @param parameters                    data to push to PowerWAF
+     * @param persistentData                data to push to PowerWAF
+     * @param ephemeralData                 data to push to PowerWAF
      * @param limits                        request execution limits
      * @param metrics                       a metrics collector, or null
      * @return                              execution results
      * @throws AbstractPowerwafException    rethrow from native code, timeout or param serialization failure
      */
-    public Powerwaf.ResultWithData run(Map<String, Object> parameters,
+    public Powerwaf.ResultWithData run(Map<String, Object> persistentData,
+                                       Map<String, Object> ephemeralData,
                                        Powerwaf.Limits limits,
                                        PowerwafMetrics metrics) throws AbstractPowerwafException {
         if (limits == null) {
@@ -83,25 +85,40 @@ public final class Additive implements Closeable {
                     if (!online) {
                         throw new IllegalStateException("This Additive is no longer online");
                     }
-                    ByteBuffer bb;
+                    ByteBuffer persistentBuffer = null;
+                    ByteBuffer ephemeralBuffer = null;
+                    ByteBufferSerializer.ArenaLease ephemeralLease = null;
+                    Powerwaf.ResultWithData result;
+
                     try {
-                        bb = this.lease.serializeMore(limits, parameters);
-                    } catch (Exception e) {
-                        // extra exception is here just to match what happens when bytebuffers are disabled
-                        throw new UnclassifiedPowerwafException(
-                                new RuntimeException("Exception encoding parameters", e));
-                    }
-                    long elapsedNs = System.nanoTime() - before;
-                    Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
-                    if (newLimits.generalBudgetInUs == 0L) {
-                        LOGGER.debug(
-                                "Budget exhausted after serialization; " +
-                                        "not running on additive {}", this);
-                        throw new TimeoutPowerwafException();
-                    }
-                    try {
-                        return runAdditive(bb, newLimits, metrics);
+                        try {
+                            if (persistentData != null) {
+                                persistentBuffer = this.lease.serializeMore(limits, persistentData);
+                            }
+                            if (ephemeralData != null) {
+                                ephemeralLease = ByteBufferSerializer.getBlankLease();
+                                ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
+                            }
+                        } catch (Exception e) {
+                            // extra exception is here just to match what happens when bytebuffers are disabled
+                            throw new UnclassifiedPowerwafException(
+                                    new RuntimeException("Exception encoding parameters", e));
+                        }
+
+                        long elapsedNs = System.nanoTime() - before;
+                        Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
+                        if (newLimits.generalBudgetInUs == 0L) {
+                            LOGGER.debug(
+                                    "Budget exhausted after serialization; " +
+                                            "not running on additive {}", this);
+                            throw new TimeoutPowerwafException();
+                        }
+
+                        result = runAdditive(persistentBuffer, ephemeralBuffer, newLimits, metrics);
                     } finally {
+                        if (ephemeralLease != null) {
+                            ephemeralLease.close();
+                        }
                         if (metrics != null) {
                             long after = System.nanoTime();
                             long totalTimeNs = after - before;
@@ -110,11 +127,12 @@ public final class Additive implements Closeable {
                             }
                         }
                     }
+                    return result;
                 }
             } else {
                 synchronized (this) {
                     checkOnline();
-                    return runAdditive(parameters, limits, metrics);
+                    return runAdditive(persistentData, ephemeralData, limits, metrics);
                 }
             }
         } catch (RuntimeException rte) {
@@ -122,6 +140,18 @@ public final class Additive implements Closeable {
                     "Error running PowerWAF's Additive for rule context " + ctx +
                             ": " + rte.getMessage(), rte);
         }
+    }
+
+    public Powerwaf.ResultWithData run(Map<String, Object> parameters,
+                                       Powerwaf.Limits limits,
+                                       PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return run(parameters, null, limits, metrics);
+    }
+
+    public Powerwaf.ResultWithData runEphemeral(Map<String, Object> ephemeralData,
+                                       Powerwaf.Limits limits,
+                                       PowerwafMetrics metrics) throws AbstractPowerwafException {
+        return run(null, ephemeralData, limits, metrics);
     }
 
     @Override

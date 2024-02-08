@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.14.0";
+    public static final String LIB_VERSION = "1.15.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -106,7 +106,7 @@ public final class Powerwaf {
     /* pw_clearRuleH */
     static native void clearRules(PowerwafHandle handle);
 
-    static native String[] getRequiredAddresses(PowerwafHandle handle);
+    static native String[] getKnownAddresses(PowerwafHandle handle);
 
     /**
      * Runs a rule with the parameters pre-serialized into direct
@@ -118,18 +118,21 @@ public final class Powerwaf {
      * See pw_runH.
      *
      * @param handle the PowerWAF rule handle
-     * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
+     * @param persistentBuffer a persistent buffer whose first object should be top PWArgs
+     * @param ephemeralBuffer an ephemeral buffer whose first object should be top PWArgs
      * @param limits the limits
      * @param metrics the metrics collector, or null
      * @return the resulting action (OK or MATCH) and associated details
      */
     static native ResultWithData runRules(PowerwafHandle handle,
-                                          ByteBuffer firstPWArgsBuffer,
+                                          ByteBuffer persistentBuffer,
+                                          ByteBuffer ephemeralBuffer,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native ResultWithData runRules(PowerwafHandle handle,
-                                          Map<String, Object> parameters,
+                                          Map<String, Object> persistentData,
+                                          Map<String, Object> ephemeralData,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 
