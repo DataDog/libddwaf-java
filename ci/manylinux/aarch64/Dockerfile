@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux2010_aarch64@sha256:4fa870a37a1d488246847d3d0a1de9f65ce086d8ccf78b2c40c697fa27fcfc9c
+FROM quay.io/pypa/manylinux2014_aarch64:2024-02-04-ea37246@sha256:d4cb8ad0418d7dfd25012720e3021c2d07e3bb839d395d585668e1a498e5b6ed
 
 RUN yum install -y \
 	git \
