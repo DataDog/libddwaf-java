@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly OUTPUT_NATIVE_LIBS_DIR="build/native_libs"
+
+function cmd_build-docker-image() {
+    echo "Building docker image..."
+    docker build --platform "$OS/$ARCH" "$DOCKER_IMAGE" -t "libddwaf-build-$LIBC"
+}
+
+function cmd_build-bindings-in-docker() {
+    echo "Building JNI bindings in Docker..."
+    docker run \
+        --rm \
+        --platform "$OS/$ARCH" \
+        --user "$(id -u):$(id -g)" \
+        -v "$(pwd):/work" \
+        -w /work \
+        "libddwaf-build-$LIBC" \
+        ./ci/build build-bindings --os $OS --arch $ARCH --libc $LIBC
+}
+
+function cmd_build-bindings() {
+    echo "Building JNI bindings..."
+    project_dir="$(pwd)"
+    mkdir -p "$OUTPUT_NATIVE_LIBS_DIR"
+    mkdir -p /tmp/build
+    cd /tmp/build
+
+    cmake_args=("-DCMAKE_BUILD_TYPE=RelWithDebInfo")
+
+    c_flags=
+    if [[ $OS != windows ]]; then
+        c_flags="$c_flags -fno-omit-frame-pointer"
+    fi
+    if [[ $OS = macos ]]; then
+        c_flags="$c_flags -mmacosx-version-min=11.6"
+    fi
+    cmake_args+=("-DCMAKE_C_FLAGS=$c_flags")
+    cmake_args+=("-DCMAKE_CXX_FLAGS=$c_flags")
+
+    if [[ $OS = macos && $ARCH = aarch64 ]]; then
+        cmake_args+=("-DCMAKE_OSX_ARCHITECTURES=arm64")
+    fi
+
+    generator="Unix Makefiles"
+    if [[ $OS = windows ]]; then
+        generator="NMake Makefiles"
+    fi
+
+    cmake \
+        "${cmake_args[@]}" \
+        -G "$generator" \
+        -S "$project_dir" \
+        -B .
+
+    cmake --build .
+
+    if [[ $OS = linux ]]; then
+        output_path="$project_dir/$OUTPUT_NATIVE_LIBS_DIR/$OS/$ARCH/$LIBC"
+        mkdir -p "$output_path"
+        cp libsqreen_jni.so "$output_path/"
+        cp libsqreen_jni.so.debug "$output_path/"
+        cp _deps/libddwaf-src/lib/libddwaf.so "$project_dir/$OUTPUT_NATIVE_LIBS_DIR/$OS/$ARCH/"
+    elif [[ $OS = macos ]]; then
+        output_path="$project_dir/$OUTPUT_NATIVE_LIBS_DIR/$OS/$ARCH"
+        mkdir -p "$output_path"
+        cp libsqreen_jni.dylib "$output_path/"
+        cp libsqreen_jni.dylib.dwarf "$output_path/"
+        cp _deps/libddwaf-src/lib/libddwaf.dylib "$output_path/"
+        # TODO: .dwarf file is not generated on macOS for libddwaf releases
+        # cp _deps/libddwaf-src/lib/libddwaf.dylib.dwarf "$output_path/"
+    elif [[ $OS = windows ]]; then
+        output_path="$project_dir/$OUTPUT_NATIVE_LIBS_DIR/$OS/$ARCH"
+        mkdir -p "$output_path"
+        cp sqreen_jni.dll "$output_path/"
+        cp sqreen_jni.pdb "$output_path/"
+        cp _deps/libddwaf-src/lib/ddwaf.dll "$output_path/"
+    else
+        echo "Invalid OS: $OS"
+        exit 1
+    fi
+}
+
+function cmd_run-tests-in-docker() {
+    echo "Run tests in Docker..."
+    docker run \
+        --rm \
+        --platform "$OS/$ARCH" \
+        --user "$(id -u):$(id -g)" \
+        -v "$(pwd):/work" \
+        -w /work \
+        "libddwaf-build-$LIBC" \
+        ./ci/build run-tests --os "$OS" --arch "$ARCH" --libc "${LIBC:-}"
+}
+
+function cmd_run-tests() {
+    echo "Run tests..."
+    ./gradlew check --info -Prelease
+}
+
+COMMAND="$1"
+shift
+
+# Parse options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --arch)
+            ARCH="$2"
+            shift 2
+            ;;
+        --os)
+            OS="$2"
+            shift 2
+            ;;
+        --libc)
+            LIBC="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+case "$OS-$ARCH-${LIBC:-}" in
+    linux-*-glibc)
+        DOCKER_IMAGE="ci/manylinux/$ARCH"
+        ;;
+    linux-*-musl)
+        DOCKER_IMAGE="ci/alpine"
+        ;;
+    *)
+        ;;
+esac
+
+# check if function cmd_$COMMAND exists, and then run it:
+if declare -F "cmd_$COMMAND" &> /dev/null; then
+    "cmd_$COMMAND" "$@"
+else
+    echo "Bad command: $COMMAND"
+    exit 1
+fi

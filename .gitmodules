@@ -1,3 +1,0 @@
-[submodule "libddwaf"]
-	path = libddwaf
-	url = https://github.com/DataDog/libddwaf.git
