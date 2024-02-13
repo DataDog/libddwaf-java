@@ -137,7 +137,7 @@ public class NativeLibLoader {
     private static List<String> getNativeLibs(OsType type) {
         switch(type) {
             case LINUX_x86_64_GLIBC:
-                return Arrays.asList("linux/x86_64/glibc/libsqreen_jni.so",
+                return Arrays.asList("linux/x86_64/musl/libsqreen_jni.so",
                         "linux/x86_64/libddwaf.so");
             case LINUX_x86_64_MUSL:
                 return Arrays.asList("linux/x86_64/musl/libsqreen_jni.so",

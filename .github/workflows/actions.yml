@@ -112,29 +112,6 @@ jobs:
           path: build/native_libs
           name: jni_${{ env.artifactsuff }}
 
-  Native_binaries_Stage_linux_x86_64_glibc:
-    name: Linux x86_64 (glibc)
-    runs-on: ubuntu-20.04
-    env:
-      os: linux
-      arch: x86_64
-      libc: glibc
-      artifactsuff: linux_glibc-x86_64
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Build docker image
-        run: ci/build build-docker-image --os ${{ env.os }} --arch ${{ env.arch }} --libc ${{ env.libc }}
-      - name: Build JNI bindings
-        run: ci/build build-bindings-in-docker --os ${{ env.os }} --arch ${{ env.arch }} --libc ${{ env.libc }}
-      - name: Run tests
-        run: ci/build run-tests-in-docker --os ${{ env.os }} --arch ${{ env.arch }} --libc ${{ env.libc }}
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          path: build/native_libs
-          name: jni_${{ env.artifactsuff }}
-
   Native_binaries_Stage_linux_x86_64_musl:
     name: Linux x86_64 (musl)
     runs-on: ubuntu-20.04
@@ -158,30 +135,28 @@ jobs:
           path: build/native_libs
           name: jni_${{ env.artifactsuff }}
 
-  Native_binaries_Stage_linux_aarch64_glibc:
-    name: Linux aarch64 (glibc)
-    runs-on: ubuntu-22.04
+  Test_linux_x86_64_glibc:
+    name: Test Linux x86_64 (glibc)
+    runs-on: ubuntu-20.04
+    needs:
+      - Native_binaries_Stage_linux_x86_64_musl
     env:
       os: linux
-      arch: aarch64
+      arch: x86_64
       libc: glibc
-      artifactsuff: linux_glibc-aarch64s
+      artifactsuff: linux-x86_64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Download libsqreen
+        uses: actions/download-artifact@v2
+        with:
+          name: jni_linux_musl-x86_64
+          path: build/native_libs
       - name: Build docker image
         run: ci/build build-docker-image --os ${{ env.os }} --arch ${{ env.arch }} --libc ${{ env.libc }}
-      - name: Build JNI bindings
-        run: ci/build build-bindings-in-docker --os ${{ env.os }} --arch ${{ env.arch }} --libc ${{ env.libc }}
       - name: Run tests
         run: ci/build run-tests-in-docker --os ${{ env.os }} --arch ${{ env.arch }} --libc ${{ env.libc }}
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          path: build/native_libs
-          name: jni_${{ env.artifactsuff }}
 
   Native_binaries_Stage_linux_aarch64_musl:
     name: Linux aarch64 (musl)
@@ -269,9 +244,7 @@ jobs:
       - Native_binaries_Stage_macos_x86_64
       - Native_binaries_Stage_macos_aarch64
       - Native_binaries_Stage_windows_x86_64
-      - Native_binaries_Stage_linux_x86_64_glibc
       - Native_binaries_Stage_linux_x86_64_musl
-      - Native_binaries_Stage_linux_aarch64_glibc
       - Native_binaries_Stage_linux_aarch64_musl
       - Native_binaries_Stage_asan
     steps:

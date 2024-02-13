@@ -59,6 +59,13 @@ function cmd_build-bindings() {
     if [[ $OS = linux ]]; then
         output_path="$project_dir/$OUTPUT_NATIVE_LIBS_DIR/$OS/$ARCH/$LIBC"
         mkdir -p "$output_path"
+
+        # Remove reference to musl, this will work with both musl and glibc
+        export LD_LIBRARY_PATH="$(pwd)/_deps/libddwaf-src/lib"
+        musl_libc_path="$(ldd libsqreen_jni.so | grep libc.musl | awk '{ print $1 }')"
+        echo "Removing reference to $musl_libc_path"
+        patchelf --remove-needed "$musl_libc_path" libsqreen_jni.so
+
         cp libsqreen_jni.so "$output_path/"
         cp libsqreen_jni.so.debug "$output_path/"
         cp _deps/libddwaf-src/lib/libddwaf.so "$project_dir/$OUTPUT_NATIVE_LIBS_DIR/$OS/$ARCH/"
