@@ -76,7 +76,6 @@ public class NativeLibLoader {
         LINUX_AARCH64_MUSL,
         MAC_OS_x86_64,
         MAC_OS_AARCH64,
-        SUN_OS_64,
         WINDOWS_64
     }
 
@@ -129,8 +128,6 @@ public class NativeLibLoader {
             } else {
                 return OsType.MAC_OS_x86_64;
             }
-        } else if ("SunOS".equals(os)) {
-            return OsType.SUN_OS_64;
         } else if (os != null && os.toLowerCase(Locale.ENGLISH).contains("windows")) {
             return OsType.WINDOWS_64;
         }
@@ -157,9 +154,6 @@ public class NativeLibLoader {
             case MAC_OS_AARCH64:
                 return Arrays.asList("macos/aarch64/libsqreen_jni.dylib",
                         "macos/aarch64/libddwaf.dylib");
-            case SUN_OS_64:
-                return Arrays.asList("solaris_64/libsqreen_jni.so",
-                        "solaris_64/libddwaf.so");
             case WINDOWS_64:
                 return Collections.singletonList("windows/x86_64/sqreen_jni.dll");
             default:

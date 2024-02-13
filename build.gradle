@@ -262,7 +262,6 @@ task copyNativeLibs(type: Copy) {
                        ['linux/x86_64/musl/libsqreen_jni.so', 'linux/x86_64/libddwaf.so'],
                        ['linux/aarch64/glibc/libsqreen_jni.so', 'linux/aarch64/libddwaf.so'],
                        ['linux/aarch64/musl/libsqreen_jni.so', 'linux/aarch64/libddwaf.so'],
-                       ['solaris_64/libsqreen_jni.so', 'solaris_64/libddwaf.so'],
                        ['macos/x86_64/libsqreen_jni.dylib', 'macos/x86_64/libddwaf.dylib.dwarf'],
                        ['macos/aarch64/libsqreen_jni.dylib', 'macos/aarch64/libddwaf.dylib.dwarf'],
                        ['windows/x86_64/sqreen_jni.dll']]
