@@ -22,3 +22,6 @@
 /.settings
 /bin
 /.classpath
+CMakeFiles
+Makefile
+CMakeCache.txt
