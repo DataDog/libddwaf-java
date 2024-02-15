@@ -139,7 +139,7 @@ jobs:
         ./gradlew --stop
       shell: bash
     - name: Save Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         path: ${{ env.tempdir }}/packages
         name: libsqreen_jni_${{ env.artifactsuff }}
@@ -234,7 +234,7 @@ jobs:
 #          ./gradlew --stop
 #        shell: bash
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: libsqreen_jni_${{ env.artifactsuff }}
@@ -312,7 +312,7 @@ jobs:
           ./gradlew --stop
         shell: bash
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: libsqreen_jni_${{ env.artifactsuff }}
@@ -337,7 +337,7 @@ jobs:
       - name: Build semi-statically compiled dynamic library
         run: docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --progress=plain -o ${{ env.tempdir }}/packages .
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: libddwaf_linux-x86_64
@@ -364,7 +364,7 @@ jobs:
       - name: Build semi-statically compiled dynamic library
         run: docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --platform linux/arm64 --progress=plain -o ${{ env.tempdir }}/packages .
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: libddwaf_linux-aarch64
@@ -388,7 +388,7 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p ${{ env.artifactsDirectory }}
       - name: Download libddwaf artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: libddwaf_linux-x86_64
           path: ${{ env.artifactsDirectory }}
@@ -417,7 +417,7 @@ jobs:
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: jni_${{ env.artifactsuff }}
@@ -441,7 +441,7 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p ${{ env.artifactsDirectory }}
       - name: Download libddwaf artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: libddwaf_linux-x86_64
           path: ${{ env.artifactsDirectory }}
@@ -470,7 +470,7 @@ jobs:
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: jni_${{ env.artifactsuff }}
@@ -496,7 +496,7 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p ${{ env.artifactsDirectory }}
       - name: Download libddwaf artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: libddwaf_linux-aarch64
           path: ${{ env.artifactsDirectory }}
@@ -526,7 +526,7 @@ jobs:
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: jni_${{ env.artifactsuff }}
@@ -554,7 +554,7 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p ${{ env.artifactsDirectory }}
       - name: Download libddwaf artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: libddwaf_linux-aarch64
           path: ${{ env.artifactsDirectory }}
@@ -583,7 +583,7 @@ jobs:
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so .
           docker cp pwaf_java_build:/buildAG/libsqreen_jni.so.debug .
       - name: Save Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ env.tempdir }}/packages
           name: jni_${{ env.artifactsuff }}
@@ -683,47 +683,47 @@ jobs:
           ${{ env.artifactsDirectory }}/libsqreen_jni_macos-x86_64 \
           ${{ env.artifactsDirectory }}/libsqreen_jni_macos-aarch64
     - name: Download libsqreen_jni_win-x86_64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: libsqreen_jni_win-x86_64
         path: ${{ env.artifactsDirectory }}/libsqreen_jni_win-x86_64
     - name: Download libddwaf_linux-x86_64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: libddwaf_linux-x86_64
         path: ${{ env.artifactsDirectory }}/libsqreen_linux-x86_64
     - name: Download libddwaf_linux-aarch64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: libddwaf_linux-aarch64
         path: ${{ env.artifactsDirectory }}/libsqreen_linux-aarch64
     - name: Download jni_linux_glibc-x86_64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: jni_linux_glibc-x86_64
         path: ${{ env.artifactsDirectory }}/jni_linux_glibc-x86_64
     - name: Download jni_linux_glibc-aarch64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: jni_linux_glibc-aarch64
         path: ${{ env.artifactsDirectory }}/jni_linux_glibc-aarch64
     - name: Download jni_linux_musl-x86_64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: jni_linux_musl-x86_64
         path: ${{ env.artifactsDirectory }}/jni_linux_musl-x86_64
     - name: Download jni_linux_musl-aarch64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: jni_linux_musl-aarch64
         path: ${{ env.artifactsDirectory }}/jni_linux_musl-aarch64
     - name: Download libsqreen_jni_macos-x86_64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: libsqreen_jni_macos-x86_64
         path: ${{ env.artifactsDirectory }}/libsqreen_jni_macos-x86_64
     - name: Download libsqreen_jni_macos_aarch64
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: libsqreen_jni_macos-aarch64
         path: ${{ env.artifactsDirectory }}/libsqreen_jni_macos-aarch64
@@ -771,7 +771,7 @@ jobs:
         cp ${{ github.workspace }}/build/distributions/libsqreen-*-dbgsym.zip "${{ env.tempdir }}/packages"
       shell: bash
     - name: Publish artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         path: ${{ env.tempdir }}/packages
         name: libsqreen_jni_jar
