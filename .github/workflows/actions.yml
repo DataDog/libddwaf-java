@@ -508,7 +508,7 @@ jobs:
         run: |
           docker run --platform arm64 --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=/;
-            git config --global --add safe.directory /home/runner/work/AgentJavaNative/AgentJavaNative &&
+            git config --global --add safe.directory /home/runner/work/libddwaf-java/libddwaf-java &&
             tar --strip-components=1 -xf ${{ env.artifactsDirectory }}/libddwaf-aarch64.tar.gz -C /usr/local/ &&
             mkdir buildAG && cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
