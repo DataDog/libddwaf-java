@@ -537,8 +537,7 @@ jobs:
     name: Linux aarch64 (musl)
     runs-on: ubuntu-22.04
     needs:
-      #- Native_binaries_Stage_libddwaf_linux_aarch64
-      - Native_binaries_Stage_linux_aarch64_glibc
+      - Native_binaries_Stage_libddwaf_linux_aarch64
     env:
       dockerfile: ci/alpine
       artifactsuff: linux_musl-aarch64
