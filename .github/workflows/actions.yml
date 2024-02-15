@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-22.04
     if: "!(contains(github.ref, 'refs/tags/v'))"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         name: Checkout
         with:
           submodules: recursive
@@ -61,7 +61,7 @@ jobs:
       artifactsuff: macos-x86_64
       libdir: macos/x86_64
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       name: Checkout
       with:
         submodules: recursive
@@ -154,7 +154,7 @@ jobs:
       artifactsuff: macos-aarch64
       libdir: macos/aarch64
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         name: Checkout
         with:
           submodules: recursive
@@ -253,7 +253,7 @@ jobs:
       artifactsuff: win-x86_64
       libdir: windows/x86_64
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         name: Checkout
         with:
           submodules: recursive
@@ -324,7 +324,7 @@ jobs:
       dockerfile: ci/alpine-libc++-static/x86_64
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           clean: true
@@ -349,7 +349,7 @@ jobs:
       dockerfile: ci/alpine-libc++-static/aarch64
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           clean: true
@@ -381,7 +381,7 @@ jobs:
       artifactsDirectory: ${{ github.workspace }}/artifacts
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           clean: true
@@ -434,7 +434,7 @@ jobs:
       artifactsDirectory: ${{ github.workspace }}/artifacts
     steps: # identical to glibc
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           clean: true
@@ -487,7 +487,7 @@ jobs:
       artifactsDirectory: ${{ github.workspace }}/artifacts
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           clean: true
@@ -545,7 +545,7 @@ jobs:
       artifactsDirectory: ${{ github.workspace }}/artifacts
     steps: # identical to glibc
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           clean: true
@@ -595,7 +595,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout project
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         submodules: recursive
     - name: Install GCC and clang
@@ -663,7 +663,7 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       name: Checkout
       with:
         submodules: recursive
