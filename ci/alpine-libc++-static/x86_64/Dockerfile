@@ -18,7 +18,7 @@ COPY .. /AgentJavaNative
 #    Again, this is only needed for the cmake sanity checks.
 RUN mkdir /build && cd /build && cmake /AgentJavaNative/libddwaf \
 	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_PREFIX=/usr/local \
 	-DCMAKE_C_COMPILER=clang \
 	-DCMAKE_CXX_COMPILER=clang++ \
 	-DCMAKE_CXX_FLAGS="-stdlib=libc++ -Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc -fno-omit-frame-pointer" \
@@ -33,7 +33,7 @@ RUN mkdir /build && cd /build && cmake /AgentJavaNative/libddwaf \
 # -lm, -ldl, -lpthread need to be provided though
 RUN cd /build && VERBOSE=1 make -j
 RUN patchelf --remove-needed libc.musl-x86_64.so.1 /build/libddwaf.so
-RUN cd /build && make package && mv libddwaf-*.tar.gz libddwaf-x86_64.tar.gz
+RUN cd /build && mkdir -p out && DESTDIR=out make install
 
 FROM scratch
-COPY --from=libddwaf_build /build/libddwaf-x86_64.tar.gz /
+COPY --from=libddwaf_build /build/out/usr/local/ /
