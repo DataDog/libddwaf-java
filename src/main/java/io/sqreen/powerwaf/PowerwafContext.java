@@ -110,8 +110,7 @@ public class PowerwafContext implements Closeable {
 
     public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
                                             Powerwaf.Limits limits,
-                                            PowerwafMetrics metrics,
-                                            boolean isEphemeral) throws AbstractPowerwafException {
+                                            PowerwafMetrics metrics) throws AbstractPowerwafException {
         this.readLock.lock();
         try {
             checkIfOnline();
@@ -139,13 +138,8 @@ public class PowerwafContext implements Closeable {
                                 this);
                         throw new TimeoutPowerwafException();
                     }
-                    if (isEphemeral) {
-                        res = Powerwaf.runRules(
-                                this.handle, null, lease.getFirstPWArgsByteBuffer(), newLimits, metrics);
-                    } else {
-                        res = Powerwaf.runRules(
-                                this.handle, lease.getFirstPWArgsByteBuffer(), null, newLimits, metrics);
-                    }
+                    res = Powerwaf.runRules(
+                            this.handle, lease.getFirstPWArgsByteBuffer(), newLimits, metrics);
                 } finally {
                     lease.close();
                     if (metrics != null) {
@@ -157,11 +151,7 @@ public class PowerwafContext implements Closeable {
                     }
                 }
             } else {
-                if (isEphemeral) {
-                    res = Powerwaf.runRules(this.handle, null, parameters, limits, metrics);
-                } else {
-                    res = Powerwaf.runRules(this.handle, parameters, null, limits, metrics);
-                }
+                res = Powerwaf.runRules(this.handle, parameters, limits, metrics);
             }
 
             LOGGER.debug("Rule of context {} ran successfully with return {}", this, res);
@@ -174,12 +164,6 @@ public class PowerwafContext implements Closeable {
         } finally {
             this.readLock.unlock();
         }
-    }
-
-    public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
-                                            Powerwaf.Limits limits,
-                                            PowerwafMetrics metrics) throws AbstractPowerwafException {
-        return runRules(parameters, limits, metrics, false);
     }
 
     public Additive openAdditive() {

@@ -472,18 +472,13 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getKnownAddresse
 
 // runRule overloads
 static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
-                                jobject handle_obj, jobject persistent_data, jobject ephemeral_data,
+                                jobject handle_obj, jobject parameters,
                                 jobject limits_obj, jobject metrics_obj)
 {
     UNUSED(clazz);
 
     jobject result = NULL;
-
-    ddwaf_object persistent_input = _pwinput_invalid;
-    ddwaf_object ephemeral_input = _pwinput_invalid;
-
-    ddwaf_object * persistent_input_ptr = NULL;
-    ddwaf_object * ephemeral_input_ptr = NULL;
+    ddwaf_object input = _pwinput_invalid;
     ddwaf_context ctx = NULL;
     struct _limits limits;
     ddwaf_result ret;
@@ -509,58 +504,32 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
 
     int64_t rem_gen_budget_in_us;
     if (is_byte_buffer) {
-        persistent_input_ptr = _convert_buffer_checked(env, persistent_data);
-        jthrowable thr = JNI(ExceptionOccurred);
-        if (thr) {
-            JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
-                         "Exception converting 'persistent' ByteBuffer into ddwaf_object");
-            java_wrap_exc("%s", "Exception converting 'persistent' ByteBuffer into ddwaf_object");
-            JNI(DeleteLocalRef, thr);
+        void *input_p = JNI(GetDirectBufferAddress, parameters);
+        if (!input_p) {
+            JNI(ThrowNew, jcls_iae, "Not a DirectBuffer passed");
             goto end;
         }
-
-        ephemeral_input_ptr = _convert_buffer_checked(env, ephemeral_data);
-        thr = JNI(ExceptionOccurred);
-        if (thr) {
-            JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
-                         "Exception converting 'ephemeral' ByteBuffer into ddwaf_object");
-            java_wrap_exc("%s", "Exception converting 'ephemeral' ByteBuffer into ddwaf_object");
-            JNI(DeleteLocalRef, thr);
+        jlong capacity = JNI(GetDirectBufferCapacity, parameters);
+        if (capacity < (jlong) sizeof(input)) {
+            JNI(ThrowNew, jcls_iae, "Capacity of DirectBuffer is insufficient");
             goto end;
         }
-
+        memcpy(&input, input_p, sizeof input);
         // let's pretend nothing we did till now took time
         rem_gen_budget_in_us = limits.general_budget_in_us;
     } else {
         struct timespec conv_end;
-        persistent_input = _convert_checked(env, persistent_data, &limits, 0);
+        input = _convert_checked(env, parameters, &limits, 0);
         jthrowable thr = JNI(ExceptionOccurred);
         if (thr) {
             JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
                          "Exception encoding parameters");
             java_wrap_exc("%s", "Exception encoding parameters");
             JNI(DeleteLocalRef, thr);
-            goto err;
+            goto end;
         }
-        if (persistent_input.type != DDWAF_OBJ_NULL) {
-            persistent_input_ptr = &persistent_input;
-        }
-
-        ephemeral_input = _convert_checked(env, ephemeral_data, &limits, 0);
-        thr = JNI(ExceptionOccurred);
-        if (thr) {
-            JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
-                         "Exception encoding parameters");
-            java_wrap_exc("%s", "Exception encoding parameters");
-            JNI(DeleteLocalRef, thr);
-            goto err;
-        }
-        if (ephemeral_input.type != DDWAF_OBJ_NULL) {
-            ephemeral_input_ptr = &ephemeral_input;
-        }
-
         if (!_get_time_checked(env, &conv_end)) {
-            goto err;
+            goto end;
         }
         rem_gen_budget_in_us = get_remaining_budget(start, conv_end, &limits);
         if (rem_gen_budget_in_us == 0) {
@@ -569,17 +538,11 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                      "native conversion",
                      limits.general_budget_in_us);
             _throw_pwaf_timeout_exception(env);
-            goto err;
+            goto end;
         }
     }
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
-
-    if (persistent_input_ptr == NULL && ephemeral_input_ptr == NULL) {
-        JAVA_LOG(DDWAF_LOG_WARN, "Both persistent and ephemeral data are null");
-        _throw_pwaf_exception(env, DDWAF_ERR_INVALID_ARGUMENT);
-        goto end;
-    }
 
     ctx = ddwaf_context_init(pwhandle);
     if (!ctx) {
@@ -587,8 +550,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
         goto end;
     }
-
-    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, persistent_input_ptr, ephemeral_input_ptr, &ret, run_budget);
+    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, &input, NULL, &ret, run_budget);
 
     if (log_level_enabled(DDWAF_LOG_DEBUG)) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
@@ -615,6 +577,9 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
             goto freeRet;
         }
         case DDWAF_ERR_INVALID_ARGUMENT:
+            if (!is_byte_buffer) {
+                ddwaf_object_free(&input);
+            }
             // break intentionally missing
         default: {
             // any errors or unknown statuses
@@ -632,15 +597,6 @@ end:
     }
 
     return result;
-err:
-    if (ctx) {
-        ddwaf_context_destroy(ctx);
-    }
-    if (!is_byte_buffer) {
-        ddwaf_object_free(&persistent_input);
-        ddwaf_object_free(&ephemeral_input);
-    }
-    return NULL;
 }
 
 /*
@@ -649,11 +605,11 @@ err:
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL
-Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
-        JNIEnv *env, jclass clazz, jobject handle_obj, jobject persistent_data, jobject ephemeral_data,
+Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2(
+        JNIEnv *env, jclass clazz, jobject handle_obj, jobject parameters,
         jobject limits_obj, jobject metrics_obj)
 {
-    return _run_rule_common(false, env, clazz, handle_obj, persistent_data, ephemeral_data,
+    return _run_rule_common(false, env, clazz, handle_obj, parameters,
                             limits_obj, metrics_obj);
 }
 
@@ -662,10 +618,10 @@ Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2L
  * Method:    runRules
  * Signature: (Lio/sqreen/powerwaf/PowerWAFHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf/Limits;)Lio/sqreen/powerwaf/Powerwaf/ResultWithData;
  */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
-  (JNIEnv *env, jclass clazz, jobject handle_obj, jobject persistent_buffer, jobject ephemeral_buffer, jobject limits_obj, jobject metrics_obj)
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules__Lio_sqreen_powerwaf_PowerwafHandle_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
+  (JNIEnv *env, jclass clazz, jobject handle_obj, jobject main_byte_buffer, jobject limits_obj, jobject metrics_obj)
 {
-    return _run_rule_common(true, env, clazz, handle_obj, persistent_buffer, ephemeral_buffer,
+    return _run_rule_common(true, env, clazz, handle_obj, main_byte_buffer,
                             limits_obj, metrics_obj);
 }
 
