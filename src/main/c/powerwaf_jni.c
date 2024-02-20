@@ -550,7 +550,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
         _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
         goto end;
     }
-    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, &input, NULL, &ret, run_budget);
+    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, NULL, &input, &ret, run_budget);
 
     if (log_level_enabled(DDWAF_LOG_DEBUG)) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
@@ -594,6 +594,9 @@ freeRet:
 end:
     if (ctx) {
         ddwaf_context_destroy(ctx);
+    }
+    if (!is_byte_buffer) {
+        ddwaf_object_free(&input);
     }
 
     return result;
