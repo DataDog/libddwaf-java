@@ -118,21 +118,18 @@ public final class Powerwaf {
      * See pw_runH.
      *
      * @param handle the PowerWAF rule handle
-     * @param persistentBuffer a persistent buffer whose first object should be top PWArgs
-     * @param ephemeralBuffer an ephemeral buffer whose first object should be top PWArgs
+     * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
      * @param limits the limits
      * @param metrics the metrics collector, or null
      * @return the resulting action (OK or MATCH) and associated details
      */
     static native ResultWithData runRules(PowerwafHandle handle,
-                                          ByteBuffer persistentBuffer,
-                                          ByteBuffer ephemeralBuffer,
+                                          ByteBuffer firstPWArgsBuffer,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     static native ResultWithData runRules(PowerwafHandle handle,
-                                          Map<String, Object> persistentData,
-                                          Map<String, Object> ephemeralData,
+                                          Map<String, Object> parameters,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 

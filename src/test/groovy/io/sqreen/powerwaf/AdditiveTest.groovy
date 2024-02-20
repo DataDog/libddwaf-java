@@ -161,7 +161,7 @@ class AdditiveTest implements ReactiveTrait {
             ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
             metrics = ctx.createMetrics()
 
-            ctx.runRules(null, null, limits, metrics)
+            ctx.runRules(null, limits, metrics)
         }
     }
 
