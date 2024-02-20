@@ -529,6 +529,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
             goto end;
         }
         if (!_get_time_checked(env, &conv_end)) {
+            ddwaf_object_free(&input);
             goto end;
         }
         rem_gen_budget_in_us = get_remaining_budget(start, conv_end, &limits);
@@ -538,6 +539,7 @@ static jobject _run_rule_common(bool is_byte_buffer, JNIEnv *env, jclass clazz,
                      "native conversion",
                      limits.general_budget_in_us);
             _throw_pwaf_timeout_exception(env);
+            ddwaf_object_free(&input);
             goto end;
         }
     }
@@ -594,9 +596,6 @@ freeRet:
 end:
     if (ctx) {
         ddwaf_context_destroy(ctx);
-    }
-    if (!is_byte_buffer) {
-        ddwaf_object_free(&input);
     }
 
     return result;
@@ -2318,6 +2317,6 @@ err:
 }
 
 static inline bool _has_derivative(const ddwaf_result *res) {
-    return res->derivatives.type == DDWAF_OBJ_MAP 
+    return res->derivatives.type == DDWAF_OBJ_MAP
     && res->derivatives.nbEntries > 0;
 }
