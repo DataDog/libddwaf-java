@@ -450,6 +450,10 @@ jobs:
             os: linux
             arch: x86_64
             dockerfile: ci/manylinux/x86_64
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: aarch64
+            dockerfile: ci/manylinux/aarch64
           - runs-on: macos-11
           - runs-on: macos-12
           - runs-on: macos-13
@@ -471,6 +475,9 @@ jobs:
       with:
         name: build_dir
         path: build
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      if: ${{ matrix.os == 'linux' && matrix.os == 'aarch64' }}
     - name: Build docker image
       run: ci/build build-docker-image --os ${{ matrix.os }} --arch ${{ matrix.arch }} --docker-image ${{ matrix.dockerfile }}
       if: ${{ matrix.os == 'linux' }}
