@@ -459,8 +459,9 @@ jobs:
           - runs-on: macos-12
           - runs-on: macos-13
           - runs-on: macos-14
-          - runs-on: macos-13-arm64
-          - runs-on: macos-14-arm64
+          # macos arm64
+          - runs-on: macos-13-xlarge
+          - runs-on: macos-14-xlarge
           - runs-on: windows-2019
           - runs-on: windows-2022
           # TBD: linux aarch64
