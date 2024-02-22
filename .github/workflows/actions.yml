@@ -450,8 +450,20 @@ jobs:
             os: linux
             arch: x86_64
             libc: glibc
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            libc: musl
+          # TBD: linux aarch64
+          # TBD: macos
+          # TBD: windows
     runs-on: ${{ matrix.runs-on }}
     steps:
+    - uses: actions/checkout@v4
+      name: Checkout
+      with:
+        submodules: recursive
+        clean: true
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
