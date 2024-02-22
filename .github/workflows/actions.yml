@@ -478,7 +478,7 @@ jobs:
         path: build
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
-      if: ${{ matrix.os == 'linux' && matrix.os == 'aarch64' }}
+      if: ${{ matrix.os == 'linux' && matrix.arch == 'aarch64' }}
     - name: Build docker image
       run: ci/build build-docker-image --os ${{ matrix.os }} --arch ${{ matrix.arch }} --docker-image ${{ matrix.dockerfile }}
       if: ${{ matrix.os == 'linux' }}
