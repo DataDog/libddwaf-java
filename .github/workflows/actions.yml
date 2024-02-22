@@ -444,6 +444,7 @@ jobs:
     needs:
       - Jar_File_Stage_build_jar
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runs-on: ubuntu-20.04
