@@ -9,6 +9,9 @@ RUN mkdir /tmp/apk && cd /tmp/apk && \
 
 FROM build_env AS libddwaf_build
 COPY .. /AgentJavaNative
+RUN mkdir -p /build
+WORKDIR /build
+
 # NOTES:
 #    CMAKE_CXX_FLAGS (except -stdlib=libc++) and CMAKE_C_FLAGS are only used to
 #    pass the cmake compiler sanity checks. They have no effect otherwise due to
@@ -16,9 +19,8 @@ COPY .. /AgentJavaNative
 #    -static-libgcc is used to force libunwind to be compiled statically
 #    (-l:libwind.a instead of -lunwind), it has nothing to do with libgcc.
 #    Again, this is only needed for the cmake sanity checks.
-RUN mkdir /build && cd /build && cmake /AgentJavaNative/libddwaf \
+RUN cmake /AgentJavaNative/libddwaf \
 	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	-DCMAKE_INSTALL_PREFIX=/usr \
 	-DCMAKE_C_COMPILER=clang \
 	-DCMAKE_CXX_COMPILER=clang++ \
 	-DCMAKE_CXX_FLAGS="-stdlib=libc++ -Qunused-arguments -rtlib=compiler-rt -unwindlib=libunwind -static-libgcc -fno-omit-frame-pointer" \
@@ -31,9 +33,9 @@ RUN mkdir /build && cd /build && cmake /AgentJavaNative/libddwaf \
 # because in musl these are all empty libraries. The symbols live in libc, and
 # will be imported. When linking to the shared library in a glibc system,
 # -lm, -ldl, -lpthread need to be provided though
-RUN cd /build && VERBOSE=1 make -j
+RUN cmake --build . --parallel
 RUN patchelf --remove-needed libc.musl-x86_64.so.1 /build/libddwaf.so
-RUN cd /build && make package && mv libddwaf-*.tar.gz libddwaf-x86_64.tar.gz
+RUN cmake --install . --prefix /out
 
 FROM scratch
-COPY --from=libddwaf_build /build/libddwaf-x86_64.tar.gz /
+COPY --from=libddwaf_build /out/ /
