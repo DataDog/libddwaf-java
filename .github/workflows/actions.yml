@@ -447,16 +447,15 @@ jobs:
       matrix:
         include:
           - runs-on: ubuntu-20.04
-            os: linux
-            arch: x86_64
-            libc: glibc
-          - runs-on: ubuntu-20.04
-            os: linux
-            arch: x86_64
-            libc: musl
+          - runs-on: macos-11
+          - runs-on: macos-12
+          - runs-on: macos-13
+          - runs-on: macos-14
+          - runs-on: macos-13-arm64
+          - runs-on: macos-14-arm64
+          - runs-on: windows-2019
+          - runs-on: windows-2022
           # TBD: linux aarch64
-          # TBD: macos
-          # TBD: windows
     runs-on: ${{ matrix.runs-on }}
     steps:
     - uses: actions/checkout@v4
@@ -470,7 +469,7 @@ jobs:
         name: build_dir
         path: build
     - name: Run tests
-      run: ci/build run-tests --os '${{ env.os }}' --arch '${{ env.arch }}' --libc '${{ env.libc }}'
+      run: ci/build run-tests
   Publish:
     name: Publish
     runs-on: ubuntu-20.04
