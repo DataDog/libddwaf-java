@@ -5,7 +5,7 @@ readonly OUTPUT_NATIVE_LIBS_DIR="build/native_libs"
 
 function cmd_build-docker-image() {
     echo "Building docker image..."
-    docker build --platform "$OS/$ARCH" "$DOCKER_IMAGE" -t "libddwaf-build-$LIBC"
+    docker build --platform "$OS/$ARCH" "$DOCKER_IMAGE" -t "libddwaf-build"
 }
 
 function cmd_build-libddwaf() {
@@ -72,7 +72,7 @@ function cmd_build-bindings-in-docker() {
         --user "$(id -u):$(id -g)" \
         -v "$(pwd):/work" \
         -w /work \
-        "libddwaf-build-$LIBC" \
+        "libddwaf-build" \
         ./ci/build build-bindings --os $OS --arch $ARCH --libc $LIBC
 }
 
@@ -146,8 +146,8 @@ function cmd_run-tests-in-docker() {
         --user "$(id -u):$(id -g)" \
         -v "$(pwd):/work" \
         -w /work \
-        "libddwaf-build-$LIBC" \
-        ./ci/build run-tests --os "$OS" --arch "$ARCH" --libc "${LIBC:-}"
+        "libddwaf-build" \
+        ./ci/build run-tests
 }
 
 function cmd_run-tests() {
@@ -186,6 +186,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG=true
             shift
             ;;
+        --docker-image)
+            DOCKER_IMAGE="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
             exit 1
@@ -193,16 +197,19 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-case "${OS:-}-${ARCH:-}-${LIBC:-}" in
-    linux-*-glibc)
-        DOCKER_IMAGE="ci/manylinux/$ARCH"
-        ;;
-    linux-*-musl)
-        DOCKER_IMAGE="ci/alpine"
-        ;;
-    *)
-        ;;
-esac
+if [[ -z ${DOCKER_IMAGE:-} ]]; then
+    case "${OS:-}-${ARCH:-}-${LIBC:-}" in
+        linux-*-glibc)
+            DOCKER_IMAGE="ci/manylinux/$ARCH"
+            ;;
+        linux-*-musl)
+            DOCKER_IMAGE="ci/alpine"
+            ;;
+        *)
+            DOCKER_IMAGE=
+            ;;
+    esac
+fi
 
 # check if function cmd_$COMMAND exists, and then run it:
 if declare -F "cmd_$COMMAND" &> /dev/null; then
