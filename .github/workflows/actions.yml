@@ -136,7 +136,6 @@ jobs:
         cd '${{ github.workspace }}'
         export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
         ./gradlew --build-cache check --info -PuseReleaseBinaries
-        ./gradlew --stop
       shell: bash
     - name: Save Artifacts
       uses: actions/upload-artifact@v4
@@ -231,7 +230,6 @@ jobs:
 #          cd '${{ github.workspace }}'
 #          export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
 #          ./gradlew --build-cache check --info -PuseReleaseBinaries
-#          ./gradlew --stop
 #        shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -309,7 +307,6 @@ jobs:
           cd '${{ github.workspace }}'
           export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
           ./gradlew --build-cache check --info -PuseReleaseBinaries
-          ./gradlew --stop
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -394,8 +391,6 @@ jobs:
           path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
         run: docker build ${{ env.dockerfile  }} -t linux_cmake
-      - name: Clean previous docker container
-        run: docker rm -f pwaf_java_build || true
       - name: Build and test JNI binding
         run: |
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
@@ -447,8 +442,6 @@ jobs:
           path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
         run: docker build ${{ env.dockerfile  }} -t linux_cmake
-      - name: Clean previous docker container
-        run: docker rm -f pwaf_java_build || true
       - name: Build and test with release binaries
         run: |
           docker run --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
@@ -502,8 +495,6 @@ jobs:
           path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
         run: docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake_aarch64
-      - name: Clean previous docker container
-        run: docker rm -f pwaf_java_build || true
       - name: Build and test JNI binding
         run: |
           docker run --platform arm64 --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
@@ -560,8 +551,6 @@ jobs:
           path: ${{ env.artifactsDirectory }}
       - name: Build docker linux image
         run: docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake
-      - name: Clean previous docker container
-        run: docker rm -f pwaf_java_build || true
       - name: Build and test with release binaries
         run: |
           docker run --platform linux/arm64 --name pwaf_java_build -v $(pwd):${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
@@ -640,7 +629,6 @@ jobs:
         ASAN_OPTIONS="verbosity=1 handle_segv=0 fast_unwind_on_malloc=0 detect_leaks=0" \
           LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.8 \
           ./gradlew --build-cache -x buildNativeLibDebug --info test
-        ./gradlew --stop
       shell: bash
   Jar_File_Stage_build_jar:
     name: Build & Publish
@@ -668,20 +656,6 @@ jobs:
       with:
         submodules: recursive
         clean: true
-    - run: chmod +x gradlew
-      name: Make gradlew executable
-    - name: Make artifacts download directories
-      run: |
-        cmake -E make_directory \
-          ${{ env.artifactsDirectory }}/libsqreen_jni_win-x86_64 \
-          ${{ env.artifactsDirectory }}/libsqreen_linux-x86_64 \
-          ${{ env.artifactsDirectory }}/libsqreen_linux-aarch64 \
-          ${{ env.artifactsDirectory }}/jni_linux_glibc-x86_64 \
-          ${{ env.artifactsDirectory }}/jni_linux_musl-x86_64 \
-          ${{ env.artifactsDirectory }}/jni_linux_glibc-aarch64 \
-          ${{ env.artifactsDirectory }}/jni_linux_musl-aarch64 \
-          ${{ env.artifactsDirectory }}/libsqreen_jni_macos-x86_64 \
-          ${{ env.artifactsDirectory }}/libsqreen_jni_macos-aarch64
     - name: Download libsqreen_jni_win-x86_64
       uses: actions/download-artifact@v4
       with:
