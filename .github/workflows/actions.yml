@@ -107,22 +107,6 @@ jobs:
           ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} \
           ${{ github.workspace }}/native_libs/${{ env.libdir }}
       working-directory: ${{ env.tempdir }}/buildAG
-    - name: Cache Gradle artifacts
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-    - name: Run tests on binding
-      run: |
-        set -ex
-        cd '${{ github.workspace }}'
-        export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
-        ./gradlew --build-cache check --info -PuseReleaseBinaries
-      shell: bash
     - name: Save Artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -187,22 +171,6 @@ jobs:
             ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} \
             ${{ github.workspace }}/native_libs/${{ env.libdir }}
         working-directory: ${{ env.tempdir }}/buildAG
-      - name: Cache Gradle artifacts
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-#      - name: Run tests on binding
-#        run: |
-#          set -ex
-#          cd '${{ github.workspace }}'
-#          export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
-#          ./gradlew --build-cache check --info -PuseReleaseBinaries
-#        shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -258,22 +226,6 @@ jobs:
         run: cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} ${{ github.workspace }}\native_libs\${{ env.libdir }}
         shell: cmd
         working-directory: ${{ env.tempdir }}/buildAG
-      - name: Cache Gradle artifacts
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      - name: Run tests on binding
-        run: |
-          set -ex
-          cd '${{ github.workspace }}'
-          export LIBDDWAF_INSTALL_PREFIX='${{ env.tempdir }}/out'
-          ./gradlew --build-cache check --info -PuseReleaseBinaries
-        shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -350,7 +302,7 @@ jobs:
           path: libddwaf/out
       - name: Build docker linux image
         run: docker build ${{ env.dockerfile  }} -t linux_cmake
-      - name: Build and test JNI binding
+      - name: Build bindings
         run: |
           docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
@@ -359,12 +311,9 @@ jobs:
             cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            mkdir -p ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
-            cd ${{ github.workspace }} &&
-            ./gradlew check --info -PuseReleaseBinaries'
+            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -394,7 +343,7 @@ jobs:
           path: libddwaf/out
       - name: Build docker linux image
         run: docker build ${{ env.dockerfile  }} -t linux_cmake
-      - name: Build and test with release binaries
+      - name: Build bindings
         run: |
           docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
@@ -403,12 +352,9 @@ jobs:
             cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            mkdir -p ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
-            cd ${{ github.workspace }} &&
-            ./gradlew check --info -PuseReleaseBinaries'
+            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -442,7 +388,7 @@ jobs:
           sudo sh get-docker.sh
       - name: Build docker linux image
         run: sudo docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake_aarch64
-      - name: Build and test JNI binding
+      - name: Build bindings
         run: |
           sudo docker run --platform arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
@@ -451,12 +397,9 @@ jobs:
             cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            mkdir -p ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
-            cd ${{ github.workspace }} &&
-            ./gradlew check --info -PuseReleaseBinaries'
+            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -490,7 +433,7 @@ jobs:
           sudo sh get-docker.sh
       - name: Build docker linux image
         run: sudo docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake
-      - name: Build and test with release binaries
+      - name: Build bindings
         run: |
           sudo docker run --platform linux/arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
@@ -499,12 +442,9 @@ jobs:
             cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            mkdir -p ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
-            cd ${{ github.workspace }} &&
-            ./gradlew check --info -PuseReleaseBinaries -Dorg.gradle.native=false'
+            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -564,7 +504,7 @@ jobs:
           ./gradlew --build-cache -x buildNativeLibDebug --info test
       shell: bash
   Jar_File_Stage_build_jar:
-    name: Build & Publish
+    name: Build
     runs-on: ubuntu-20.04
     needs:
       - Native_binaries_Stage_macos_x86_64
@@ -640,11 +580,164 @@ jobs:
         cp ${{ github.workspace }}/build/libs/libsqreen-*.jar "${{ env.tempdir }}/packages"
         cp ${{ github.workspace }}/build/distributions/libsqreen-*-dbgsym.zip "${{ env.tempdir }}/packages"
       shell: bash
-    - name: Publish artifacts
+    - name: Publish artifacts (native libs)
+      uses: actions/upload-artifact@v4
+      with:
+        path: native_libs
+        name: native_libs
+    - name: Publish artifacts (jars)
       uses: actions/upload-artifact@v4
       with:
         path: ${{ env.tempdir }}/packages
         name: libsqreen_jni_jar
+
+  Test:
+    name: Test
+    needs:
+      - Jar_File_Stage_build_jar
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            jdk: temurin8
+            docker_image: eclipse-temurin:8-jdk-focal
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            jdk: temurin11
+            docker_image: eclipse-temurin:11-jdk-focal
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            jdk: temurin17
+            docker_image: eclipse-temurin:17-jdk-focal
+          # FIXME: codearc plugin fails with java 21, we'll need to wait for a fix
+          #        or split compile and test jdk.
+          #- runs-on: ubuntu-20.04
+          #  os: linux
+          #  arch: x86_64
+          #  jdk: temurin21
+          #  docker_image: eclipse-temurin:21-jdk-jammy
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            jdk: temurin8
+            docker_image: eclipse-temurin:8-jdk-centos7
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            jdk: temurin8
+            docker_image: eclipse-temurin:8-jdk-alpine
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            jdk: redhat8
+            docker_image: centos6:custom
+            docker_image_dir: ci/centos6
+          # FIXME: We have a JNI check failure with OpenJ9.
+          #- runs-on: ubuntu-20.04
+          #  os: linux
+          #  arch: x86_64
+          #  jdk: semeru8
+          #  docker_image: ibm-semeru-runtimes:open-8-jdk-centos7
+          - runs-on: arm-4core-linux
+            os: linux
+            arch: aarch64
+            jdk: temurin8
+            docker_image: eclipse-temurin:8-jdk-focal
+          # FIXME: Gradle daemon crashes
+          #- runs-on: macos-11
+          #  os: macos
+          #  arch: x86_64
+          #  jdk: temurin8
+          - runs-on: macos-12
+            os: macos
+            arch: x86_64
+            jdk: temurin8
+            java_home_var: JAVA_HOME_8_X64
+          - runs-on: macos-13
+            os: macos
+            arch: x86_64
+            jdk: temurin8
+            java_home_var: JAVA_HOME_8_X64
+          # FIXME: We hit https://bugs.openjdk.org/browse/JDK-8205076 on macos-13.
+          #        This should be fixed when we have Temurin 17.0.11.
+          # - runs-on: macos-13
+          #   os: macos
+          #   arch: x86_64
+          #   jdk: temurin17
+          #   java_home_var: JAVA_HOME_17_X64
+          # FIXME: https://bugs.openjdk.org/browse/JDK-8205076
+          # - runs-on: macos-14
+          #   os: macos
+          #   arch: x86_64
+          #   jdk: temurin11
+          #   java_home_var: JAVA_HOME_11_X64
+          # FIXME: https://bugs.openjdk.org/browse/JDK-8205076
+          # - runs-on: macos-13-xlarge
+          #   os: macos
+          #   arch: aarch64
+          #   jdk: temurin11
+          #   java_home_var: JAVA_HOME_11_arm64
+          # FIXME: https://bugs.openjdk.org/browse/JDK-8205076
+          # - runs-on: macos-14-xlarge
+          #   os: macos
+          #   arch: aarch64
+          #   jdk: temurin11
+          #   java_home_var: JAVA_HOME_11_arm64
+          - runs-on: windows-2019
+            os: windows
+            arch: x86_64
+            jdk: temurin8
+            java_home_var: JAVA_HOME_8_X64
+          - runs-on: windows-2022
+            os: windows
+            arch: x86_64
+            jdk: temurin8
+            java_home_var: JAVA_HOME_8_X64
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+    - uses: actions/checkout@v4
+      name: Checkout
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: native_libs
+        path: native_libs
+    - name: Install docker
+      run: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo sh get-docker.sh
+      if: ${{ matrix.runs-on == 'arm-4core-linux' }}
+    - name: Build Docker image
+      run: sudo docker build -t ${{ matrix.docker_image }} ${{ matrix.docker_image_dir }}
+      if: ${{ matrix.docker_image_dir != '' }}
+    - name: Run tests (docker)
+      run: sudo docker run --rm -w $(pwd) -v $(pwd):$(pwd) ${{ matrix.docker_image }} sh -c './gradlew check --no-daemon --info -Prelease -PuseReleaseBinaries -Dorg.gradle.native=false'
+      if: ${{ matrix.os == 'linux' }}
+    - name: Run tests (no docker)
+      run: |
+        set -eux
+        export JAVA_HOME="$${{ matrix.java_home_var }}"
+        ./gradlew check --info -Prelease -PuseReleaseBinaries
+      if: ${{ matrix.os != 'linux' }}
+
+  Publish:
+    name: Publish
+    runs-on: ubuntu-20.04
+    needs:
+      - Jar_File_Stage_build_jar
+      - Test
+    if: contains(github.ref, 'refs/tags/v')
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: native_libs
+        path: native_libs
     - name: Publish artifacts to S3
       run: ./gradlew publish
       env:
