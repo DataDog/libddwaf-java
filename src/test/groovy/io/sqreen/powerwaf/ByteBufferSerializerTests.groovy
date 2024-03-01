@@ -308,7 +308,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     void 'observes maximum string size'() {
         maxStringSize = 3
         // the size is number of UTF-16 code units
-        def str = "\uFFFD" * 3 + 'x'
+        def str = '\uFFFD' * 3 + 'x'
 
         def obj = ['12\uAAAA4': str]
         lease = serializer.serialize(obj)

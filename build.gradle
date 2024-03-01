@@ -128,6 +128,8 @@ jacocoTestReport {
         xml.required = true
         csv.required = false
     }
+    mustRunAfter 'testgc'
+    mustRunAfter 'testNoByteBuffers'
 }
 
 sourceSets {
@@ -155,7 +157,7 @@ dependencies {
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
+    archiveClassifier = 'sources'
     from sourceSets.main.allSource
 }
 
@@ -282,7 +284,10 @@ task copyNativeLibs(type: Copy) {
     dependsOn checkForNativeLibs
 }
 
-jar.dependsOn(copyNativeLibs)
+tasks.withType(JavaCompile).configureEach {
+    mustRunAfter copyNativeLibs
+}
+jar.dependsOn copyNativeLibs
 
 task testgc(type: Test) {
     description = 'Tests that the library can be unloaded'
