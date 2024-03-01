@@ -9,6 +9,8 @@ else()
     message(FATAL_ERROR "Found JNI: failed")
 endif()
 
+add_subdirectory(deps EXCLUDE_FROM_ALL)
+
 find_package(libddwaf REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -35,8 +37,6 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     add_compile_options(-Wno-declaration-after-statement -Wno-reserved-identifier
         -Wno-implicit-fallthrough -Wno-gnu-auto-type -Wno-c++98-compat)
 endif()
-
-add_subdirectory(deps EXCLUDE_FROM_ALL)
 
 set(SOURCE_FILES
     src/main/c/base64.c
