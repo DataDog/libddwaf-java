@@ -8,6 +8,7 @@
 /release/
 /out/
 /build/
+/build-cmake/
 /native_libs/**/*.so
 /native_libs/**/*.so.debug
 /native_libs/**/*.dll

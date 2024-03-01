@@ -50,7 +50,6 @@ else()
     endif()
     FetchContent_Declare(
             libddwaf
-            # TODO: gen proper url
             URL https://github.com/DataDog/libddwaf/releases/download/${LIBDDWAF_VERSION}/libddwaf-${LIBDDWAF_VERSION}-${LIBDDWAF_VARIANT}.tar.gz
     )
     FetchContent_MakeAvailable(libddwaf)

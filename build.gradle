@@ -38,44 +38,36 @@ targetCompatibility = 1.8
 
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
+def cmakeBuildType = hasProperty('debug') ? 'Debug' : 'RelWithDebInfo'
+def cmakeBuildDir = "$projectDir/build-cmake/$cmakeBuildType"
 
-task cmakeNativeLibDebug(type: Exec) {
+task cmakeNativeLib(type: Exec) {
     outputs.upToDateWhen { false }
-    description = 'Runs cmake in a debug configuration'
-
-    def pwafConfDir = project.hasProperty('libddwafConfig') ?
-            project.libddwafConfig :
-            "$projectDir/libddwaf/Debug/out/usr/local/share/cmake/libddwaf"
+    description = 'Runs cmake for libddwaf JNI bindings'
 
     doFirst {
-        def f = file("$pwafConfDir/libddwaf-config-debug.cmake")
-        if (!f.exists()) {
-            logger.warn("The file $f does not exist. libddwaf debug must be installed globally. " +
-                    "Run with -PlibddwafConfig=/path/to/dir/of/libddwaf-config-debug.cmake to override")
-        }
-
-        file("$buildDir/Debug").mkdirs()
+        file(cmakeBuildDir).mkdirs()
     }
 
     inputs.file 'CMakeLists.txt'
-    outputs.dir "$buildDir/Debug/"
+    inputs.file 'deps/CMakeLists.txt'
+    outputs.dir cmakeBuildDir
 
     logging.captureStandardError  LogLevel.ERROR
     logging.captureStandardOutput LogLevel.INFO
 
-    def cmakeOpts
+    def cmakeOpts = []
     if (project.hasProperty('withASAN')) {
-        cmakeOpts = [
+        cmakeOpts += [
             '-DCMAKE_C_COMPILER=clang',
             '-DCMAKE_CXX_COMPILER=clang++',
             '-DCMAKE_C_FLAGS=-fsanitize=address -fsanitize=undefined -fsanitize=leak --coverage',
             '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address -fsanitize=undefined -fsanitize=leak -lubsan -lasan --coverage',
         ]
-        if (WINDOWS) {
-            logger.warn('Address sanitizer not supported on Windows')
-        }
-    } else {
-        cmakeOpts = [
+        assert !WINDOWS, 'Address sanitizer not supported on Windows'
+    }
+    if (project.hasProperty('debug')) {
+        cmakeOpts += [
             '-DCMAKE_C_FLAGS=--coverage',
             '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
         ]
@@ -84,42 +76,43 @@ task cmakeNativeLibDebug(type: Exec) {
         cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
     }
 
-    if (WINDOWS) {
-        commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", '-S', projectDir, '-B', '.'
-    } else {
-        commandLine('cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
-                             *cmakeOpts, '-S', projectDir, '-B', '.')
-    }
-
-    workingDir "$buildDir/Debug"
+    commandLine 'cmake', "-DCMAKE_BUILD_TYPE=$cmakeBuildType", *cmakeOpts, '-S', projectDir, '-B', cmakeBuildDir
+    workingDir cmakeBuildDir
 }
 
-task buildNativeLibDebug(type: Exec) {
-    description = 'Builds the native JNI lib in a debug configuration'
+task buildNativeLib(type: Exec) {
+    description = 'Builds libddwaf JNI bindings'
     group = 'test'
 
     inputs.dir 'src/main/c'
+    dependsOn cmakeNativeLib
     if (WINDOWS) {
-        outputs.file "$buildDir/Debug/Debug/libsqreen_jni.dll"
+        outputs.file "$cmakeBuildDir/sqreen_jni.dll"
     } else if (MACOS) {
-        outputs.file "$buildDir/Debug/libsqreen_jni.dylib"
+        outputs.file "$cmakeBuildDir/libsqreen_jni.dylib"
     } else {
-        outputs.file "$buildDir/Debug/libsqreen_jni.so"
+        outputs.file "$cmakeBuildDir/libsqreen_jni.so"
     }
 
     logging.captureStandardError  LogLevel.ERROR
     logging.captureStandardOutput LogLevel.INFO
 
-    if (WINDOWS) {
-        commandLine 'cmake', '--build', '.', '--target', 'sqreen_jni',
-                             '-j', '--verbose', '--config', 'Debug'
-    } else {
-        commandLine 'make', '-j', 'sqreen_jni', 'VERBOSE=1'
-    }
-    workingDir "$buildDir/Debug"
-
-    dependsOn cmakeNativeLibDebug
+    commandLine 'cmake', '--build', '.', '--parallel', '--verbose', '--config', cmakeBuildType, '--target', 'sqreen_jni'
+    workingDir cmakeBuildDir
 }
+
+task copyLibddwaf(type: Copy) {
+    description = 'Copies libddwaf to the resources directory'
+    group = 'build'
+
+    def libName = WINDOWS ? 'ddwaf.dll' : MACOS ? 'libddwaf.dylib' : 'libddwaf.so'
+    from "$cmakeBuildDir"
+    into sourceSets.main.output.resourcesDir
+    include libName
+    rename libName, 'libddwaf.so'
+}
+
+task prepare
 
 jacocoTestReport {
     executionData fileTree(project.buildDir.absolutePath).include("jacoco/*.exec")
@@ -316,9 +309,8 @@ tasks.withType(Test).each {
         it.jvmArgs += ['-DuseReleaseBinaries=true']
         it.dependsOn copyNativeLibs
     } else {
-        def javaLibPath = WINDOWS ? "$buildDir\\Debug\\Debug" : "$buildDir/Debug"
-        it.jvmArgs += ["-Djava.library.path=$javaLibPath"]
-        it.dependsOn buildNativeLibDebug
+        it.jvmArgs += ["-Djava.library.path=$cmakeBuildDir"]
+        it.dependsOn buildNativeLib
     }
 
     it.outputs.upToDateWhen { false }
