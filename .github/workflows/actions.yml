@@ -70,8 +70,6 @@ jobs:
       run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
     - name: Create Build Directory for JNI binding
       run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
-    - name: Create Packages Directory
-      run: cmake -E make_directory ${{ env.tempdir }}/packages
     - name: Generate Build Scripts for libddwaf
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
@@ -97,8 +95,6 @@ jobs:
     - name: Build Binaries for JNI Binding
       run: cmake --build . --verbose
       working-directory: ${{ env.tempdir }}/buildAG
-    - name: Create packages directory
-      run: mkdir -p ${{ github.workspace }}/native_libs/${{ env.libdir }}
     - name: Copy libddwaf binaries to native_libs
       run: |
         cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
@@ -152,8 +148,6 @@ jobs:
         run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
       - name: Create Build Directory for JNI binding
         run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
-      - name: Create Packages Directory
-        run: cmake -E make_directory ${{ env.tempdir }}/packages
       - name: Generate Build Scripts for libddwaf
         run: |
           cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
@@ -181,8 +175,6 @@ jobs:
       - name: Build Binaries for JNI Binding
         run: cmake --build .
         working-directory: ${{ env.tempdir }}/buildAG
-      - name: Create packages directory
-        run: mkdir -p ${{ github.workspace }}/native_libs/${{ env.libdir }}
       - name: Copy libddwaf binaries to native_libs
         run: |
           cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
@@ -262,14 +254,8 @@ jobs:
       - name: Build Binaries for JNI Binding
         run: cmake --build .
         working-directory: ${{ env.tempdir }}/buildAG
-      - name: Create packages directory
-        run: cmake -E make_directory ${{ github.workspace }}/native_libs/${{ env.libdir }}
-      - name: Copy JNI binding binaries to packages
-        run: cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} ${{ github.workspace }}\build\native_libs\${{ env.libdir }}
-        shell: cmd
-        working-directory: ${{ env.tempdir }}/buildAG
-      - name: Copy JNI binding binaries to native_libs (testing)
-        run: cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} ${{ github.workspace }}\build\native_libs\${{ env.libdir }}
+      - name: Copy JNI binding binaries to native_libs
+        run: cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} ${{ env.shlib_prefix }}sqreen_jni.${{ env.debug_ext }} ${{ github.workspace }}\native_libs\${{ env.libdir }}
         shell: cmd
         working-directory: ${{ env.tempdir }}/buildAG
       - name: Cache Gradle artifacts
