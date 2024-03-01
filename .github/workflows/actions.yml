@@ -500,7 +500,7 @@ jobs:
             cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
             cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }} &&
             cd ${{ github.workspace }} &&
-            ./gradlew check --info -PuseReleaseBinaries'
+            ./gradlew check --info -PuseReleaseBinaries -Dorg.gradle.native=false'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
