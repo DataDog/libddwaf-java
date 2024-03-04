@@ -148,7 +148,7 @@ jobs:
           toolset: 14.29
           arch: amd64
       - name: Create Build Directory for JNI binding
-        run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
+        run: cmake -E make_directory "${{ env.tempdir }}/build-cmake"
       - name: Generate Build Scripts for JNI binding
         run: |
           cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -G "${{ env.generator }}" "${{ github.workspace }}"
@@ -181,15 +181,13 @@ jobs:
       - name: Build bindings
         run: |
           docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
-            mkdir buildAG &&
-            cd buildAG &&
+            mkdir build-cmake &&
+            cd build-cmake &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
+            cp -v _deps/libddwaf-src/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
+            cp -v libddwaf.so libsqreen_jni.so libsqreen_jni.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -212,15 +210,13 @@ jobs:
       - name: Build bindings
         run: |
           docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
-            mkdir buildAG &&
-            cd buildAG &&
+            mkdir build-cmake &&
+            cd build-cmake &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
+            cp -v _deps/libddwaf-src/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
+            cp -v libddwaf.so libsqreen_jni.so libsqreen_jni.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -238,11 +234,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Download libddwaf artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: libddwaf_linux-aarch64
-          path: libddwaf/out
       - name: Install docker
         run: |
           curl -fsSL https://get.docker.com -o get-docker.sh
@@ -252,15 +243,13 @@ jobs:
       - name: Build bindings
         run: |
           sudo docker run --platform arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
-            mkdir buildAG &&
-            cd buildAG &&
+            mkdir build-cmake &&
+            cd build-cmake &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
+            cp -v _deps/libddwaf-src/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
+            cp -v libddwaf.so libsqreen_jni.so libsqreen_jni.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -287,15 +276,13 @@ jobs:
       - name: Build bindings
         run: |
           sudo docker run --platform linux/arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
-            mkdir buildAG &&
-            cd buildAG &&
+            mkdir build-cmake &&
+            cd build-cmake &&
             cmake ${{ github.workspace }} -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
+            cp -v _deps/libddwaf-src/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
+            cp -v libddwaf.so libsqreen_jni.so libsqreen_jni.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -347,10 +334,10 @@ jobs:
     - name: Run Binding Tests
       run: |
         set -ex
-        VERBOSE=1 ./gradlew --build-cache buildNativeLibDebug -PwithASAN --info
+        VERBOSE=1 ./gradlew --build-cache buildNativeLib -PwithASAN --info
         ASAN_OPTIONS="verbosity=1 handle_segv=0 fast_unwind_on_malloc=0 detect_leaks=0" \
           LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.8 \
-          ./gradlew --build-cache -x buildNativeLibDebug --info test
+          ./gradlew --build-cache -x buildNativeLib --info test
       shell: bash
   Jar_File_Stage_build_jar:
     name: Build
@@ -371,9 +358,6 @@ jobs:
         java-version: 1.8
     - uses: actions/checkout@v4
       name: Checkout
-      with:
-        submodules: recursive
-        clean: true
     - name: Download libsqreen_jni_win-x86_64
       uses: actions/download-artifact@v4
       with:
