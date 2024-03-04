@@ -280,47 +280,6 @@ jobs:
           path: libddwaf/out
           name: libddwaf_linux-aarch64
 
-  Native_binaries_Stage_linux_x86_64_glibc:
-    name: Linux x86_64 (glibc)
-    runs-on: ubuntu-20.04
-    needs:
-      - Native_binaries_Stage_libddwaf_linux_x86_64
-    env:
-      dockerfile: ci/manylinux/x86_64
-      artifactsuff: linux_glibc-x86_64
-      libdir: linux/x86_64/glibc
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
-      - name: Download libddwaf artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: libddwaf_linux-x86_64
-          path: libddwaf/out
-      - name: Build docker linux image
-        run: docker build ${{ env.dockerfile  }} -t linux_cmake
-      - name: Build bindings
-        run: |
-          docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
-            set -x;
-            mkdir buildAG &&
-            cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
-            make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
-        shell: bash
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: native_libs
-          name: jni_${{ env.artifactsuff }}
-
   Native_binaries_Stage_linux_x86_64_musl:
     name: Linux x86_64 (musl)
     runs-on: ubuntu-20.04
@@ -329,8 +288,8 @@ jobs:
     env:
       dockerfile: ci/alpine
       artifactsuff: linux_musl-x86_64
-      libdir: linux/x86_64/musl
-    steps: # identical to glibc
+      libdir: linux/x86_64
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -352,53 +311,9 @@ jobs:
             cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
-        shell: bash
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: native_libs
-          name: jni_${{ env.artifactsuff }}
-
-  Native_binaries_Stage_linux_aarch64_glibc:
-    name: Linux aarch64 (glibc)
-    runs-on: arm-4core-linux
-    needs:
-      - Native_binaries_Stage_libddwaf_linux_aarch64
-    env:
-      dockerfile: ci/manylinux/aarch64
-      artifactsuff: linux_glibc-aarch64
-      libdir: linux/aarch64/glibc
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
-      - name: Download libddwaf artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: libddwaf_linux-aarch64
-          path: libddwaf/out
-      - name: Install docker
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-      - name: Build docker linux image
-        run: sudo docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake_aarch64
-      - name: Build bindings
-        run: |
-          sudo docker run --platform arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
-            set -x;
-            mkdir buildAG &&
-            cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
-            make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
+            patchelf --remove-needed libc.musl-x86_64.so.1 libsqreen_jni.so &&
+            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/${{ env.libdir }}/ &&
+            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}/libddwaf.so.debug &&
             cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
@@ -415,8 +330,8 @@ jobs:
     env:
       dockerfile: ci/alpine
       artifactsuff: linux_musl-aarch64
-      libdir: linux/aarch64/musl
-    steps: # identical to glibc
+      libdir: linux/aarch64
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -442,8 +357,9 @@ jobs:
             cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
+            patchelf --remove-needed libc.musl-aarch64.so.1 libsqreen_jni.so &&
+            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/${{ env.libdir }}/ &&
+            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}/libddwaf.so.debug &&
             cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
@@ -510,9 +426,7 @@ jobs:
       - Native_binaries_Stage_macos_x86_64
       - Native_binaries_Stage_macos_aarch64
       - Native_binaries_Stage_windows_x86_64
-      - Native_binaries_Stage_linux_x86_64_glibc
       - Native_binaries_Stage_linux_x86_64_musl
-      - Native_binaries_Stage_linux_aarch64_glibc
       - Native_binaries_Stage_linux_aarch64_musl
       - Native_binaries_Stage_asan
     steps:
@@ -529,16 +443,6 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: libsqreen_jni_win-x86_64
-        path: native_libs
-    - name: Download jni_linux_glibc-x86_64
-      uses: actions/download-artifact@v4
-      with:
-        name: jni_linux_glibc-x86_64
-        path: native_libs
-    - name: Download jni_linux_glibc-aarch64
-      uses: actions/download-artifact@v4
-      with:
-        name: jni_linux_glibc-aarch64
         path: native_libs
     - name: Download jni_linux_musl-x86_64
       uses: actions/download-artifact@v4

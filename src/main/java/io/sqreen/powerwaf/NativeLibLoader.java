@@ -137,16 +137,16 @@ public class NativeLibLoader {
     private static List<String> getNativeLibs(OsType type) {
         switch(type) {
             case LINUX_x86_64_GLIBC:
-                return Arrays.asList("linux/x86_64/glibc/libsqreen_jni.so",
+                return Arrays.asList("linux/x86_64/libsqreen_jni.so",
                         "linux/x86_64/libddwaf.so");
             case LINUX_x86_64_MUSL:
-                return Arrays.asList("linux/x86_64/musl/libsqreen_jni.so",
+                return Arrays.asList("linux/x86_64/libsqreen_jni.so",
                         "linux/x86_64/libddwaf.so");
             case LINUX_AARCH64_GLIBC:
-                return Arrays.asList("linux/aarch64/glibc/libsqreen_jni.so",
+                return Arrays.asList("linux/aarch64/libsqreen_jni.so",
                         "linux/aarch64/libddwaf.so");
             case LINUX_AARCH64_MUSL:
-                return Arrays.asList("linux/aarch64/musl/libsqreen_jni.so",
+                return Arrays.asList("linux/aarch64/libsqreen_jni.so",
                         "linux/aarch64/libddwaf.so");
             case MAC_OS_x86_64:
                 return Arrays.asList("macos/x86_64/libsqreen_jni.dylib",
