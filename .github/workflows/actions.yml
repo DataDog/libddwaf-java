@@ -305,7 +305,7 @@ jobs:
 
   Native_binaries_Stage_libddwaf_linux_aarch64:
     name: Linux aarch64 (semi-static libddwaf.so)
-    runs-on: ubuntu-22.04
+    runs-on: arm-4core-linux
     env:
       dockerfile: ci/alpine-libc++-static/aarch64
     steps:
@@ -314,14 +314,14 @@ jobs:
         with:
           submodules: recursive
           clean: true
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v1
-        id: buildx
-        with:
-          install: true
+      - name: Install docker
+        run: |
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
       - name: Build semi-statically compiled dynamic library
-        run: docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --platform linux/arm64 --progress=plain -o ${{ github.workspace }}/libddwaf/out .
+        run: |
+          sudo docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --platform linux/arm64 --progress=plain -o ${{ github.workspace }}/libddwaf/out .
+          sudo chown -R $USER:$USER ${{ github.workspace }}/libddwaf/out
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -418,7 +418,7 @@ jobs:
 
   Native_binaries_Stage_linux_aarch64_glibc:
     name: Linux aarch64 (glibc)
-    runs-on: ubuntu-22.04
+    runs-on: arm-4core-linux
     needs:
       - Native_binaries_Stage_libddwaf_linux_aarch64
     env:
@@ -431,18 +431,20 @@ jobs:
         with:
           submodules: recursive
           clean: true
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
       - name: Download libddwaf artifact
         uses: actions/download-artifact@v4
         with:
           name: libddwaf_linux-aarch64
           path: libddwaf/out
+      - name: Install docker
+        run: |
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
       - name: Build docker linux image
-        run: docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake_aarch64
+        run: sudo docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake_aarch64
       - name: Build and test JNI binding
         run: |
-          docker run --platform arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
+          sudo docker run --platform arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
             mkdir buildAG &&
@@ -464,7 +466,7 @@ jobs:
 
   Native_binaries_Stage_linux_aarch64_musl:
     name: Linux aarch64 (musl)
-    runs-on: ubuntu-22.04
+    runs-on: arm-4core-linux
     needs:
       - Native_binaries_Stage_libddwaf_linux_aarch64
     env:
@@ -477,18 +479,20 @@ jobs:
         with:
           submodules: recursive
           clean: true
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
       - name: Download libddwaf artifact
         uses: actions/download-artifact@v4
         with:
           name: libddwaf_linux-aarch64
           path: libddwaf/out
+      - name: Install docker
+        run: |
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
       - name: Build docker linux image
-        run: docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake
+        run: sudo docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake
       - name: Build and test with release binaries
         run: |
-          docker run --platform linux/arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
+          sudo docker run --platform linux/arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
             mkdir buildAG &&
