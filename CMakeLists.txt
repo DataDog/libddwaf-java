@@ -137,4 +137,13 @@ if(NOT (CMAKE_BUILD_TYPE MATCHES Debug))
     endif()
 endif()
 
+if(MSVC)
+    # Nothing for now.
+else()
+    # Copy libddwaf.so to the build directory.
+    add_custom_command(TARGET sqreen_jni POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:libddwaf_shared> $<TARGET_FILE_DIR:sqreen_jni>
+    )
+endif()
+
 # vim: set et:
