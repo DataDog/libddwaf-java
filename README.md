@@ -44,6 +44,8 @@ the GitHub Actions workflow file at `.github/workflows/actions.yml`.
 
 ### Advanced
 
+#### Custom libddwaf build
+
 If you need to build the JNI bindings against a custom build of libddwaf, you can use
 the `libddwafDir` property to specify the path to the libddwaf build directory:
 
@@ -52,3 +54,12 @@ the `libddwafDir` property to specify the path to the libddwaf build directory:
 ```
 
 This will avoid building libddwaf and use the one found in the specified directory.
+
+#### ASAN
+
+You can run tests with ASAN with the `withASAN` property:
+
+```sh
+./gradlew check -PwithASAN
+```
+

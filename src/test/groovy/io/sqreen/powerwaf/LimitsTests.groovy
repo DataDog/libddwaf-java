@@ -38,7 +38,7 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
-    void 'maxDepth is respected — array variant'() {
+    void 'maxDepth is respected - array variant'() {
         ctx = ctxWithArachniAtom
         maxDepth = 3
 
@@ -50,7 +50,7 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
-    void 'maxDepth is respected — map variant'() {
+    void 'maxDepth is respected - map variant'() {
         ctx = ctxWithArachniAtom
         maxDepth = 3
 
@@ -75,7 +75,7 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
-    void 'maxElements is respected — array variant'() {
+    void 'maxElements is respected - array variant'() {
         ctx = ctxWithArachniAtom
         maxElements = 5
 
@@ -88,7 +88,7 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
-    void 'maxElements is respected — map variant'() {
+    void 'maxElements is respected - map variant'() {
         ctx = ctxWithArachniAtom
         maxElements = 5
 
@@ -113,7 +113,7 @@ class LimitsTests implements PowerwafTrait {
     }
 
     @Test
-    void 'maxStringSize is observed — map key variant'() {
+    void 'maxStringSize is observed - map key variant'() {
         ctx = ctxWithArachniAtom
         maxStringSize = 100
 
