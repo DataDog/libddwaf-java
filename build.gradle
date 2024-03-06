@@ -39,21 +39,57 @@ targetCompatibility = 1.8
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
 
+def libddwafDir = "$projectDir/libddwaf"
+def cmakeLibddwafDir = "$projectDir/libddwaf/Debug"
+def libddwafInstallPrefix = "$projectDir/libddwaf/Debug/out"
+
+task cmakeLibddwafDebug(type: Exec) {
+    outputs.upToDateWhen { false }
+    description = 'Runs cmake in a debug configuration'
+
+    doFirst {
+        file(cmakeLibddwafDir).mkdirs()
+    }
+
+    commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', '-S', libddwafDir, '-B', cmakeLibddwafDir
+}
+
+task buildLibddwafDebug(type: Exec) {
+    description = 'Builds the libddwaf in a debug configuration'
+    group = 'test'
+
+    dependsOn cmakeLibddwafDebug
+
+    inputs.dir 'libddwaf/src'
+    outputs.dir "$cmakeLibddwafDir"
+
+    commandLine 'cmake', '--build', cmakeLibddwafDir, '--parallel'
+    doLast {
+        exec {
+            commandLine 'cmake', '--install', cmakeLibddwafDir, '--prefix', libddwafInstallPrefix
+        }
+    }
+}
+
 task cmakeNativeLibDebug(type: Exec) {
     outputs.upToDateWhen { false }
     description = 'Runs cmake in a debug configuration'
 
-    def pwafConfDir = project.hasProperty('libddwafConfig') ?
-            project.libddwafConfig :
-            "$projectDir/libddwaf/Debug/out/usr/local/share/cmake/libddwaf"
+    def libddwafConfDir = "$libddwafInstallPrefix/share/cmake/libddwaf"
+    if (project.hasProperty('libddwafConfig')) {
+        libddwafConfDir = project.property('libddwafConfig')
+        doFirst {
+            def f = file("$libddwafConfDir/libddwaf-config-debug.cmake")
+            if (!f.exists()) {
+                logger.warn("The file $f does not exist. libddwaf debug must be installed globally. " +
+                        "Run with -PlibddwafConfig=/path/to/dir/of/libddwaf-config-debug.cmake to override")
+            }
+        }
+    } else {
+        dependsOn buildLibddwafDebug
+    }
 
     doFirst {
-        def f = file("$pwafConfDir/libddwaf-config-debug.cmake")
-        if (!f.exists()) {
-            logger.warn("The file $f does not exist. libddwaf debug must be installed globally. " +
-                    "Run with -PlibddwafConfig=/path/to/dir/of/libddwaf-config-debug.cmake to override")
-        }
-
         file("$buildDir/Debug").mkdirs()
     }
 
@@ -85,9 +121,9 @@ task cmakeNativeLibDebug(type: Exec) {
     }
 
     if (WINDOWS) {
-        commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$pwafConfDir", '-S', projectDir, '-B', '.'
+        commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$libddwafConfDir", '-S', projectDir, '-B', '.'
     } else {
-        commandLine('cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$pwafConfDir",
+        commandLine('cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$libddwafConfDir",
                              *cmakeOpts, '-S', projectDir, '-B', '.')
     }
 

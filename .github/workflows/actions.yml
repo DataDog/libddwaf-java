@@ -29,14 +29,6 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-      - name: Build libddwdaf
-        run: |
-          mkdir libddwaf/Debug
-          cd libddwaf/Debug
-          cmake .. -DCMAKE_BUILD_TYPE=Debug
-          VERBOSE=1 make -j
-          DESTDIR=out make install
-          cd ../..
       - name: Build and test
         run: |
           ./gradlew check jacocoTestReport
@@ -527,20 +519,8 @@ jobs:
       with:
         java-version: 8
         distribution: temurin
-    - name: Build libddwaf
-      run: |
-        set -ex
-        cd libddwaf
-        mkdir Debug && cd Debug
-        cmake .. -DCMAKE_BUILD_TYPE=Debug
-        VERBOSE=1 make -j
-        DESTDIR=out make install
-    - name: Build JNI bindings
-      run: |
-        ./gradlew buildNativeLibDebug --rerun-tasks
-    - name: Run tests
-      run: |
-        ./gradlew check
+    - name: Build and run tests
+      run: ./gradlew check
 
   Jar_File_Stage_build_jar:
     name: Build

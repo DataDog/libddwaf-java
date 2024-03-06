@@ -1,72 +1,54 @@
-# Introduction
+# libddwaf-java
 
-This project provides Java bindings for [libddwaf][libddwaf_repos] through JNI.
-Currently supported runtimes are Linux (GNU and musl) and Windows amd64.
+## Overview
 
-# Build instructions
+This project provides Java bindings for [libddwaf](https://github.com/DataDog/libddwaf) through JNI.
+Currently supported runtimes are Linux (GNU and musl), Windows amd64 and macOS x86\_64 and arm64.
 
-Gradle is used to build the Java component, and CMake to build the native
-components. Three components need to be built separately:
+The project has 3 components:
 
-* libddwaf needs to be built and installed.
-* Then the JNI binding (named libsqreen\_jni, for historical reasons).
-* Finally the jar can be built with Gradle.
+* libddwaf, the core WAF library.
+* libsqreen\_jni, the JNI bindings.
+* libsqreen.jar, the Java component, which embeds libddwaf and JNI bindings builds for all supported platforms.
 
-A jar for release purposes needs to have both the libddwaf and libsqreen
-binaries for all the supported runtime environments. These are included inside
-the JAR. For Linux, a shared library build of libddwaf (libddwaf.so) is included
-in JAR; this DSO is used in both musl and glibc systems. On Windows, there is
-only one binary, which is linked against libddwaf built as a static library.
+## Build and test
 
-For testing purposes, Gradle can invoke a debug build of libsqreen\_jni. By
-default, libddwaf CMake config files are searched in
-`libddwaf/Debug/out/usr/local/share/cmake/libddwaf`.
+### Prerequisites
 
-The binaries for inclusion in the final release jar have to be copied into the
-`native_libs` directory. Then the jar can be built with `gradle build`.
+* cmake 3.15 or later
+* JDK 8 or later
 
-For development purposes, a debug build of libddwaf can be obtained with:
+### Quick start
+
+Just run:
 
 ```sh
-cd libddwaf
-mkdir Debug && cd Debug
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-make -j
-DESTDIR=out make install
-cd ../..
+./gradlew check
 ```
 
-Then the jni lib can be built with `./gradlew buildNativeLibDebug --rerun-tasks`.
+This will build debug versions of libddwaf, the JNI bindings, the final jar,
+and run tests and other checks
 
-To build native libraries, recommended use `--rerun-tasks` option to enforce rebuild task, because of gradle can skip building tasks due caches and lead to unexpected results.
+### Release mode build
 
-Tests are run with `./gradlew check`. This implicitly invokes
-`buildNativeLibDebug` if needed.
-
-### On MacOS libddwaf can be built with:
-
-You can set MacOSX SDK version with `CMAKE_OSX_SYSROOT` option (13.3)
-```sh
-cd libddwaf
-mkdir Debug && cd Debug
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX13.3.sdk
-make -j
-DESTDIR=out make install
-cd ../..
-```
-If you need specify architecture (x86_64, arm64) with gradle parameter `macArch`
-```sh
- ./gradlew buildNativeLibDebug --rerun-tasks -PmacArch=arm64
-```
-
-### On Windows libddwaf can be built with:
+If you want to test as closely as possible to a release, you have to place
+all built binaries in the `native_libs` directory. Then you can run:
 
 ```sh
-cd libddwaf
-mkdir Debug && cd Debug
-cmake .. -DCMAKE_INSTALL_PREFIX=out\usr\local -A x64 -DCMAKE_BUILD_TYPE=Debug
-cmake --build . --target install -j --config Debug
-
+./gradlew check -PuseReleaseBinaries
 ```
 
-[libddwaf_repos]: https://github.com/DataDog/libddwaf
+This will skip the build of the native libraries and use the ones it finds in
+`native_libs`. For more on the release build process, you can go ahead and check
+the GitHub Actions workflow file at `.github/workflows/actions.yml`.
+
+### Advanced
+
+If you need to build the JNI bindings against a custom build of libddwaf, you can use
+the `libddwafDir` property to specify the path to the libddwaf build directory:
+
+```sh
+./gradlew buildNativeLibDebug -PlibddwafDir=/path/to/dir/of/libddwaf-config-debug.cmake
+```
+
+This will avoid building libddwaf and use the one found in the specified directory.
