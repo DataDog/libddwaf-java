@@ -40,8 +40,12 @@ def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
 
 def libddwafDir = "$projectDir/libddwaf"
-def cmakeLibddwafDir = "$projectDir/libddwaf/Debug"
-def libddwafInstallPrefix = "$projectDir/libddwaf/Debug/out"
+def cmakeBuildSuffix = project.hasProperty('withASAN') ? "asan" : "debug"
+// We keep everything under gradle's build directory to have it cleaned with `gradle clean`.
+// ASAN and Debug builds use different directories to avoid cache mismatches.
+def cmakeLibddwafDir = "$projectDir/build/libddwaf-cmake-${cmakeBuildSuffix}"
+def libddwafInstallPrefix = "$projectDir/build/libddwaf-out-${cmakeBuildSuffix}"
+def cmakeNativeLibDir = "$projectDir/build/cmake-${cmakeBuildSuffix}"
 
 task cmakeLibddwafDebug(type: Exec) {
     outputs.upToDateWhen { false }
@@ -51,22 +55,56 @@ task cmakeLibddwafDebug(type: Exec) {
         file(cmakeLibddwafDir).mkdirs()
     }
 
-    commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', '-S', libddwafDir, '-B', cmakeLibddwafDir
+    def cflags = []
+    if (!WINDOWS) {
+        cflags += ['-fno-omit-frame-pointer']
+    }
+
+    def cmakeOpts = []
+
+    if (project.hasProperty('withASAN')) {
+        cflags += ['-fsanitize=address,leak,undefined', '--coverage']
+        cmakeOpts += [
+                '-DCMAKE_C_COMPILER=gcc-12',
+                '-DCMAKE_CXX_COMPILER=g++-12',
+                '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,leak,undefined',
+                '-DCMAKE_MODULE_LINKER_FLAGS=-fsanitize=address,leak,undefined',
+                '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address,leak,undefined',
+                '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address,leak,undefined',
+        ]
+        assert !WINDOWS, 'Address sanitizer not supported on Windows'
+    }
+
+    cmakeOpts += [
+        '-DCMAKE_BUILD_TYPE=Debug',
+        "-DCMAKE_C_FLAGS=${cflags.join(' ')}",
+        "-DCMAKE_CXX_FLAGS=${cflags.join(' ')}",
+    ]
+
+    commandLine 'cmake', '-S', libddwafDir, '-B', '.', *cmakeOpts
+    workingDir cmakeLibddwafDir
 }
 
-task buildLibddwafDebug(type: Exec) {
+task buildLibddwafDebug() {
+    outputs.upToDateWhen { false }
     description = 'Builds the libddwaf in a debug configuration'
     group = 'test'
 
     dependsOn cmakeLibddwafDebug
 
     inputs.dir 'libddwaf/src'
-    outputs.dir "$cmakeLibddwafDir"
+    inputs.dir cmakeLibddwafDir
+    outputs.dir libddwafInstallPrefix
 
-    commandLine 'cmake', '--build', cmakeLibddwafDir, '--parallel'
     doLast {
         exec {
-            commandLine 'cmake', '--install', cmakeLibddwafDir, '--prefix', libddwafInstallPrefix
+            commandLine 'cmake', '--build', '.', '--parallel'
+            workingDir cmakeLibddwafDir
+
+        }
+        exec {
+            commandLine 'cmake', '--install', '.', '--prefix', libddwafInstallPrefix
+            workingDir cmakeLibddwafDir
         }
     }
 }
@@ -90,57 +128,60 @@ task cmakeNativeLibDebug(type: Exec) {
     }
 
     doFirst {
-        file("$buildDir/Debug").mkdirs()
+        file(cmakeNativeLibDir).mkdirs()
     }
 
     inputs.file 'CMakeLists.txt'
-    outputs.dir "$buildDir/Debug/"
+    outputs.dir cmakeNativeLibDir
 
     logging.captureStandardError  LogLevel.ERROR
     logging.captureStandardOutput LogLevel.INFO
 
-    def cmakeOpts
-    if (project.hasProperty('withASAN')) {
-        cmakeOpts = [
-            '-DCMAKE_C_COMPILER=clang',
-            '-DCMAKE_CXX_COMPILER=clang++',
-            '-DCMAKE_C_FLAGS=-fsanitize=address -fsanitize=undefined -fsanitize=leak --coverage',
-            '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address -fsanitize=undefined -fsanitize=leak -lubsan -lasan --coverage',
-        ]
-        if (WINDOWS) {
-            logger.warn('Address sanitizer not supported on Windows')
-        }
-    } else {
-        cmakeOpts = [
-            '-DCMAKE_C_FLAGS=--coverage',
-            '-DCMAKE_SHARED_LINKER_FLAGS=--coverage',
-        ]
+    def cflags = ['--coverage']
+    def linkerFlags = ['--coverage']
+    if (!WINDOWS) {
+        cflags += ['-fno-omit-frame-pointer']
     }
+
+    def cmakeOpts = [
+            '-DCMAKE_BUILD_TYPE=Debug',
+    ]
+
+    if (project.hasProperty('withASAN')) {
+        cflags += ['-fsanitize=address,leak,undefined']
+        linkerFlags += ['-fsanitize=address,leak,undefined', '-lubsan', '-lasan']
+        cmakeOpts += [
+                '-DCMAKE_C_COMPILER=gcc-12',
+                '-DCMAKE_CXX_COMPILER=g++-12',
+        ]
+        assert !WINDOWS, 'Address sanitizer not supported on Windows'
+    }
+
     if (project.hasProperty('macArch')) {
         cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
     }
 
-    if (WINDOWS) {
-        commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$libddwafConfDir", '-S', projectDir, '-B', '.'
-    } else {
-        commandLine('cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$libddwafConfDir",
-                             *cmakeOpts, '-S', projectDir, '-B', '.')
-    }
+    cmakeOpts += [
+            "-DCMAKE_C_FLAGS=${cflags.join(' ')}",
+            "-DCMAKE_SHARED_LINKER_FLAGS=${linkerFlags.join(' ')}",
+    ]
 
-    workingDir "$buildDir/Debug"
+    commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$libddwafConfDir", *cmakeOpts, '-S', projectDir, '-B', '.'
+    workingDir cmakeNativeLibDir
 }
 
 task buildNativeLibDebug(type: Exec) {
+    outputs.upToDateWhen { false }
     description = 'Builds the native JNI lib in a debug configuration'
     group = 'test'
 
     inputs.dir 'src/main/c'
     if (WINDOWS) {
-        outputs.file "$buildDir/Debug/Debug/libsqreen_jni.dll"
+        outputs.file "$cmakeNativeLibDir/Debug/libsqreen_jni.dll"
     } else if (MACOS) {
-        outputs.file "$buildDir/Debug/libsqreen_jni.dylib"
+        outputs.file "$cmakeNativeLibDir/libsqreen_jni.dylib"
     } else {
-        outputs.file "$buildDir/Debug/libsqreen_jni.so"
+        outputs.file "$cmakeNativeLibDir/libsqreen_jni.so"
     }
 
     logging.captureStandardError  LogLevel.ERROR
@@ -150,9 +191,9 @@ task buildNativeLibDebug(type: Exec) {
         commandLine 'cmake', '--build', '.', '--target', 'sqreen_jni',
                              '-j', '--verbose', '--config', 'Debug'
     } else {
-        commandLine 'make', '-j', 'sqreen_jni', 'VERBOSE=1'
+        commandLine 'cmake', '--build', '.', '--parallel', '--verbose'
     }
-    workingDir "$buildDir/Debug"
+    workingDir cmakeNativeLibDir
 
     dependsOn cmakeNativeLibDebug
 }
@@ -352,9 +393,13 @@ tasks.withType(Test).each {
         it.jvmArgs += ['-DuseReleaseBinaries=true']
         it.dependsOn copyNativeLibs
     } else {
-        def javaLibPath = WINDOWS ? "$buildDir\\Debug\\Debug" : "$buildDir/Debug"
+        def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
         it.jvmArgs += ["-Djava.library.path=$javaLibPath"]
         it.dependsOn buildNativeLibDebug
+    }
+
+    if (project.hasProperty("withASAN")) {
+        it.environment ASAN_OPTIONS: 'verbosity=1 handle_segv=0 fast_unwind_on_malloc=0 detect_leaks=0', LD_PRELOAD: '/usr/lib/x86_64-linux-gnu/libasan.so.8'
     }
 
     it.outputs.upToDateWhen { false }

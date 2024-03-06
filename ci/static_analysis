@@ -25,10 +25,11 @@ for x in "${analyzer_checks[@]}"; do
   check_switches+=(-enable-checker "$x")
 done
 
-mkdir static_analysis && cd static_analysis
+mkdir -p static_analysis
+cd static_analysis
 scan-build "${check_switches[@]}" -o output \
   cmake .. -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_PREFIX_PATH=$(realpath ../libddwaf/Debug/out/usr/local/share/cmake/libddwaf/)
+  -DCMAKE_PREFIX_PATH=$(realpath ../build/libddwaf-out-asan/share/cmake/libddwaf/)
 scan-build "${check_switches[@]}" -o output make -j
 function clang_violations {
   ruby <<'EOD'

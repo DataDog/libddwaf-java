@@ -458,42 +458,11 @@ jobs:
         sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++ \
           clang clang-tools ruby
       shell: bash
-    - name: Build libddwaf
-      run: |
-        set -ex
-        cd libddwaf
-        mkdir Debug && cd Debug
-        cmake .. -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_C_COMPILER="gcc-13" \
-          -DCMAKE_CXX_COMPILER="g++-13" \
-          -DCMAKE_CXX_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
-          -DCMAKE_C_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
-          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
-          -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak" \
-          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined -fsanitize=leak"
-        VERBOSE=1 make -j
-        DESTDIR=out make install
-      shell: bash
+    - name: Build and test (with ASAN)
+      run: ./gradlew check -PwithASAN
     - name: Run static analyzer
       run: |
         ci/static_analysis
-      shell: bash
-    - name: Cache Gradle artifacts
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-    - name: Run Binding Tests
-      run: |
-        set -ex
-        VERBOSE=1 ./gradlew --build-cache buildNativeLibDebug -PwithASAN --info
-        ASAN_OPTIONS="verbosity=1 handle_segv=0 fast_unwind_on_malloc=0 detect_leaks=0" \
-          LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.8 \
-          ./gradlew --build-cache -x buildNativeLibDebug --info test
       shell: bash
 
   Dev_Tests:
