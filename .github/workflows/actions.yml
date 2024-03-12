@@ -10,6 +10,7 @@ defaults:
 env:
   buildType: RelWithDebInfo
   tempdir: ${{ github.workspace }}/build
+  libddwafVersion: 1.16.1
 jobs:
   Coverage:
     runs-on: ubuntu-22.04
@@ -55,32 +56,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       name: Checkout
-      with:
-        submodules: recursive
-        clean: true
-    - name: Create Build Directory for libddwaf
-      run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
+    - name: Prepare libddwaf
+      run: |
+        # Get sha256sum
+        brew install coreutils
+        wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-darwin-x86_64.tar.gz
+        wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-darwin-x86_64.tar.gz.sha256
+        sha256sum --check libddwaf-${{ env.libddwafVersion }}-darwin-x86_64.tar.gz.sha256
+        mkdir -p libddwaf/out
+        tar xvzf libddwaf-${{ env.libddwafVersion }}-darwin-x86_64.tar.gz -C libddwaf/out --strip-components=1
+        mv libddwaf/out/lib/.build-id/*/*.debug libddwaf/out/lib/libddwaf.dylib.dwarf
     - name: Create Build Directory for JNI binding
       run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
-    - name: Generate Build Scripts for libddwaf
-      run: |
-        cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
-          -DLIBDDWAF_BUILD_STATIC=0 \
-          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
-          -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
-          -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
-          -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
-      working-directory: ${{ env.tempdir }}/buildPW
-    - name: Build Binaries for libddwaf
-      run: cmake --build . --verbose
-      working-directory: ${{ env.tempdir }}/buildPW
-    - name: Install Binaries for libddwaf
-      run: cmake --build . --target install
-      working-directory: ${{ env.tempdir }}/buildPW
     - name: Generate Build Scripts for JNI binding
       run: |
         cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
-          -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
+          -DCMAKE_PREFIX_PATH='${{ github.workspace }}/libddwaf/out/share/cmake/libddwaf/' \
           -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
           -G "${{ env.generator }}" ${{ github.workspace }}
       working-directory: ${{ env.tempdir }}/buildAG
@@ -92,7 +83,7 @@ jobs:
         cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
           ${{ env.shlib_prefix }}ddwaf.${{ env.debug_ext }} \
           ${{ github.workspace }}/native_libs/${{ env.libdir }}
-      working-directory: ${{ env.tempdir }}/buildPW
+      working-directory: ${{ github.workspace }}/libddwaf/out/lib
     - name: Copy JNI binding binaries to native_libs
       run: |
         cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} \
@@ -104,6 +95,7 @@ jobs:
       with:
         path: native_libs
         name: libsqreen_jni_${{ env.artifactsuff }}
+
   Native_binaries_Stage_macos_aarch64:
     name: MacOS aarch64
     runs-on: macOS-12
@@ -117,34 +109,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         name: Checkout
-        with:
-          submodules: recursive
-          clean: true
-      - name: Create Build Directory for libddwaf
-        run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
+      - name: Prepare libddwaf
+        run: |
+          # Get sha256sum
+          brew install coreutils
+          wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-darwin-arm64.tar.gz
+          wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-darwin-arm64.tar.gz.sha256
+          sha256sum --check libddwaf-${{ env.libddwafVersion }}-darwin-arm64.tar.gz.sha256
+          mkdir -p libddwaf/out
+          tar xvzf libddwaf-${{ env.libddwafVersion }}-darwin-arm64.tar.gz -C libddwaf/out --strip-components=1
+          mv libddwaf/out/lib/.build-id/*/*.debug libddwaf/out/lib/libddwaf.dylib.dwarf
       - name: Create Build Directory for JNI binding
         run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
-      - name: Generate Build Scripts for libddwaf
-        run: |
-          cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
-            -DLIBDDWAF_BUILD_STATIC=0 \
-            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
-            -DCMAKE_CXX_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
-            -DCMAKE_INSTALL_PREFIX='${{ env.tempdir }}/out' \
-            -G '${{ env.generator }}' '${{ github.workspace }}/libddwaf'
-        working-directory: ${{ env.tempdir }}/buildPW
-      - name: Build Binaries for libddwaf
-        run: cmake --build .
-        working-directory: ${{ env.tempdir }}/buildPW
-      - name: Install Binaries for libddwaf
-        run: cmake --build . --target install
-        working-directory: ${{ env.tempdir }}/buildPW
       - name: Generate Build Scripts for JNI binding
         run: |
           cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
-            -DCMAKE_PREFIX_PATH='${{ env.tempdir }}/out/share/cmake/libddwaf/' \
+            -DCMAKE_PREFIX_PATH='${{ github.workspace }}/libddwaf/out/share/cmake/libddwaf/' \
             -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
             -G "${{ env.generator }}" ${{ github.workspace }}
         working-directory: ${{ env.tempdir }}/buildAG
@@ -156,7 +137,7 @@ jobs:
           cmake -E copy ${{ env.shlib_prefix }}ddwaf.${{ env.shlib_ext }} \
             ${{ env.shlib_prefix }}ddwaf.${{ env.debug_ext }} \
             ${{ github.workspace }}/native_libs/${{ env.libdir }}
-        working-directory: ${{ env.tempdir }}/buildPW
+        working-directory: ${{ github.workspace }}/libddwaf/out/lib
       - name: Copy JNI binding binaries to native_libs
         run: |
           cmake -E copy ${{ env.shlib_prefix }}sqreen_jni.${{ env.shlib_ext }} \
@@ -185,31 +166,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         name: Checkout
-        with:
-          submodules: recursive
-          clean: true
       - uses: ilammy/msvc-dev-cmd@v1
         name: Setup x86_64 build
         with:
           toolset: 14.29
           arch: amd64
-      - name: Create Build Directory for libddwaf
-        run: cmake -E make_directory "${{ env.tempdir }}/buildPW"
+      - name: Prepare libddwaf
+        run: |
+          choco install wget --no-progress
+          wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-windows-x64.tar.gz
+          wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-windows-x64.tar.gz.sha256
+          sha256sum --check libddwaf-${{ env.libddwafVersion }}-windows-x64.tar.gz.sha256
+          mkdir -p libddwaf/out
+          tar xvzf libddwaf-${{ env.libddwafVersion }}-windows-x64.tar.gz -C libddwaf/out --strip-components=1
+        shell: bash
       - name: Create Build Directory for JNI binding
         run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
-      - name: Generate Build Scripts for libddwaf
-        run: |
-          cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DLIBDDWAF_BUILD_SHARED=0 -DCMAKE_INSTALL_PREFIX="${{ env.tempdir }}/out" -G "${{ env.generator }}" "${{ github.workspace }}/libddwaf"
-        working-directory: ${{ env.tempdir }}/buildPW
-      - name: Build Binaries for libddwaf
-        run: cmake --build . --target libddwaf_static
-        working-directory: ${{ env.tempdir }}/buildPW
-      - name: Install Binaries for libddwaf
-        run: cmake --build . --target install
-        working-directory: ${{ env.tempdir }}/buildPW
       - name: Generate Build Scripts for JNI binding
         run: |
-          cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_PREFIX_PATH="${{ env.tempdir }}/out/share/cmake/libddwaf/" -G "${{ env.generator }}" "${{ github.workspace }}"
+          cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_PREFIX_PATH="${{ github.workspace }}/libddwaf/out/share/cmake/libddwaf/" -G "${{ env.generator }}" "${{ github.workspace }}"
         working-directory: ${{ env.tempdir }}/buildAG
       - name: Build Binaries for JNI Binding
         run: cmake --build .
@@ -224,218 +199,60 @@ jobs:
           path: native_libs
           name: libsqreen_jni_${{ env.artifactsuff }}
 
-  Native_binaries_Stage_libddwaf_linux_x86_64:
-    name: Linux x86_64 (semi-static libddwaf.so)
-    runs-on: ubuntu-20.04
+  Native_binaries_Stage_linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - libc: glibc
+            arch: x86_64
+            dockerfile: ci/manylinux/x86_64
+            runs-on: ubuntu-20.04
+          - libc: musl
+            arch: x86_64
+            dockerfile: ci/alpine
+            runs-on: ubuntu-20.04
+          - libc: glibc
+            arch: aarch64
+            dockerfile: ci/manylinux/aarch64
+            runs-on: arm-4core-linux
+          - libc: musl
+            arch: aarch64
+            dockerfile: ci/alpine
+            runs-on: arm-4core-linux
+    name: Linux ${{ matrix.libc }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runs-on }}
     env:
-      dockerfile: ci/alpine-libc++-static/x86_64
+      artifactsuff: linux_${{ matrix.libc }}-${{ matrix.arch }}
+      libdir: linux/${{ matrix.arch }}/${{ matrix.libc }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
-      - uses: docker/setup-buildx-action@v1
-        id: buildx
-        with:
-          install: true
-      - name: Build semi-statically compiled dynamic library
-        run: docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --progress=plain -o ${{ github.workspace }}/libddwaf/out .
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: libddwaf/out
-          name: libddwaf_linux-x86_64
-
-  Native_binaries_Stage_libddwaf_linux_aarch64:
-    name: Linux aarch64 (semi-static libddwaf.so)
-    runs-on: arm-4core-linux
-    env:
-      dockerfile: ci/alpine-libc++-static/aarch64
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
       - name: Install docker
         run: |
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
-      - name: Build semi-statically compiled dynamic library
+        if: ${{ matrix.runs-on == 'arm-4core-linux' }}
+      - name: Prepare libddwaf
         run: |
-          sudo docker buildx build -f ${{ env.dockerfile  }}/Dockerfile --platform linux/arm64 --progress=plain -o ${{ github.workspace }}/libddwaf/out .
-          sudo chown -R $USER:$USER ${{ github.workspace }}/libddwaf/out
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: libddwaf/out
-          name: libddwaf_linux-aarch64
-
-  Native_binaries_Stage_linux_x86_64_glibc:
-    name: Linux x86_64 (glibc)
-    runs-on: ubuntu-20.04
-    needs:
-      - Native_binaries_Stage_libddwaf_linux_x86_64
-    env:
-      dockerfile: ci/manylinux/x86_64
-      artifactsuff: linux_glibc-x86_64
-      libdir: linux/x86_64/glibc
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
-      - name: Download libddwaf artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: libddwaf_linux-x86_64
-          path: libddwaf/out
+          wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-${{ matrix.arch }}-linux-musl.tar.gz
+          wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-${{ matrix.arch }}-linux-musl.tar.gz.sha256
+          sha256sum --check libddwaf-${{ env.libddwafVersion }}-${{ matrix.arch }}-linux-musl.tar.gz.sha256
+          mkdir -p libddwaf/out
+          tar xvzf libddwaf-${{ env.libddwafVersion }}-${{ matrix.arch }}-linux-musl.tar.gz -C libddwaf/out --strip-components=1
+          mv libddwaf/out/lib/.build-id/*/*.debug libddwaf/out/lib/libddwaf.so.debug
       - name: Build docker linux image
-        run: docker build ${{ env.dockerfile  }} -t linux_cmake
+        run: sudo docker build ${{ matrix.dockerfile  }} -t linux_cmake
       - name: Build bindings
         run: |
-          docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
+          sudo docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
             mkdir buildAG &&
             cd buildAG &&
             cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
             make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
-        shell: bash
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: native_libs
-          name: jni_${{ env.artifactsuff }}
-
-  Native_binaries_Stage_linux_x86_64_musl:
-    name: Linux x86_64 (musl)
-    runs-on: ubuntu-20.04
-    needs:
-      - Native_binaries_Stage_libddwaf_linux_x86_64
-    env:
-      dockerfile: ci/alpine
-      artifactsuff: linux_musl-x86_64
-      libdir: linux/x86_64/musl
-    steps: # identical to glibc
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
-      - name: Download libddwaf artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: libddwaf_linux-x86_64
-          path: libddwaf/out
-      - name: Build docker linux image
-        run: docker build ${{ env.dockerfile  }} -t linux_cmake
-      - name: Build bindings
-        run: |
-          docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
-            set -x;
-            mkdir buildAG &&
-            cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
-            make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/x86_64 &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/x86_64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
-        shell: bash
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: native_libs
-          name: jni_${{ env.artifactsuff }}
-
-  Native_binaries_Stage_linux_aarch64_glibc:
-    name: Linux aarch64 (glibc)
-    runs-on: arm-4core-linux
-    needs:
-      - Native_binaries_Stage_libddwaf_linux_aarch64
-    env:
-      dockerfile: ci/manylinux/aarch64
-      artifactsuff: linux_glibc-aarch64
-      libdir: linux/aarch64/glibc
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
-      - name: Download libddwaf artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: libddwaf_linux-aarch64
-          path: libddwaf/out
-      - name: Install docker
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-      - name: Build docker linux image
-        run: sudo docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake_aarch64
-      - name: Build bindings
-        run: |
-          sudo docker run --platform arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake_aarch64 bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
-            set -x;
-            mkdir buildAG &&
-            cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
-            make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
-            cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
-        shell: bash
-      - name: Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: native_libs
-          name: jni_${{ env.artifactsuff }}
-
-  Native_binaries_Stage_linux_aarch64_musl:
-    name: Linux aarch64 (musl)
-    runs-on: arm-4core-linux
-    needs:
-      - Native_binaries_Stage_libddwaf_linux_aarch64
-    env:
-      dockerfile: ci/alpine
-      artifactsuff: linux_musl-aarch64
-      libdir: linux/aarch64/musl
-    steps: # identical to glibc
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          clean: true
-      - name: Download libddwaf artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: libddwaf_linux-aarch64
-          path: libddwaf/out
-      - name: Install docker
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-      - name: Build docker linux image
-        run: sudo docker build --platform linux/arm64 ${{ env.dockerfile  }} -t linux_cmake
-      - name: Build bindings
-        run: |
-          sudo docker run --platform linux/arm64 --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
-            export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
-            set -x;
-            mkdir buildAG &&
-            cd buildAG &&
-            cmake ${{ github.workspace }} -DCMAKE_PREFIX_PATH=$LIBDDWAF_INSTALL_PREFIX/share/cmake/libddwaf -DCMAKE_BUILD_TYPE=${{ env.buildType }} -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" &&
-            make -j &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so ${{ github.workspace }}/native_libs/linux/aarch64/ &&
-            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/.build-id/*/*.debug ${{ github.workspace }}/native_libs/linux/aarch64/libddwaf.so.debug &&
+            cp -v $LIBDDWAF_INSTALL_PREFIX/lib/libddwaf.so{,.debug} ${{ github.workspace }}/native_libs/linux/${{ matrix.arch }}/ &&
             cp -v *.so *.so.debug ${{ github.workspace }}/native_libs/${{ env.libdir }}'
         shell: bash
       - name: Save Artifacts
@@ -498,10 +315,7 @@ jobs:
       - Native_binaries_Stage_macos_x86_64
       - Native_binaries_Stage_macos_aarch64
       - Native_binaries_Stage_windows_x86_64
-      - Native_binaries_Stage_linux_x86_64_glibc
-      - Native_binaries_Stage_linux_x86_64_musl
-      - Native_binaries_Stage_linux_aarch64_glibc
-      - Native_binaries_Stage_linux_aarch64_musl
+      - Native_binaries_Stage_linux
       - Native_binaries_Stage_asan
     steps:
     - name: Setup JDK 1.8
