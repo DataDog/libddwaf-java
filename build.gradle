@@ -3,6 +3,7 @@ import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
 import com.amazonaws.auth.profile.*
 import com.amazonaws.services.s3.*
 import com.amazonaws.services.s3.model.*
+import org.gradle.jvm.toolchain.internal.SpecificInstallationToolchainSpec
 
 buildscript {
     repositories {
@@ -430,6 +431,25 @@ codenarc {
 codenarcTest {
     compilationClasspath = codenarcMain.compilationClasspath +
             sourceSets.test.compileClasspath + sourceSets.test.output
+}
+
+// Select alternative JVM for tests.
+// Based on https://github.com/DataDog/dd-trace-java/blob/master/gradle/java_no_deps.gradle
+project.afterEvaluate {
+    def testJavaHome = gradle.startParameter.projectProperties["testJavaHome"]
+    if (testJavaHome != null) {
+        def jvmSpec = new SpecificInstallationToolchainSpec(project.getObjects(), file(testJavaHome))
+        Provider<JavaLauncher> launcher = providers.provider {
+            try {
+                return javaToolchains.launcherFor(jvmSpec).get()
+            } catch (NoSuchElementException ignored) {
+                throw new GradleException("Unable to find launcher for Java $testJavaHome")
+            }
+        }
+        tasks.withType(Test).configureEach {
+            javaLauncher = launcher
+        }
+    }
 }
 
 // vim: set et ts=4 sw=4 list:
