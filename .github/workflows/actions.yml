@@ -424,6 +424,26 @@ jobs:
           - runs-on: ubuntu-20.04
             os: linux
             arch: x86_64
+            docker_image: ubuntu2204-semeru8
+            test_java_home_var: JAVA_SEMERU8_HOME
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            docker_image: ubuntu2204-semeru11
+            test_java_home_var: JAVA_SEMERU11_HOME
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            docker_image: ubuntu2204-semeru17
+            test_java_home_var: JAVA_SEMERU17_HOME
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            docker_image: ubuntu2204-semeru21
+            test_java_home_var: JAVA_SEMERU21_HOME
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
             docker_image: centos7-stock8
             test_java_home_var: JAVA_8_HOME
           - runs-on: ubuntu-20.04
@@ -436,11 +456,6 @@ jobs:
             arch: x86_64
             docker_image: centos6-stock8
             test_java_home_var: JAVA_8_HOME
-          # FIXME: We have a JNI check failure with OpenJ9.
-          #- runs-on: ubuntu-20.04
-          #  os: linux
-          #  arch: x86_64
-          #  docker_image: ibm-semeru-runtimes:open-8-jdk-centos7
           - runs-on: arm-4core-linux
             os: linux
             arch: aarch64
