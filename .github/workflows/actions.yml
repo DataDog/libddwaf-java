@@ -590,52 +590,53 @@ jobs:
           - runs-on: ubuntu-20.04
             os: linux
             arch: x86_64
-            jdk: temurin8
-            docker_image: eclipse-temurin:8-jdk-focal
+            docker_image: ubuntu2204-temurin8
+            test_java_home_var: JAVA_8_HOME
           - runs-on: ubuntu-20.04
             os: linux
             arch: x86_64
-            jdk: temurin11
-            docker_image: eclipse-temurin:11-jdk-focal
+            docker_image: ubuntu2204-temurin11
+            test_java_home_var: JAVA_11_HOME
           - runs-on: ubuntu-20.04
             os: linux
             arch: x86_64
-            jdk: temurin17
-            docker_image: eclipse-temurin:17-jdk-focal
-          # FIXME: codearc plugin fails with java 21, we'll need to wait for a fix
-          #        or split compile and test jdk.
-          #- runs-on: ubuntu-20.04
-          #  os: linux
-          #  arch: x86_64
-          #  jdk: temurin21
-          #  docker_image: eclipse-temurin:21-jdk-jammy
+            docker_image: ubuntu2204-temurin17
+            test_java_home_var: JAVA_17_HOME
           - runs-on: ubuntu-20.04
             os: linux
             arch: x86_64
-            jdk: temurin8
-            docker_image: eclipse-temurin:8-jdk-centos7
+            docker_image: ubuntu2204-temurin21
+            test_java_home_var: JAVA_21_HOME
           - runs-on: ubuntu-20.04
             os: linux
             arch: x86_64
-            jdk: temurin8
-            docker_image: eclipse-temurin:8-jdk-alpine
+            docker_image: centos7-stock8
+            test_java_home_var: JAVA_8_HOME
           - runs-on: ubuntu-20.04
             os: linux
             arch: x86_64
-            jdk: redhat8
-            docker_image: centos6:custom
-            docker_image_dir: ci/centos6
+            docker_image: alpine-stock8
+            test_java_home_var: JAVA_8_HOME
+          - runs-on: ubuntu-20.04
+            os: linux
+            arch: x86_64
+            docker_image: centos6-stock8
+            test_java_home_var: JAVA_8_HOME
           # FIXME: We have a JNI check failure with OpenJ9.
           #- runs-on: ubuntu-20.04
           #  os: linux
           #  arch: x86_64
-          #  jdk: semeru8
           #  docker_image: ibm-semeru-runtimes:open-8-jdk-centos7
           - runs-on: arm-4core-linux
             os: linux
             arch: aarch64
-            jdk: temurin8
-            docker_image: eclipse-temurin:8-jdk-focal
+            docker_image: ubuntu2204-temurin8
+            test_java_home_var: JAVA_8_HOME
+          - runs-on: arm-4core-linux
+            os: linux
+            arch: aarch64
+            docker_image: alpine-stock8
+            test_java_home_var: JAVA_8_HOME
           # FIXME: Gradle daemon crashes
           #- runs-on: macos-11
           #  os: macos
@@ -701,10 +702,12 @@ jobs:
         sudo sh get-docker.sh
       if: ${{ matrix.runs-on == 'arm-4core-linux' }}
     - name: Build Docker image
-      run: sudo docker build -t ${{ matrix.docker_image }} ${{ matrix.docker_image_dir }}
-      if: ${{ matrix.docker_image_dir != '' }}
+      run: sudo docker build -t ${{ matrix.docker_image }} ci/${{ matrix.docker_image }}
+      if: ${{ matrix.docker_image != '' }}
     - name: Run tests (docker)
-      run: sudo docker run --rm -w $(pwd) -v $(pwd):$(pwd) ${{ matrix.docker_image }} sh -c './gradlew check --no-daemon --info -Prelease -PuseReleaseBinaries -Dorg.gradle.native=false'
+      run: |
+        sudo docker run --rm -w $(pwd) -v $(pwd):$(pwd) ${{ matrix.docker_image }} \
+          sh -c './gradlew check --no-daemon --info -Prelease -PuseReleaseBinaries -Dorg.gradle.native=false -PtestJavaHome="$${{ matrix.test_java_home_var }}"'
       if: ${{ matrix.os == 'linux' }}
     - name: Run tests (no docker)
       run: |
