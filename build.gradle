@@ -384,12 +384,34 @@ task testNoByteBuffers(type: Test) {
 }
 check.dependsOn testNoByteBuffers
 
-tasks.withType(Test).each {
+tasks.withType(Test).configureEach {
     if (System.getenv('TEST_EXECUTABLE')) {
         it.executable System.getenv('TEST_EXECUTABLE')
     }
 
-    it.jvmArgs += ['-Xcheck:jni', '-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true']
+    // Select alternative JVM for tests.
+    // Based on https://github.com/DataDog/dd-trace-java/blob/master/gradle/java_no_deps.gradle
+    def testJavaHome = gradle.startParameter.projectProperties["testJavaHome"]
+    if (testJavaHome != null) {
+        def jvmSpec = new SpecificInstallationToolchainSpec(project.getObjects(), file(testJavaHome))
+        Provider<JavaLauncher> launcher = providers.provider {
+            try {
+                return javaToolchains.launcherFor(jvmSpec).get()
+            } catch (NoSuchElementException ignored) {
+                throw new GradleException("Unable to find launcher for Java $testJavaHome")
+            }
+        }
+        it.javaLauncher = launcher
+    }
+
+    if (it.javaLauncher.get().metadata.vendor == "IBM") {
+        // FIXME(APPSEC-52250): We have JNI checks warnings with J9, so we make them non-fatal for now.
+        it.jvmArgs += ['-Xcheck:jni:nonfatal']
+    } else {
+        it.jvmArgs += ['-Xcheck:jni']
+    }
+
+    it.jvmArgs += ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true']
     if (project.hasProperty('useReleaseBinaries')) {
         it.jvmArgs += ['-DuseReleaseBinaries=true']
         it.dependsOn copyNativeLibs
@@ -431,25 +453,6 @@ codenarc {
 codenarcTest {
     compilationClasspath = codenarcMain.compilationClasspath +
             sourceSets.test.compileClasspath + sourceSets.test.output
-}
-
-// Select alternative JVM for tests.
-// Based on https://github.com/DataDog/dd-trace-java/blob/master/gradle/java_no_deps.gradle
-project.afterEvaluate {
-    def testJavaHome = gradle.startParameter.projectProperties["testJavaHome"]
-    if (testJavaHome != null) {
-        def jvmSpec = new SpecificInstallationToolchainSpec(project.getObjects(), file(testJavaHome))
-        Provider<JavaLauncher> launcher = providers.provider {
-            try {
-                return javaToolchains.launcherFor(jvmSpec).get()
-            } catch (NoSuchElementException ignored) {
-                throw new GradleException("Unable to find launcher for Java $testJavaHome")
-            }
-        }
-        tasks.withType(Test).configureEach {
-            javaLauncher = launcher
-        }
-    }
 }
 
 // vim: set et ts=4 sw=4 list:
