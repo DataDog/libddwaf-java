@@ -566,6 +566,11 @@ jobs:
       - Jar_File_Stage_build_jar
     if: contains(github.ref, 'refs/tags/v')
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        clean: true
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
