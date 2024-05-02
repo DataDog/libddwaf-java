@@ -113,18 +113,18 @@ class BasicTests implements PowerwafTrait {
         ruleSet['actions'].add([
             id: 'aaaa',
             parameters: [
-               status_code: "200",
-               type: "auto",
-               grpc_status_code: "10",
+               status_code: '200',
+               type: 'auto',
+               grpc_status_code: '10',
             ],
             type: 'aaaa'
         ])
         ruleSet['actions'].add([
                 id: 'bbbb',
                 parameters: [
-                        status_code: "200",
-                        type: "auto",
-                        grpc_status_code: "10",
+                        status_code: '200',
+                        type: 'auto',
+                        grpc_status_code: '10',
                 ],
                 type: 'bbbb'
         ])
