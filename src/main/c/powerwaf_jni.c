@@ -99,7 +99,7 @@ static struct j_method _timeout_exception_init;
 static jobject _action_ok;
 static jobject _action_match;
 static jobject _result_with_data_ok_null;
-static jobject _result_with_data_empty_str_arr;
+static jobject _result_with_data_empty_map;
 static struct j_method result_with_data_init;
 static jfieldID _limit_max_depth;
 static jfieldID _limit_max_elements;
@@ -978,10 +978,10 @@ static bool _fetch_result_with_data_fields(JNIEnv *env)
         goto error;
     }
 
-    _result_with_data_empty_str_arr =
+    _result_with_data_empty_map =
             java_static_field_checked(env, result_with_data_jclass,
-                                      "EMPTY_ACTIONS", "[Ljava/lang/String;");
-    if (!_result_with_data_empty_str_arr) {
+                                      "EMPTY_ACTIONS", "Ljava/util/Map;");
+    if (!_result_with_data_empty_map) {
         goto error;
     }
 
@@ -1137,9 +1137,9 @@ static void _dispose_of_result_with_data_fields(JNIEnv *env)
         JNI(DeleteWeakGlobalRef, _result_with_data_ok_null);
         _result_with_data_ok_null = NULL;
     }
-    if (_result_with_data_empty_str_arr) {
-        JNI(DeleteWeakGlobalRef, _result_with_data_empty_str_arr);
-        _result_with_data_empty_str_arr = NULL;
+    if (_result_with_data_empty_map) {
+        JNI(DeleteWeakGlobalRef, _result_with_data_empty_map);
+        _result_with_data_empty_map = NULL;
     }
 }
 
@@ -1291,8 +1291,10 @@ static bool _cache_methods(JNIEnv *env)
     if (!java_meth_init_checked(
                 env, &result_with_data_init,
                 "io/sqreen/powerwaf/Powerwaf$ResultWithData", "<init>",
-                "(Lio/sqreen/powerwaf/Powerwaf$Result;Ljava/lang/String;"
-                "[Ljava/lang/String;Ljava/util/Map;)V",
+                "(Lio/sqreen/powerwaf/Powerwaf$Result;"
+                "Ljava/lang/String;"
+                "Ljava/util/Map;"
+                "Ljava/util/Map;)V",
                 JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
@@ -2239,38 +2241,17 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
         return _result_with_data_ok_null;
     }
 
-    jobject actions_jarr;
-    bool del_actions_jarr = false;
-    if (ret->actions.type != DDWAF_OBJ_ARRAY || ret->actions.nbEntries == 0) {
-        actions_jarr = _result_with_data_empty_str_arr;
+    jobject actions_jmap;
+    bool del_actions_jmap = false;
+    if (ret->actions.type != DDWAF_OBJ_MAP || ret->actions.nbEntries == 0) {
+        actions_jmap = _result_with_data_empty_map;
     } else {
-        actions_jarr = JNI(NewObjectArray, (jsize) ret->actions.nbEntries,
-                           string_cls, NULL);
-        if (!actions_jarr) {
-            java_wrap_exc("%s", "Error creating actions array");
+        actions_jmap = convert_ddwaf_object_to_jobject(env, &ret->actions);
+        if (!actions_jmap) {
+            java_wrap_exc("%s", "Error creating actions map");
             return NULL;
         }
-        del_actions_jarr = true;
-
-        for (uint32_t i = 0; i < ret->actions.nbEntries; i++) {
-            const ddwaf_object *action_obj = &ret->actions.array[i];
-            if (action_obj->type != DDWAF_OBJ_STRING) {
-                JNI(ThrowNew, jcls_iae, "non-string action found");
-                goto err;
-            }
-            jstring action_jstr = java_utf8_to_jstring_checked(
-                    env, action_obj->stringValue, action_obj->nbEntries);
-            if (!action_jstr) {
-                java_wrap_exc("%s", "Error creating actions array");
-                goto err;
-            }
-            JNI(SetObjectArrayElement, actions_jarr, (jsize) i, action_jstr);
-            JNI(DeleteLocalRef, action_jstr);
-            if (JNI(ExceptionCheck)) {
-                java_wrap_exc("%s", "Error setting element in actions array");
-                goto err;
-            }
-        }
+        del_actions_jmap = true;
     }
 
     jstring data_obj = NULL;
@@ -2302,16 +2283,16 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
     jobject result =
             java_meth_call(env, &result_with_data_init, NULL,
                            code == DDWAF_OK ? _action_ok : _action_match,
-                           data_obj, actions_jarr, schema);
-    if (del_actions_jarr) {
-        JNI(DeleteLocalRef, actions_jarr);
+                           data_obj, actions_jmap, schema);
+    if (del_actions_jmap) {
+        JNI(DeleteLocalRef, actions_jmap);
     }
     JNI(DeleteLocalRef, data_obj);
     return result;
 
 err:
-    if (del_actions_jarr) {
-        JNI(DeleteLocalRef, actions_jarr);
+    if (del_actions_jmap) {
+        JNI(DeleteLocalRef, actions_jmap);
     }
     return NULL;
 }

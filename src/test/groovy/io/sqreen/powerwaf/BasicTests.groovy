@@ -14,9 +14,9 @@ import org.junit.Test
 
 import static io.sqreen.powerwaf.Powerwaf.ResultWithData
 import static org.hamcrest.MatcherAssert.assertThat
-import static org.hamcrest.Matchers.arrayContaining
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder
 import static org.hamcrest.Matchers.contains
+import static org.hamcrest.Matchers.containsInAnyOrder
+import static org.hamcrest.Matchers.hasItem
 import static org.hamcrest.Matchers.is
 import static org.hamcrest.Matchers.empty
 
@@ -100,12 +100,34 @@ class BasicTests implements PowerwafTrait {
         ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.result, is(Powerwaf.Result.MATCH)
-        assertThat awd.actions, arrayContaining('block_request')
+        assertThat awd.actions.size(), is(1)
+        assertThat awd.actions.keySet(), hasItem('block_request')
+        assertThat awd.actions.get('block_request').type, is('auto')
+        assertThat awd.actions.get('block_request').status_code, is('200')
+        assertThat awd.actions.get('block_request').grpc_status_code, is('10')
     }
 
     @Test
     void 'test multiple actions'() {
         def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+        ruleSet['actions'].add([
+            id: 'aaaa',
+            parameters: [
+               status_code: "200",
+               type: "auto",
+               grpc_status_code: "10",
+            ],
+            type: 'aaaa'
+        ])
+        ruleSet['actions'].add([
+                id: 'bbbb',
+                parameters: [
+                        status_code: "200",
+                        type: "auto",
+                        grpc_status_code: "10",
+                ],
+                type: 'bbbb'
+        ])
         ruleSet['rules'][0]['on_match'] = ['aaaa', 'block_request', 'bbbb']
 
         ctx = Powerwaf.createContext('test', ruleSet)
@@ -113,7 +135,7 @@ class BasicTests implements PowerwafTrait {
         ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.result, is(Powerwaf.Result.MATCH)
-        assertThat awd.actions, arrayContainingInAnyOrder('aaaa', 'block_request', 'bbbb')
+        assertThat awd.actions.keySet(), containsInAnyOrder('aaaa', 'block_request', 'bbbb')
     }
 
     @Test

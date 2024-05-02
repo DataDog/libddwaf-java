@@ -82,6 +82,17 @@ trait PowerwafTrait extends JNITrait {
           "metadata": {
             "rules_version": "1.2.6"
           },
+          "actions": [
+            {
+              "id": "block_request",
+              "parameters": {
+                "status_code": "200",
+                "type": "auto",
+                "grpc_status_code": "10",
+              },
+              "type": "block_request"
+            }
+          ],
           "rules": [
             {
               "id": "arachni_rule",
