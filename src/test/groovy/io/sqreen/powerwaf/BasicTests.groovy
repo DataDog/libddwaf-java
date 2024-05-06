@@ -137,25 +137,27 @@ class BasicTests implements PowerwafTrait {
     @Test
     void 'test multiple actions'() {
         def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
-        ruleSet['actions'].add([
-            id: 'aaaa',
-            parameters: [
-               status_code: '200',
-               type: 'auto',
-               grpc_status_code: '10',
+        ruleSet.putAt('actions', [
+            [
+                id: 'aaaa',
+                parameters: [
+                    status_code: '200',
+                    type: 'auto',
+                    grpc_status_code: '10',
+                ],
+                type: 'aaaa'
             ],
-            type: 'aaaa'
-        ])
-        ruleSet['actions'].add([
+            [
                 id: 'bbbb',
                 parameters: [
-                        status_code: '200',
-                        type: 'auto',
-                        grpc_status_code: '10',
+                    status_code: '200',
+                    type: 'auto',
+                    grpc_status_code: '10',
                 ],
                 type: 'bbbb'
+            ]
         ])
-        ruleSet['rules'][0]['on_match'] = ['aaaa', 'block_request', 'bbbb']
+        ruleSet['rules'][0]['on_match'] = ['aaaa', 'block', 'bbbb']
 
         ctx = Powerwaf.createContext('test', ruleSet)
 
