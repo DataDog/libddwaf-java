@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder
 import static org.hamcrest.Matchers.hasItem
 import static org.hamcrest.Matchers.is
 import static org.hamcrest.Matchers.empty
+import static org.hamcrest.Matchers.notNullValue
 
 class BasicTests implements PowerwafTrait {
 
@@ -103,8 +104,34 @@ class BasicTests implements PowerwafTrait {
         assertThat awd.actions.size(), is(1)
         assertThat awd.actions.keySet(), hasItem('block_request')
         assertThat awd.actions.get('block_request').type, is('auto')
-        assertThat awd.actions.get('block_request').status_code, is('200')
+        assertThat awd.actions.get('block_request').status_code, is('403')
         assertThat awd.actions.get('block_request').grpc_status_code, is('10')
+    }
+
+    @Test
+    void 'test built-in actions'() {
+        def ruleSet = ARACHNI_ATOM_V2_1
+        ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extract_schema']
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ResultWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+        assertThat awd.actions.size(), is(3)
+
+        // block action
+        assertThat awd.actions.keySet(), hasItem('block_request')
+        assertThat awd.actions.get('block_request').type, is('auto')
+        assertThat awd.actions.get('block_request').status_code, is('403')
+        assertThat awd.actions.get('block_request').grpc_status_code, is('10')
+
+        // stack_trace action
+        assertThat awd.actions.keySet(), hasItem('generate_stack')
+        assertThat awd.actions.get('generate_stack').stack_id, is(notNullValue())
+
+        // extract_schema action
+        assertThat awd.actions.keySet(), hasItem('generate_schema')
     }
 
     @Test
