@@ -3,14 +3,15 @@ on:
   pull_request:
   push:
     branches: [ master ]
-    tags: '*'
+    tags:
+      - '*'
 defaults:
   run:
     shell: bash
 env:
   buildType: RelWithDebInfo
   tempdir: ${{ github.workspace }}/build
-  libddwafVersion: 1.16.1
+  libddwafVersion: 1.17.0
 jobs:
   Coverage:
     runs-on: ubuntu-22.04

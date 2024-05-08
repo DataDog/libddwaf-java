@@ -605,3 +605,79 @@ error:
     JNI(DeleteLocalRef, ret);
     return NULL;
 }
+
+jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
+{
+    switch (obj->type) {
+        // TODO: Implement missing types, when needed
+        case DDWAF_OBJ_INVALID:
+        case DDWAF_OBJ_SIGNED:
+        case DDWAF_OBJ_UNSIGNED:
+        case DDWAF_OBJ_FLOAT:
+        case DDWAF_OBJ_BOOL:
+            JNI(ThrowNew, jcls_rte, "Unsupported ddwaf object type");
+            return NULL;
+        case DDWAF_OBJ_STRING:
+            return java_utf8_to_jstring_checked(env, obj->stringValue, obj->nbEntries);
+        case DDWAF_OBJ_ARRAY: {
+            if (obj->nbEntries > MAX_JINT) {
+                JNI(ThrowNew, jcls_rte, "Too many elements in ddwaf array");
+                return NULL;
+            }
+            jobject ret = java_meth_call(env, &_array_list_init, NULL, (jint) obj->nbEntries);
+            if (ret == NULL) {
+                return NULL;
+            }
+
+            for (uint64_t i = 0; i < obj->nbEntries; i++) {
+                jobject elem = convert_ddwaf_object_to_jobject(env, &obj->array[i]);
+                if (JNI(ExceptionCheck)) {
+                    JNI(DeleteLocalRef, ret);
+                    return NULL;
+                }
+
+                java_meth_call(env, &_array_list_add, ret, elem);
+                JNI(DeleteLocalRef, elem);
+                if (JNI(ExceptionCheck)) {
+                    JNI(DeleteLocalRef, ret);
+                    return NULL;
+                }
+            }
+
+            return ret;
+        }
+        case DDWAF_OBJ_MAP: {
+            jobject ret = java_meth_call(env, &_linked_hm_init, NULL);
+            if (ret == NULL) {
+                return NULL;
+            }
+
+            for (uint64_t i = 0; i < obj->nbEntries; i++) {
+                ddwaf_object *elem = &obj->array[i];
+                jstring key = java_utf8_to_jstring_checked(env, elem->parameterName, elem->parameterNameLength);
+                if (JNI(ExceptionCheck)) {
+                    JNI(DeleteLocalRef, ret);
+                    return NULL;
+                }
+
+                jobject value = convert_ddwaf_object_to_jobject(env, elem);
+                if (JNI(ExceptionCheck)) {
+                    JNI(DeleteLocalRef, key);
+                    return NULL;
+                }
+
+                java_meth_call(env, &_map_put, ret, key, value);
+                JNI(DeleteLocalRef, key);
+                JNI(DeleteLocalRef, value);
+                if (JNI(ExceptionCheck)) {
+                    JNI(DeleteLocalRef, ret);
+                    return NULL;
+                }
+            }
+
+            return ret;
+        }
+    }
+    JNI(ThrowNew, jcls_rte, "Unknown ddwaf object type");
+    return NULL;
+}

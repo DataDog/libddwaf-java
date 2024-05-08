@@ -106,7 +106,7 @@ trait PowerwafTrait extends JNITrait {
                   "operator": "match_regex"
                 }
               ],
-              "on_match": ["block_request"]
+              "on_match": ["block"]
             }
           ]
         }''')

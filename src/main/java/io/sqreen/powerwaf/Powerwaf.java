@@ -17,10 +17,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.16.1";
+    public static final String LIB_VERSION = "1.17.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean ENABLE_BYTE_BUFFERS;
@@ -170,17 +171,17 @@ public final class Powerwaf {
 
     public static class ResultWithData {
         // used also from JNI
-        private static final String[] EMPTY_ACTIONS = new String[0];
+        private static final Map<String, Map<String, Object>> EMPTY_ACTIONS = Collections.emptyMap();
 
         // reuse this from JNI when there is no actions or data
         public static final ResultWithData OK_NULL = new ResultWithData(Result.OK, null, EMPTY_ACTIONS, null);
 
         public final Result result;
         public final String data;
-        public final String[] actions;
+        public final Map<String, Map<String, Object>> actions;
         public final Map<String, String> schemas;
 
-        public ResultWithData(Result result, String data, String[] actions, Map<String, String> schemas) {
+        public ResultWithData(Result result, String data, Map<String, Map<String, Object>> actions, Map<String, String> schemas) {
             this.result = result;
             this.data = data;
             this.actions = actions;
