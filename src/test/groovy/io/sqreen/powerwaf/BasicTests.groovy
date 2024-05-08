@@ -168,6 +168,38 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
+    void 'test actions with various types'() {
+        def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+        ruleSet.putAt('actions', [
+                [
+                        id: 'block',
+                        parameters: [
+                                status_code: 201,       // integer
+                                type: 'auto',
+                                grpc_status_code: '10', // string
+                                enabled: true,          // boolean
+                                test: 'false'           // string
+                        ],
+                        type: 'block_request'
+                ]
+        ])
+        ruleSet['rules'][0]['on_match'] = ['block']
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ResultWithData awd = ctx.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        assertThat awd.result, is(Powerwaf.Result.MATCH)
+        assertThat awd.actions.keySet(), contains('block_request')
+
+        assertThat awd.actions.get('block_request').type, is('auto')
+        assertThat awd.actions.get('block_request').status_code, is('201')
+        assertThat awd.actions.get('block_request').grpc_status_code, is('10')
+        assertThat awd.actions.get('block_request').enabled, is('true')
+        assertThat awd.actions.get('block_request').test, is('false')
+    }
+
+    @Test
     void 'test with array of string lists'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
