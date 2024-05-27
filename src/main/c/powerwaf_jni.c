@@ -280,7 +280,7 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_deinitialize(
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules(
         JNIEnv *env, jclass clazz,
-        jobject rule_def, jobject jconfig, jobject rule_set_info_arr)
+        jobject rule_def, jobject jconfig, jobjectArray rule_set_info_arr)
 {
     UNUSED(clazz);
 
