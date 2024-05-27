@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    addRules
- * Signature: (Ljava/util/Map;[Lio/sqreen/powerwaf/PowerwafConfig;[Lio/sqreen/powerwaf/RuleSetInfo;)Lio/sqreen/powerwaf/PowerwafHandle;
+ * Signature: (Ljava/util/Map;Lio/sqreen/powerwaf/PowerwafConfig;[Lio/sqreen/powerwaf/RuleSetInfo;)Lio/sqreen/powerwaf/PowerwafHandle;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules
-  (JNIEnv *, jclass, jobject, jobject, jobject);
+  (JNIEnv *, jclass, jobject, jobject, jobjectArray);
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf

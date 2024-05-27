@@ -18,7 +18,7 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Additive_initAdditive
 /*
  * Class:     io_sqreen_powerwaf_Additive
  * Method:    runAdditive
- * Signature: (Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
+ * Signature: (Ljava/util/Map;Ljava/util/Map;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_util_Map_2Ljava_util_Map_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
   (JNIEnv *, jobject, jobject, jobject, jobject, jobject);
@@ -26,7 +26,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_ut
 /*
  * Class:     io_sqreen_powerwaf_Additive
  * Method:    runAdditive
- * Signature: (Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
+ * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Additive_runAdditive__Ljava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2Lio_sqreen_powerwaf_Powerwaf_00024Limits_2Lio_sqreen_powerwaf_PowerwafMetrics_2
   (JNIEnv *, jobject, jobject, jobject, jobject, jobject);
