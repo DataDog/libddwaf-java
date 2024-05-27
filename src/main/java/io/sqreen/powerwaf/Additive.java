@@ -48,9 +48,6 @@ public final class Additive implements Closeable {
     private static native long initAdditive(PowerwafHandle handle);
 
     private native Powerwaf.ResultWithData runAdditive(
-            Map<String, Object> persistentData, Map<String, Object> ephemeralData, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
-
-    private native Powerwaf.ResultWithData runAdditive(
             ByteBuffer persistentBuffer, ByteBuffer ephemeralBuffer, Powerwaf.Limits limits, PowerwafMetrics metrics) throws AbstractPowerwafException;
 
     /**
@@ -79,61 +76,53 @@ public final class Additive implements Closeable {
             throw new IllegalArgumentException("limits must be provided");
         }
         try {
-            if (Powerwaf.ENABLE_BYTE_BUFFERS) {
-                long before = System.nanoTime();
-                synchronized (this) {
-                    if (!online) {
-                        throw new IllegalStateException("This Additive is no longer online");
-                    }
-                    ByteBuffer persistentBuffer = null;
-                    ByteBuffer ephemeralBuffer = null;
-                    ByteBufferSerializer.ArenaLease ephemeralLease = null;
-                    Powerwaf.ResultWithData result;
+            long before = System.nanoTime();
+            synchronized (this) {
+                if (!online) {
+                    throw new IllegalStateException("This Additive is no longer online");
+                }
+                ByteBuffer persistentBuffer = null;
+                ByteBuffer ephemeralBuffer = null;
+                ByteBufferSerializer.ArenaLease ephemeralLease = null;
+                Powerwaf.ResultWithData result;
 
+                try {
                     try {
-                        try {
-                            if (persistentData != null) {
-                                persistentBuffer = this.lease.serializeMore(limits, persistentData);
-                            }
-                            if (ephemeralData != null) {
-                                ephemeralLease = ByteBufferSerializer.getBlankLease();
-                                ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
-                            }
-                        } catch (Exception e) {
-                            // extra exception is here just to match what happens when bytebuffers are disabled
-                            throw new UnclassifiedPowerwafException(
-                                    new RuntimeException("Exception encoding parameters", e));
+                        if (persistentData != null) {
+                            persistentBuffer = this.lease.serializeMore(limits, persistentData);
                         }
+                        if (ephemeralData != null) {
+                            ephemeralLease = ByteBufferSerializer.getBlankLease();
+                            ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
+                        }
+                    } catch (Exception e) {
+                        throw new UnclassifiedPowerwafException(
+                                new RuntimeException("Exception encoding parameters", e));
+                    }
 
-                        long elapsedNs = System.nanoTime() - before;
-                        Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
-                        if (newLimits.generalBudgetInUs == 0L) {
-                            LOGGER.debug(
-                                    "Budget exhausted after serialization; " +
-                                            "not running on additive {}", this);
-                            throw new TimeoutPowerwafException();
-                        }
+                    long elapsedNs = System.nanoTime() - before;
+                    Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
+                    if (newLimits.generalBudgetInUs == 0L) {
+                        LOGGER.debug(
+                                "Budget exhausted after serialization; " +
+                                        "not running on additive {}", this);
+                        throw new TimeoutPowerwafException();
+                    }
 
-                        result = runAdditive(persistentBuffer, ephemeralBuffer, newLimits, metrics);
-                    } finally {
-                        if (ephemeralLease != null) {
-                            ephemeralLease.close();
-                        }
-                        if (metrics != null) {
-                            long after = System.nanoTime();
-                            long totalTimeNs = after - before;
-                            synchronized (metrics) {
-                                metrics.totalRunTimeNs += totalTimeNs;
-                            }
+                    result = runAdditive(persistentBuffer, ephemeralBuffer, newLimits, metrics);
+                } finally {
+                    if (ephemeralLease != null) {
+                        ephemeralLease.close();
+                    }
+                    if (metrics != null) {
+                        long after = System.nanoTime();
+                        long totalTimeNs = after - before;
+                        synchronized (metrics) {
+                            metrics.totalRunTimeNs += totalTimeNs;
                         }
                     }
-                    return result;
                 }
-            } else {
-                synchronized (this) {
-                    checkOnline();
-                    return runAdditive(persistentData, ephemeralData, limits, metrics);
-                }
+                return result;
             }
         } catch (RuntimeException rte) {
             throw new UnclassifiedPowerwafException(

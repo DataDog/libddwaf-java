@@ -118,40 +118,36 @@ public class PowerwafContext implements Closeable {
                     this, limits);
 
             Powerwaf.ResultWithData res;
-            if (Powerwaf.ENABLE_BYTE_BUFFERS) {
-                // serialization could be extracted out of the lock
-                ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
-                long before = System.nanoTime();
-                ByteBufferSerializer.ArenaLease lease;
-                try {
-                    lease = serializer.serialize(parameters);
-                } catch (Exception e) {
-                    throw new RuntimeException("Exception encoding parameters", e);
+            // serialization could be extracted out of the lock
+            ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
+            long before = System.nanoTime();
+            ByteBufferSerializer.ArenaLease lease;
+            try {
+                lease = serializer.serialize(parameters);
+            } catch (Exception e) {
+                throw new RuntimeException("Exception encoding parameters", e);
+            }
+            try {
+                long elapsedNs = System.nanoTime() - before;
+                Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
+                if (newLimits.generalBudgetInUs == 0L) {
+                    LOGGER.debug(
+                            "Budget exhausted after serialization; " +
+                                    "not running rule of context {}",
+                            this);
+                    throw new TimeoutPowerwafException();
                 }
-                try {
-                    long elapsedNs = System.nanoTime() - before;
-                    Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
-                    if (newLimits.generalBudgetInUs == 0L) {
-                        LOGGER.debug(
-                                "Budget exhausted after serialization; " +
-                                        "not running rule of context {}",
-                                this);
-                        throw new TimeoutPowerwafException();
-                    }
-                    res = Powerwaf.runRules(
-                            this.handle, lease.getFirstPWArgsByteBuffer(), newLimits, metrics);
-                } finally {
-                    lease.close();
-                    if (metrics != null) {
-                        long after = System.nanoTime();
-                        long totalTimeNs = after - before;
-                        synchronized (metrics) {
-                            metrics.totalRunTimeNs += totalTimeNs;
-                        }
+                res = Powerwaf.runRules(
+                        this.handle, lease.getFirstPWArgsByteBuffer(), newLimits, metrics);
+            } finally {
+                lease.close();
+                if (metrics != null) {
+                    long after = System.nanoTime();
+                    long totalTimeNs = after - before;
+                    synchronized (metrics) {
+                        metrics.totalRunTimeNs += totalTimeNs;
                     }
                 }
-            } else {
-                res = Powerwaf.runRules(this.handle, parameters, limits, metrics);
             }
 
             LOGGER.debug("Rule of context {} ran successfully with return {}", this, res);
