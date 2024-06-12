@@ -53,7 +53,7 @@ def cmakeLibddwafDir = "$projectDir/build/libddwaf-cmake-${cmakeBuildSuffix}"
 def libddwafInstallPrefix = "$projectDir/build/libddwaf-out-${cmakeBuildSuffix}"
 def cmakeNativeLibDir = "$projectDir/build/cmake-${cmakeBuildSuffix}"
 
-task cmakeLibddwafDebug(type: Exec) {
+tasks.register('cmakeLibddwafDebug', Exec) {
     outputs.upToDateWhen { false }
     description = 'Runs cmake in a debug configuration'
 
@@ -91,7 +91,7 @@ task cmakeLibddwafDebug(type: Exec) {
     workingDir cmakeLibddwafDir
 }
 
-task buildLibddwafDebug() {
+tasks.register('buildLibddwafDebug') {
     outputs.upToDateWhen { false }
     description = 'Builds the libddwaf in a debug configuration'
     group = 'test'
@@ -115,7 +115,7 @@ task buildLibddwafDebug() {
     }
 }
 
-task cmakeNativeLibDebug(type: Exec) {
+tasks.register('cmakeNativeLibDebug', Exec) {
     outputs.upToDateWhen { false }
     description = 'Runs cmake in a debug configuration'
 
@@ -176,7 +176,7 @@ task cmakeNativeLibDebug(type: Exec) {
     workingDir cmakeNativeLibDir
 }
 
-task buildNativeLibDebug(type: Exec) {
+tasks.register('buildNativeLibDebug', Exec) {
     outputs.upToDateWhen { false }
     description = 'Builds the native JNI lib in a debug configuration'
     group = 'test'
@@ -241,7 +241,7 @@ dependencies {
 
 def nativeLibsDir = "$projectDir/native_libs"
 
-task checkForNativeLibs {
+tasks.register('checkForNativeLibs') {
     doLast {
         def tree = fileTree(dir: nativeLibsDir, include: ['**/*.so', '**/*.dylib', '**/*.dll'])
         if (tree.empty) {
@@ -250,7 +250,7 @@ task checkForNativeLibs {
     }
 }
 
-task packageDebugSymbols(type: Zip) {
+tasks.register('packageDebugSymbols', Zip) {
     archiveClassifier = 'dbgsym'
 
     from nativeLibsDir, {
@@ -320,7 +320,7 @@ publishing {
     }
 }
 
-task fixS3Permissions {
+tasks.register('fixS3Permissions') {
     doLast {
         def bucket = 'sqreen-ci-java'
         def s3 = new AmazonS3Client(creds)
@@ -334,7 +334,7 @@ task fixS3Permissions {
     publish.finalizedBy it
 }
 
-task copyNativeLibs(type: Copy) {
+tasks.register('copyNativeLibs', Copy) {
     def existsLib = { filename ->
         def fileObj = file("$nativeLibsDir/${filename}")
         if (!fileObj.exists()) {
@@ -373,7 +373,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 jar.dependsOn copyNativeLibs
 
-task testgc(type: Test) {
+tasks.register('testgc', Test) {
     description = 'Tests that the library can be unloaded'
     group = 'verification'
     useJUnit()
@@ -383,7 +383,7 @@ task testgc(type: Test) {
 }
 check.dependsOn testgc
 
-task testNoByteBuffers(type: Test) {
+tasks.register('testNoByteBuffers', Test) {
     group = 'verification'
 
     jvmArgs += ['-DPOWERWAF_ENABLE_BYTE_BUFFERS=0']
@@ -436,7 +436,7 @@ tasks.withType(Test).configureEach {
 
 // the headers are incorrect wrt inner classes
 // see https://bugs.openjdk.java.net/browse/JDK-8145897
-task generateJniHeaders(type: JavaCompile) {
+tasks.register('generateJniHeaders', JavaCompile) {
     classpath = sourceSets.main.compileClasspath
     destinationDirectory = file("${buildDir}/generated/jni")
     source = sourceSets.main.java
