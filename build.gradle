@@ -37,6 +37,11 @@ version '10.0.0'
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
 
@@ -234,11 +239,6 @@ dependencies {
     testGCRuntimeOnly files(sourceSets.main.output)
 }
 
-task sourcesJar(type: Jar, dependsOn: classes) {
-    archiveClassifier = 'sources'
-    from sourceSets.main.allSource
-}
-
 def nativeLibsDir = "$projectDir/native_libs"
 
 task checkForNativeLibs {
@@ -261,6 +261,8 @@ task packageDebugSymbols(type: Zip) {
 
     dependsOn checkForNativeLibs
 }
+
+assemble.dependsOn packageDebugSymbols
 
 def creds = null
 try {
@@ -306,6 +308,10 @@ publishing {
             artifact(packageDebugSymbols) {
                 classifier = 'dbgsym'
                 extension = 'zip'
+            }
+            artifact(javadocJar) {
+                type = 'javadoc'
+                conf = 'compile'
             }
             descriptor.description {
                 text = description
