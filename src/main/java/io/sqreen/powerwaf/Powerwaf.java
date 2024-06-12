@@ -67,7 +67,7 @@ public final class Powerwaf {
     /**
      * Creates a new collection of rules with the default configuration.
      * @param uniqueId a unique id identifying the context. It better be unique!
-     * @param ruleDefinitions a map rule name => rule definition
+     * @param ruleDefinitions a map rule name to rule definition
      * @return the new context
      */
     public static PowerwafContext createContext(
@@ -79,7 +79,7 @@ public final class Powerwaf {
     /**
      * Creates a new collection of rules.
      * @param uniqueId a unique id identifying the context. It better be unique!
-     * @param ruleDefinitions a map rule name => rule definition
+     * @param ruleDefinitions a map rule name to rule definition
      * @param config configuration settings or null for the default
      * @return the new context
      */

@@ -376,7 +376,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
     - name: Build final JAR and debug symbols package
-      run: ./gradlew packageDebugSymbols jar
+      run: ./gradlew assemble
     - name: Copy artifacts to the packages directory
       run: |
         set -ex
