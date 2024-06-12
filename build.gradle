@@ -393,7 +393,7 @@ tasks.withType(Test).configureEach {
     // Based on https://github.com/DataDog/dd-trace-java/blob/master/gradle/java_no_deps.gradle
     def testJavaHome = gradle.startParameter.projectProperties["testJavaHome"]
     if (testJavaHome != null) {
-        def jvmSpec = new SpecificInstallationToolchainSpec(project.getObjects(), file(testJavaHome))
+        def jvmSpec = SpecificInstallationToolchainSpec.fromJavaHome(project.getObjects(), file(testJavaHome))
         Provider<JavaLauncher> launcher = providers.provider {
             try {
                 return javaToolchains.launcherFor(jvmSpec).get()
