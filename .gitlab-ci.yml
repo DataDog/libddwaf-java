@@ -1,0 +1,23 @@
+stages:
+  - admin
+
+variables:
+  REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+
+# This job creates the GPG key used to sign the releases
+create_key:
+  stage: admin
+  when: manual
+  tags:
+    - "arch:amd64"
+  image: $REGISTRY/ci/agent-key-management-tools/gpg:1
+  variables:
+    PROJECT_NAME: "libddwaf-java"
+    EXPORT_TO_KEYSERVER: "false"
+  script:
+    - mkdir pubkeys
+    - /create.sh
+  artifacts:
+    expire_in: 13 mos
+    paths:
+      - ./pubkeys/
