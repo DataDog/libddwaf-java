@@ -24,17 +24,14 @@ public final class Powerwaf {
     public static final String LIB_VERSION = "1.18.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
-    static final boolean ENABLE_BYTE_BUFFERS;
     static final boolean EXIT_ON_LEAK;
 
     private static boolean triedInitializing;
     private static boolean initialized;
 
     static {
-        String bb = System.getProperty("POWERWAF_ENABLE_BYTE_BUFFERS", "true");
-        ENABLE_BYTE_BUFFERS = !bb.equalsIgnoreCase("false") && !bb.equals("0");
         String exl = System.getProperty("POWERWAF_EXIT_ON_LEAK", "false");
-        EXIT_ON_LEAK = !exl.equalsIgnoreCase("false") && !bb.equals("0");
+        EXIT_ON_LEAK = !exl.equalsIgnoreCase("false");
     }
 
     private Powerwaf() {}
@@ -126,11 +123,6 @@ public final class Powerwaf {
      */
     static native ResultWithData runRules(PowerwafHandle handle,
                                           ByteBuffer firstPWArgsBuffer,
-                                          Limits limits,
-                                          PowerwafMetrics metrics) throws AbstractPowerwafException;
-
-    static native ResultWithData runRules(PowerwafHandle handle,
-                                          Map<String, Object> parameters,
                                           Limits limits,
                                           PowerwafMetrics metrics) throws AbstractPowerwafException;
 

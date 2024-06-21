@@ -213,7 +213,6 @@ jacocoTestReport {
         csv.required = false
     }
     mustRunAfter 'testgc'
-    mustRunAfter 'testNoByteBuffers'
 }
 
 sourceSets {
@@ -383,13 +382,6 @@ tasks.register('testgc', Test) {
     classpath = sourceSets.testGC.runtimeClasspath
 }
 check.dependsOn testgc
-
-tasks.register('testNoByteBuffers', Test) {
-    group = 'verification'
-
-    jvmArgs += ['-DPOWERWAF_ENABLE_BYTE_BUFFERS=0']
-}
-check.dependsOn testNoByteBuffers
 
 tasks.withType(Test).configureEach {
     if (System.getenv('TEST_EXECUTABLE')) {

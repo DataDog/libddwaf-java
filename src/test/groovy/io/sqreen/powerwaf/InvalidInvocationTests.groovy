@@ -12,7 +12,6 @@ import groovy.transform.CompileStatic
 import io.sqreen.powerwaf.exception.InvalidObjectPowerwafException
 import io.sqreen.powerwaf.exception.InvalidRuleSetException
 import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException
-import org.junit.Assume
 import org.junit.Test
 
 import java.nio.ByteBuffer
@@ -93,8 +92,6 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'bytebuffer passed does not represent a map'() {
-        Assume.assumeTrue Powerwaf.ENABLE_BYTE_BUFFERS
-
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
 
@@ -111,8 +108,6 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'bytebuffer passed is not direct buffer'() {
-        Assume.assumeTrue Powerwaf.ENABLE_BYTE_BUFFERS
-
         ctx = Powerwaf.createContext('test', ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
 

@@ -19,5 +19,4 @@ public class PowerwafConfig {
 
     public String obfuscatorKeyRegex = DEFAULT_KEY_REGEX;
     public String obfuscatorValueRegex = DEFAULT_VALUE_REGEX;
-    public final boolean useByteBuffers = Powerwaf.ENABLE_BYTE_BUFFERS;
 }
