@@ -21,6 +21,7 @@ plugins {
     id 'jacoco'
     id 'ivy-publish'
     id 'codenarc'
+    id 'me.champeau.jmh' version '0.7.2'
 }
 
 repositories {
@@ -451,6 +452,11 @@ codenarc {
 codenarcTest {
     compilationClasspath = codenarcMain.compilationClasspath +
             sourceSets.test.compileClasspath + sourceSets.test.output
+}
+
+jmh {
+    jmhVersion = '1.37'
+    duplicateClassesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 // vim: set et ts=4 sw=4 list:
