@@ -272,6 +272,12 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
+    void 'can retrieve used actions'() {
+        ctx = Powerwaf.createContext('test', ARACHNI_ATOM_BLOCK)
+        assertThat ctx.usedActions as List, containsInAnyOrder('block_request', 'generate_stack', 'redirect_request')
+    }
+
+    @Test
     void 'handles ruleset without addresses'() {
         def ruleSet = new JsonSlurper().parseText '''
             {

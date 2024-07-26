@@ -82,6 +82,31 @@ trait PowerwafTrait extends JNITrait {
           "metadata": {
             "rules_version": "1.2.6"
           },
+          "actions": [
+            {
+              "id": "redirect1",
+              "type": "redirect_request",
+              "parameters": {
+                "location": "https://example1.com/"
+              }
+            },
+            {
+              "id": "redirect2",
+              "type": "redirect_request",
+              "parameters": {
+                "status_code": 301,
+                "location": "https://example2.com/"
+              }
+            },
+            {
+              "id": "redirect3",
+              "type": "redirect_request",
+              "parameters": {
+                "status_code": 400,
+                "location": "https://example3.com/"
+              }
+            }
+          ],
           "rules": [
             {
               "id": "arachni_rule",
@@ -107,6 +132,30 @@ trait PowerwafTrait extends JNITrait {
                 }
               ],
               "on_match": ["block"]
+            },
+            {
+                "id": "dummy_rule",
+                "name": "Dummy",
+                "tags": {
+                    "type": "dummy"
+                },
+                "conditions": [
+                    {
+                        "parameters": {
+                            "inputs": [
+                                {
+                                    "address": "server.request.headers.no_cookies",
+                                    "key_path": [
+                                        "user-agent"
+                                    ]
+                                }
+                            ],
+                            "regex": "^Dummy"
+                        },
+                        "operator": "match_regex"
+                    }
+                ],
+                "on_match": ["stack_trace", "redirect2"]
             }
           ]
         }''')
