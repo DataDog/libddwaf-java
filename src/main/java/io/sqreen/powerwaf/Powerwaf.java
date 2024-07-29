@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.18.0";
+    public static final String LIB_VERSION = "1.19.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean EXIT_ON_LEAK;
@@ -105,6 +105,8 @@ public final class Powerwaf {
     static native void clearRules(PowerwafHandle handle);
 
     static native String[] getKnownAddresses(PowerwafHandle handle);
+
+    static native String[] getKnownActions(PowerwafHandle handle);
 
     /**
      * Runs a rule with the parameters pre-serialized into direct

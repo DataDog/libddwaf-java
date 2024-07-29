@@ -469,6 +469,63 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getKnownAddresse
     return ret_jarr;
 }
 
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    getKnownActions
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)[Ljava/lang/String;
+ */
+JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getKnownActions
+  (JNIEnv *env, jclass clazz, jobject handle_obj)
+{
+    UNUSED(clazz);
+
+    if (!_check_init(env)) {
+        return NULL;
+    }
+
+    ddwaf_handle nat_handle;
+    if (!(nat_handle = get_pwaf_handle_checked(env, handle_obj))) {
+        return NULL;
+    }
+
+    uint32_t size;
+    const char* const* actions = ddwaf_known_actions(nat_handle, &size);
+    if (!actions || size == 0 || size > INT_MAX /* jsize == int */) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "Found no actions in ruleset");
+        jobject ret_jarr = JNI(NewObjectArray, 0, string_cls, NULL);
+        UNUSED(JNI(ExceptionCheck));
+        return ret_jarr;
+    }
+
+    JAVA_LOG(DDWAF_LOG_DEBUG, "Found %u actions in ruleset", size);
+
+    jobject ret_jarr = JNI(NewObjectArray, (jsize) size, string_cls, NULL);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+
+    for (jsize i = 0; i < (jsize) size; i++) {
+        const char *action = actions[i];
+        if (!action) {
+            JNI(ThrowNew, jcls_rte,
+                "Unexpected NULL ptr in returned list of actions");
+            return NULL; // should not happen
+        }
+        jstring action_jstr =
+                java_utf8_to_jstring_checked(env, action, strlen(action));
+        if (!action_jstr) {
+            return NULL;
+        }
+        JNI(SetObjectArrayElement, ret_jarr, i, action_jstr);
+        if (JNI(ExceptionCheck)) {
+            return NULL;
+        }
+        JNI(DeleteLocalRef, action_jstr);
+    }
+
+    return ret_jarr;
+}
+
 // runRule overloads
 static jobject _run_rule_common(JNIEnv *env, jclass clazz,
                                 jobject handle_obj, jobject parameters,

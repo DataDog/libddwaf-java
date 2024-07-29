@@ -33,6 +33,14 @@ JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getKnownAddresse
 
 /*
  * Class:     io_sqreen_powerwaf_Powerwaf
+ * Method:    getKnownActions
+ * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;)[Ljava/lang/String;
+ */
+JNIEXPORT jobjectArray JNICALL Java_io_sqreen_powerwaf_Powerwaf_getKnownActions
+  (JNIEnv *, jclass, jobject);
+
+/*
+ * Class:     io_sqreen_powerwaf_Powerwaf
  * Method:    runRules
  * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/nio/ByteBuffer;Lio/sqreen/powerwaf/Powerwaf$Limits;Lio/sqreen/powerwaf/PowerwafMetrics;)Lio/sqreen/powerwaf/Powerwaf$ResultWithData;
  */

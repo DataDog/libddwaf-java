@@ -108,6 +108,16 @@ public class PowerwafContext implements Closeable {
         }
     }
 
+    public String[] getUsedActions() {
+        this.readLock.lock();
+        try {
+            checkIfOnline();
+            return Powerwaf.getKnownActions(this.handle);
+        } finally {
+            this.readLock.unlock();
+        }
+    }
+
     public Powerwaf.ResultWithData runRules(Map<String, Object> parameters,
                                             Powerwaf.Limits limits,
                                             PowerwafMetrics metrics) throws AbstractPowerwafException {
