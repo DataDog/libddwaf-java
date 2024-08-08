@@ -52,7 +52,7 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
     }
 
     jobject rules = NULL, custom_rules = NULL, rules_data = NULL,
-            rules_override = NULL, exclusions = NULL, ret = NULL;
+            rules_override = NULL, exclusions = NULL, ret = NULL, exclusion_data = NULL;
 
     rules = _convert_section_checked(env, obj, LSTR("rules"));
     if (JNI(ExceptionCheck)) {
@@ -74,9 +74,13 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
     if (JNI(ExceptionCheck)) {
         goto err;
     }
+    exclusion_data = _convert_section_checked(env, obj, LSTR("exclusion_data"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
 
     ret = java_meth_call(env, &_rsi_init, NULL, rulesetVersion, rules,
-                         custom_rules, rules_data, rules_override, exclusions);
+                         custom_rules, rules_data, rules_override, exclusions, exclusion_data);
 
 err:
     if (rulesetVersion) {
@@ -97,6 +101,9 @@ err:
     if (exclusions) {
         JNI(DeleteLocalRef, exclusions);
     }
+    if (exclusion_data) {
+        JNI(DeleteLocalRef, exclusion_data);
+    }
     return ret;
 }
 
@@ -105,6 +112,7 @@ void output_init_checked(JNIEnv *env)
     if (!java_meth_init_checked(env, &_rsi_init,
                                 "io/sqreen/powerwaf/RuleSetInfo", "<init>",
                                 "(Ljava/lang/String;Lio/sqreen/powerwaf/"
+                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
                                 "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
                                 "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
                                 "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
