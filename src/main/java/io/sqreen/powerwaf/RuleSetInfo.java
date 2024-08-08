@@ -85,14 +85,16 @@ public class RuleSetInfo {
     public final SectionInfo rulesData;
     public final SectionInfo rulesOverride;
     public final SectionInfo exclusions;
+    public final SectionInfo exclusionData;
 
-    public RuleSetInfo(String rulesetVersion, SectionInfo rules, SectionInfo customRules, SectionInfo rulesData, SectionInfo rulesOverride, SectionInfo exclusions) {
+    public RuleSetInfo(String rulesetVersion, SectionInfo rules, SectionInfo customRules, SectionInfo rulesData, SectionInfo rulesOverride, SectionInfo exclusions, SectionInfo exclusionData) {
         this.rulesetVersion = rulesetVersion;
         this.rules = rules;
         this.customRules = customRules;
         this.rulesData = rulesData;
         this.rulesOverride = rulesOverride;
         this.exclusions = exclusions;
+        this.exclusionData = exclusionData;
     }
 
     public int getNumRulesOK() {
@@ -139,6 +141,7 @@ public class RuleSetInfo {
                 .add("rulesData=" + rulesData)
                 .add("rulesOverride=" + rulesOverride)
                 .add("exclusions=" + exclusions)
+                .add("exclusionData=" + exclusionData)
                 .toString();
     }
 }

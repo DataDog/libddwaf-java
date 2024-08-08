@@ -481,6 +481,67 @@ class BasicTests implements PowerwafTrait {
     }
 
     @Test
+    void 'test exclusion data'() {
+        final suspiciousIp = '34.65.27.85'
+        final userAgent = 'Arachni/v1.5.1'
+        final ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_V2_1))
+        ruleSet.rules[0].remove('on_match') // other tests are modifying the rule
+        ruleSet.putAt('exclusions', [
+                [
+                        id        : 'exc-000-001',
+                        on_match  : 'block',
+                        conditions: [
+                                [
+                                        operator  : 'ip_match',
+                                        parameters: [
+                                                data  : 'suspicious_ips_data_id',
+                                                inputs: [[address: 'http.client_ip']]]
+                                ]
+                        ],
+                ]
+        ])
+
+        ctx = Powerwaf.createContext('test', ruleSet)
+
+        ResultWithData res = ctx.runRules(
+                [
+                        'http.client_ip'                   : suspiciousIp,
+                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
+                ],
+                limits,
+                metrics
+        )
+        assertThat res.result, is(Powerwaf.Result.MATCH)
+        assertThat res.actions.size(), is(0)
+
+        def newData = [
+                [
+                        id  : 'suspicious_ips_data_id',
+                        type: 'ip_with_expiration',
+                        data: [
+                                [value: suspiciousIp, expiration: 0]
+                        ]
+                ]
+        ]
+
+        ctx.withCloseable {
+            ctx = ctx.update('test2', [exclusion_data: newData])
+        }
+
+        res = ctx.runRules(
+                [
+                        'http.client_ip'                   : suspiciousIp,
+                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
+                ],
+                limits,
+                metrics
+        )
+        assertThat res.result, is(Powerwaf.Result.MATCH)
+        assertThat res.actions.size(), is(1)
+        assertThat res.actions.get('block_request'), notNullValue()
+    }
+
+    @Test
     void 'rule toggling'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
