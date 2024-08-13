@@ -32,9 +32,7 @@ class FingerprintTests implements PowerwafTrait {
             "inputs": [
               {
                 "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "user-agent"
-                ]
+                "key_path": [ "user-agent" ]
               }
             ],
             "regex": "^Arachni\\\\/v"
@@ -57,9 +55,7 @@ class FingerprintTests implements PowerwafTrait {
             "inputs": [
               {
                 "address": "waf.context.processor",
-                "key_path": [
-                  "fingerprint"
-                ]
+                "key_path": [ "fingerprint" ]
               }
             ],
             "value": true,
@@ -70,26 +66,10 @@ class FingerprintTests implements PowerwafTrait {
       "parameters": {
         "mappings": [
           {
-            "method": [
-              {
-                "address": "server.request.method"
-              }
-            ],
-            "uri_raw": [
-              {
-                "address": "server.request.uri.raw"
-              }
-            ],
-            "body": [
-              {
-                "address": "server.request.body"
-              }
-            ],
-            "query": [
-              {
-                "address": "server.request.query"
-              }
-            ],
+            "method": [ { "address": "server.request.method" } ],
+            "uri_raw": [ { "address": "server.request.uri.raw" } ],
+            "body": [ { "address": "server.request.body" } ],
+            "query": [ { "address": "server.request.query" } ],
             "output": "_dd.appsec.fp.http.endpoint"
           }
         ]
