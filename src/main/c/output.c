@@ -550,7 +550,7 @@ static jstring _encode_json_gzip_base64_checked(JNIEnv *env,
     uint8_t *gzip = _encode_gzip(json, json_len, &gzip_size);
     json_seg_free(json);
     if (gzip == NULL) {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "%s", "gzip encoding of schema failed");
+        JAVA_LOG(DDWAF_LOG_DEBUG, "%s", "gzip encoding of derivative failed");
         return NULL;
     }
 
@@ -571,7 +571,7 @@ static jstring _encode_json_gzip_base64_checked(JNIEnv *env,
     return ret;
 }
 
-jobject output_convert_schema_checked(JNIEnv *env, const ddwaf_object *obj)
+jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
 {
     assert(obj->type == DDWAF_OBJ_MAP);
 
@@ -593,7 +593,7 @@ jobject output_convert_schema_checked(JNIEnv *env, const ddwaf_object *obj)
             goto error;
         } else if (value == NULL) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "Failed serializing schema entry for %*.s",
+                     "Failed serializing derivative entry for %*.s",
                      (int) entry->parameterNameLength, entry->parameterName);
             JNI(DeleteLocalRef, key);
             continue;

@@ -173,13 +173,13 @@ public final class Powerwaf {
         public final Result result;
         public final String data;
         public final Map<String, Map<String, Object>> actions;
-        public final Map<String, String> schemas;
+        public final Map<String, String> derivatives;
 
-        public ResultWithData(Result result, String data, Map<String, Map<String, Object>> actions, Map<String, String> schemas) {
+        public ResultWithData(Result result, String data, Map<String, Map<String, Object>> actions, Map<String, String> derivatives) {
             this.result = result;
             this.data = data;
             this.actions = actions;
-            this.schemas = schemas;
+            this.derivatives = derivatives;
         }
 
         @Override
@@ -188,7 +188,7 @@ public final class Powerwaf {
             sb.append("result=").append(result);
             sb.append(", data='").append(data).append('\'');
             sb.append(", actions='").append(Arrays.asList(actions)).append('\'');
-            sb.append(", schemas='").append(schemas).append('\'');
+            sb.append(", derivatives='").append(derivatives).append('\'');
             sb.append('}');
             return sb.toString();
         }

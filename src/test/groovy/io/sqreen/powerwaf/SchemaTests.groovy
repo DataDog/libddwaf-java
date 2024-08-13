@@ -147,9 +147,9 @@ class SchemaTests implements PowerwafTrait {
         ]
 
         Powerwaf.ResultWithData awd = ctx.runRules(data, limits, metrics)
-        assertThat awd.schemas, isA(Map)
+        assertThat awd.derivatives, isA(Map)
 
-        def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.schemas.values().first()))
+        def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.derivatives['server.request.body.schema']))
         assert deepSortLists(schema) == [
                 [
                  'a':[8],
