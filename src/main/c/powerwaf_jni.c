@@ -2200,12 +2200,12 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
         }
     }
 
-    jobject schema = NULL;
+    jobject derivatives = NULL;
     if (ret->derivatives.type == DDWAF_OBJ_MAP &&
         ret->derivatives.nbEntries > 0) {
-        schema = output_convert_schema_checked(env, &ret->derivatives);
-        if (!schema) {
-            java_wrap_exc("%s", "Failed encoding inferred schema");
+        derivatives = output_convert_derivatives_checked(env, &ret->derivatives);
+        if (!derivatives) {
+            java_wrap_exc("%s", "Failed encoding inferred derivatives");
             goto err;
         }
     }
@@ -2213,7 +2213,7 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
     jobject result =
             java_meth_call(env, &result_with_data_init, NULL,
                            code == DDWAF_OK ? _action_ok : _action_match,
-                           data_obj, actions_jmap, schema);
+                           data_obj, actions_jmap, derivatives);
     if (del_actions_jmap) {
         JNI(DeleteLocalRef, actions_jmap);
     }
