@@ -587,7 +587,15 @@ jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
             goto error;
         }
 
-        jstring value = _encode_json_gzip_base64_checked(env, entry);
+        jstring value = NULL;
+        if (strncmp(entry->parameterName, "_dd.appsec.s.", 13) == 0) {
+            // json schemas are json that has to be gzipped and encoded in base64
+            value = _encode_json_gzip_base64_checked(env, entry);
+        } else if (strncmp(entry->parameterName, "_dd.appsec.fp.", 14) == 0) {
+            // fingerprints are simple strings
+            value = java_utf8_to_jstring_checked(env, entry->stringValue, entry->nbEntries);
+        }
+
         if (JNI(ExceptionCheck)) {
             JNI(DeleteLocalRef, key);
             goto error;
@@ -599,9 +607,11 @@ jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
             continue;
         }
 
-        java_meth_call(env, &_map_put, ret, key, value);
+        if (value != NULL) {
+            java_meth_call(env, &_map_put, ret, key, value);
+            JNI(DeleteLocalRef, value);
+        }
         JNI(DeleteLocalRef, key);
-        JNI(DeleteLocalRef, value);
         if (JNI(ExceptionCheck)) {
             goto error;
         }

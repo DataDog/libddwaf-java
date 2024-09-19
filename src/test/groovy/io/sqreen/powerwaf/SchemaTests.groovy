@@ -72,7 +72,7 @@ class SchemaTests implements PowerwafTrait {
                         "address": "server.request.body"
                       }
                     ],
-                    "output": "server.request.body.schema"
+                    "output": "_dd.appsec.s.req.body"
                   }
                 ],
                 "scanners": [
@@ -149,7 +149,7 @@ class SchemaTests implements PowerwafTrait {
         Powerwaf.ResultWithData awd = ctx.runRules(data, limits, metrics)
         assertThat awd.derivatives, isA(Map)
 
-        def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.derivatives['server.request.body.schema']))
+        def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.derivatives['_dd.appsec.s.req.body']))
         assert deepSortLists(schema) == [
                 [
                  'a':[8],
