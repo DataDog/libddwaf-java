@@ -43,6 +43,14 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
                                           int depth,
                                           struct json_segment *cur_seg);
 
+bool _is_derivative(const ddwaf_object *entry, const char *prefix) {
+    size_t prefix_size = strlen(prefix);
+    if (entry->parameterNameLength < prefix_size) {
+        return false;
+    }
+    return strncmp(prefix, entry->parameterName, prefix_size) == 0;
+}
+
 jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
 {
     jstring rulesetVersion =
@@ -588,10 +596,10 @@ jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
         }
 
         jstring value = NULL;
-        if (strncmp(entry->parameterName, "_dd.appsec.s.", 13) == 0) {
+        if (_is_derivative(entry, "_dd.appsec.s.")) {
             // json schemas are json that has to be gzipped and encoded in base64
             value = _encode_json_gzip_base64_checked(env, entry);
-        } else if (strncmp(entry->parameterName, "_dd.appsec.fp.", 14) == 0) {
+        } else if (_is_derivative(entry, "_dd.appsec.fp.")) {
             // fingerprints are simple strings
             value = java_utf8_to_jstring_checked(env, entry->stringValue, entry->nbEntries);
         }
@@ -607,11 +615,9 @@ jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
             continue;
         }
 
-        if (value != NULL) {
-            java_meth_call(env, &_map_put, ret, key, value);
-            JNI(DeleteLocalRef, value);
-        }
+        java_meth_call(env, &_map_put, ret, key, value);
         JNI(DeleteLocalRef, key);
+        JNI(DeleteLocalRef, value);
         if (JNI(ExceptionCheck)) {
             goto error;
         }
