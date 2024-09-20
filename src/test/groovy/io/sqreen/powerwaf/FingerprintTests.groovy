@@ -6,6 +6,7 @@ import org.junit.Test
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.is
+import static org.hamcrest.Matchers.matchesPattern
 
 class FingerprintTests implements PowerwafTrait {
 
@@ -97,5 +98,6 @@ class FingerprintTests implements PowerwafTrait {
         )
         assertThat res.result, is(Powerwaf.Result.MATCH)
         assertThat res.derivatives.keySet(), contains('_dd.appsec.fp.http.endpoint')
+        assertThat res.derivatives['_dd.appsec.fp.http.endpoint'], matchesPattern('http-get-.*')
     }
 }
