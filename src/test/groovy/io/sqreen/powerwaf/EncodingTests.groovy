@@ -53,7 +53,7 @@ class EncodingTests implements PowerwafTrait {
     }
 
     @Test
-    void 'user input has NUL character before and after matching part'() {
+    void 'user input has NULL character before and after matching part'() {
         Powerwaf.ResultWithData awd = runRules '\u0000Arachni\u0000'
 
         assertThat awd.data, containsString('\\u0000Arachni\\u0000')
