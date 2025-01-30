@@ -89,11 +89,11 @@ public final class Additive implements Closeable {
                 try {
                     try {
                         if (persistentData != null) {
-                            persistentBuffer = this.lease.serializeMore(limits, persistentData);
+                            persistentBuffer = this.lease.serializeMore(limits, persistentData, metrics);
                         }
                         if (ephemeralData != null) {
                             ephemeralLease = ByteBufferSerializer.getBlankLease();
-                            ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
+                            ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData, metrics);
                         }
                     } catch (Exception e) {
                         throw new UnclassifiedPowerwafException(
@@ -117,9 +117,7 @@ public final class Additive implements Closeable {
                     if (metrics != null) {
                         long after = System.nanoTime();
                         long totalTimeNs = after - before;
-                        synchronized (metrics) {
-                            metrics.totalRunTimeNs += totalTimeNs;
-                        }
+                        metrics.incrementTotalRunTimeNs(totalTimeNs);
                     }
                 }
                 return result;
