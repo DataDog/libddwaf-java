@@ -57,6 +57,9 @@ public class PowerwafMetrics {
     protected void incrementWafInputsTruncated(ByteBufferSerializer.Arena arena, InputTruncatedType type) {
         synchronized (this) {
             wafInputsTruncated.putIfAbsent(arena, new HashMap<>());
+            if ((type.equals(InputTruncatedType.LIST_MAP_TOO_LARGE) || type.equals(InputTruncatedType.OBJECT_TOO_DEEP)) && wafInputsTruncated.get(arena).containsKey(type)) {
+                return;
+            }
             wafInputsTruncated.get(arena).put(type, wafInputsTruncated.get(arena).getOrDefault(type, 0L) + 1);
         }
     }
