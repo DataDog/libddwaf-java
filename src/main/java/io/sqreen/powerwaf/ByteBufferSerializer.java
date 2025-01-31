@@ -105,17 +105,19 @@ public class ByteBufferSerializer {
         // Integer.MAXVALUE
 
         if (remainingElements[0] < 0 || depthRemaining < 0) {
-            if (LOGGER.isDebugEnabled()) {
-                if (remainingElements[0] < 0) {
+            if (remainingElements[0] < 0) {
+                if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("Ignoring element, for maxElements was exceeded");
-                    if (metrics != null) {
-                        metrics.incrementWafInputsTruncated(arena, InputTruncatedType.LIST_MAP_TOO_LARGE);
-                    }
-                } else if (depthRemaining <= 0) {
+                }
+                if (metrics != null) {
+                    metrics.incrementWafInputsTruncated(arena, InputTruncatedType.LIST_MAP_TOO_LARGE);
+                }
+            } else if (depthRemaining <= 0) {
+                if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("Ignoring element, for maxDepth was exceeded");
-                    if (metrics != null) {
-                        metrics.incrementWafInputsTruncated(arena, InputTruncatedType.OBJECT_TOO_DEEP);
-                    }
+                }
+                if (metrics != null) {
+                    metrics.incrementWafInputsTruncated(arena, InputTruncatedType.OBJECT_TOO_DEEP);
                 }
             }
             // write empty map
