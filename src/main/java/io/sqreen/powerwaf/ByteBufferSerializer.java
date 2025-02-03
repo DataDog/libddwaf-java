@@ -94,7 +94,8 @@ public class ByteBufferSerializer {
                     parameterName.length(), limits.maxStringSize);
             parameterName = parameterName.substring(0, limits.maxStringSize);
             if (metrics != null) {
-                metrics.incrementWafInputsTruncated(arena, InputTruncatedType.STRING_TOO_LONG);
+                metrics.incrementWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG);
+                metrics.addWafInputsTruncatedSize(InputTruncatedType.STRING_TOO_LONG, parameterName.length());
             }
         }
 
@@ -110,14 +111,14 @@ public class ByteBufferSerializer {
                     LOGGER.debug("Ignoring element, for maxElements was exceeded");
                 }
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncated(arena, InputTruncatedType.LIST_MAP_TOO_LARGE);
+                    metrics.incrementWafInputsTruncatedCount(InputTruncatedType.LIST_MAP_TOO_LARGE);
                 }
             } else if (depthRemaining <= 0) {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("Ignoring element, for maxDepth was exceeded");
                 }
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncated(arena, InputTruncatedType.OBJECT_TOO_DEEP);
+                    metrics.incrementWafInputsTruncatedCount(InputTruncatedType.OBJECT_TOO_DEEP);
                 }
             }
             // write empty map
@@ -138,7 +139,8 @@ public class ByteBufferSerializer {
                         svalue.length(), limits.maxStringSize);
                 svalue = svalue.subSequence(0, limits.maxStringSize);
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncated(arena, InputTruncatedType.STRING_TOO_LONG);
+                    metrics.incrementWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG);
+                    metrics.addWafInputsTruncatedSize(InputTruncatedType.STRING_TOO_LONG, svalue.length());
                 }
             }
             if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
@@ -157,12 +159,21 @@ public class ByteBufferSerializer {
         } else if (value instanceof Collection) {
             int size = Math.min(((Collection<?>) value).size(), remainingElements[0]);
 
+            int originalSize = ((Collection<?>) value).size();
+            if (metrics != null && remainingElements[0] < originalSize) {
+                metrics.addWafInputsTruncatedSize(InputTruncatedType.LIST_MAP_TOO_LARGE, originalSize);
+            }
             Iterator<?> iterator = ((Collection<?>) value).iterator();
             serializeIterable(
                     arena, limits, pwargsSlot, parameterName,
                     remainingElements, depthRemaining, metrics, iterator, size);
         } else if (value.getClass().isArray()) {
             int size = Math.min(Array.getLength(value), remainingElements[0]);
+
+            int originalSize = Array.getLength(value);
+            if (metrics != null && remainingElements[0] < originalSize) {
+                metrics.addWafInputsTruncatedSize(InputTruncatedType.LIST_MAP_TOO_LARGE, originalSize);
+            }
             Iterator<?> iterator = new GenericArrayIterator(value);
             serializeIterable(
                     arena, limits, pwargsSlot, parameterName, remainingElements,
@@ -184,6 +195,10 @@ public class ByteBufferSerializer {
         } else if (value instanceof Map) {
             int size = Math.min(((Map<?, ?>) value).size(), remainingElements[0]);
 
+            int originalSize = ((Map<?, ?>) value).size();
+            if (metrics != null && remainingElements[0] < originalSize) {
+                metrics.addWafInputsTruncatedSize(InputTruncatedType.LIST_MAP_TOO_LARGE, originalSize);
+            }
             PWArgsArrayBuffer pwArgsArrayBuffer = pwargsSlot.writeMap(arena, parameterName, size);
             if (pwArgsArrayBuffer == null) {
                 throw new RuntimeException("Could not write map");

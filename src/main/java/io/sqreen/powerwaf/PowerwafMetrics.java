@@ -10,17 +10,22 @@ package io.sqreen.powerwaf;
 
 import io.sqreen.powerwaf.metrics.InputTruncatedType;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class PowerwafMetrics {
     // total accumulated time between runs, including metrics
     volatile long totalRunTimeNs;
     volatile long totalDdwafRunTimeNs;
-    volatile Map<ByteBufferSerializer.Arena, Map<InputTruncatedType, Long>> wafInputsTruncated;
+    volatile Map<InputTruncatedType, AtomicLong> wafInputsTruncatedCount;
+    volatile Map<InputTruncatedType, List<Long>> wafInputsTruncatedSize;
 
     PowerwafMetrics() {
-        this.wafInputsTruncated = new HashMap<>();
+        this.wafInputsTruncatedCount = new HashMap<>();
+        this.wafInputsTruncatedSize = new HashMap<>();
     }
 
     public long getTotalRunTimeNs() {
@@ -43,24 +48,25 @@ public class PowerwafMetrics {
         }
     }
 
-    public Map<InputTruncatedType, Long> getWafInputsTruncated() {
-        Map<InputTruncatedType, Long> result = new HashMap<>();
-        // Flatten the maps of arenas
-        synchronized (this) {
-            for (Map.Entry<ByteBufferSerializer.Arena, Map<InputTruncatedType, Long>> entry : wafInputsTruncated.entrySet()) {
-                result.putAll(entry.getValue());
-            }
-        }
-        return result;
+    public Long getWafInputsTruncatedCount(InputTruncatedType type) {
+        return wafInputsTruncatedCount.get(type) == null ? 0 : wafInputsTruncatedCount.get(type).get();
     }
 
-    protected void incrementWafInputsTruncated(ByteBufferSerializer.Arena arena, InputTruncatedType type) {
+    protected void incrementWafInputsTruncatedCount(InputTruncatedType type) {
         synchronized (this) {
-            wafInputsTruncated.putIfAbsent(arena, new HashMap<>());
-            if ((type.equals(InputTruncatedType.LIST_MAP_TOO_LARGE) || type.equals(InputTruncatedType.OBJECT_TOO_DEEP)) && wafInputsTruncated.get(arena).containsKey(type)) {
-                return;
-            }
-            wafInputsTruncated.get(arena).put(type, wafInputsTruncated.get(arena).getOrDefault(type, 0L) + 1);
+            wafInputsTruncatedCount.putIfAbsent(type, new AtomicLong(0));
+            wafInputsTruncatedCount.get(type).incrementAndGet();
+        }
+    }
+
+    public List<Long> getWafInputsTruncatedSize(InputTruncatedType type) {
+        return wafInputsTruncatedSize.get(type) == null ? new ArrayList<>() : wafInputsTruncatedSize.get(type);
+    }
+
+    protected void addWafInputsTruncatedSize(InputTruncatedType type, long size) {
+        synchronized (this) {
+            wafInputsTruncatedSize.putIfAbsent(type, new ArrayList<>());
+            wafInputsTruncatedSize.get(type).add(size);
         }
     }
 }
