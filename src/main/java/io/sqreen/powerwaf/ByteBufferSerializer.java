@@ -248,7 +248,7 @@ public class ByteBufferSerializer {
         }
     }
 
-    protected static class Arena {
+    private static class Arena {
         private static final int MAX_BYTES_PER_CHAR_UTF8 =
                 (int) StandardCharsets.UTF_8.newEncoder().maxBytesPerChar();
 

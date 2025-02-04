@@ -382,7 +382,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
         s.stripIndent()[1..-1]
     }
 
-    private assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
+    private void assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
         assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG), is(countStringTooLong))
         assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.LIST_MAP_TOO_LARGE), is(countListMapTooLarge))
         assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.OBJECT_TOO_DEEP), is(countObjectTooDeep))
