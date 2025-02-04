@@ -8,9 +8,10 @@
 
 package io.sqreen.powerwaf
 
+import io.sqreen.powerwaf.metrics.InputTruncatedType
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
-import org.junit.jupiter.api.BeforeEach
 
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
@@ -28,9 +29,9 @@ class ByteBufferSerializerTests implements PowerwafTrait {
 
     PowerwafMetrics metrics
 
-    @BeforeEach
-    void beforeEach() {
-        metrics = ctx.createMetrics()
+    @Before
+    void before() {
+        metrics = new PowerwafMetrics()
     }
 
     @After
@@ -48,6 +49,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           my_key: <STRING> my string
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -62,6 +64,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           my_key: <STRING> my string
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -74,6 +77,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           my_key: <SIGNED> -2305843009213693952
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -86,6 +90,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           my_key: <SIGNED> 7
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -99,6 +104,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
             <BOOL> false
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -113,6 +119,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
             <FLOAT> 8.500000000000000000e+00
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -128,6 +135,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
             <SIGNED> 3
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -143,6 +151,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
             <SIGNED> 3
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -157,6 +166,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
             2: <STRING> yy
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -174,6 +184,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
             <SIGNED> 2
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -185,6 +196,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           my_key: <NULL>
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -205,6 +217,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
         shouldFail(ConcurrentModificationException) {
             serializer.serialize([key: iterable], metrics)
         }
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -222,6 +235,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
         shouldFail(ConcurrentModificationException) {
             serializer.serialize(newMap, metrics)
         }
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -239,6 +253,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
         shouldFail(ConcurrentModificationException) {
             serializer.serialize([a: newColl], metrics)
         }
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -253,6 +268,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
                 assertThat res, containsString(str)
             }
         }
+        assertMetrics(0, 0, 0)
     }
 
     @Test
@@ -267,6 +283,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
                 assertThat res.count('\n'), is(size + 3)
             }
         }
+        assertMetrics(0, 0, 0)
     }
 
     // Limits
@@ -291,6 +308,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           d: <MAP>
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 1, 0)
     }
 
     @Test
@@ -310,6 +328,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
               b: <MAP>
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 1)
     }
 
     @Test
@@ -327,6 +346,7 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           12\uAAAA: <STRING> \uFFFD\uFFFD\uFFFD
         '''
         assertThat res, is(exp)
+        assertMetrics(2, 0, 0)
     }
 
     @Test
@@ -348,15 +368,23 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           c: <STRING> d
         '''
         assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
     }
 
     @Test
     void 'first pwargs buffer with nothing written'() {
         lease = ByteBufferSerializer.blankLease
         shouldFail(IllegalStateException) { lease.firstPWArgsByteBuffer }
+        assertMetrics(0, 0, 0)
     }
 
     private static String p(String s) {
         s.stripIndent()[1..-1]
+    }
+
+    private assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
+        assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG), is(countStringTooLong))
+        assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.LIST_MAP_TOO_LARGE), is(countListMapTooLarge))
+        assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.OBJECT_TOO_DEEP), is(countObjectTooDeep))
     }
 }

@@ -10,9 +10,7 @@ package io.sqreen.powerwaf;
 
 import io.sqreen.powerwaf.metrics.InputTruncatedType;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -21,11 +19,9 @@ public class PowerwafMetrics {
     volatile long totalRunTimeNs;
     volatile long totalDdwafRunTimeNs;
     volatile Map<InputTruncatedType, AtomicLong> wafInputsTruncatedCount;
-    volatile Map<InputTruncatedType, List<Long>> wafInputsTruncatedSize;
 
     PowerwafMetrics() {
         this.wafInputsTruncatedCount = new HashMap<>();
-        this.wafInputsTruncatedSize = new HashMap<>();
     }
 
     public long getTotalRunTimeNs() {
@@ -53,20 +49,7 @@ public class PowerwafMetrics {
     }
 
     protected void incrementWafInputsTruncatedCount(InputTruncatedType type) {
-        synchronized (this) {
-            wafInputsTruncatedCount.putIfAbsent(type, new AtomicLong(0));
-            wafInputsTruncatedCount.get(type).incrementAndGet();
-        }
-    }
-
-    public List<Long> getWafInputsTruncatedSize(InputTruncatedType type) {
-        return wafInputsTruncatedSize.get(type) == null ? new ArrayList<>() : wafInputsTruncatedSize.get(type);
-    }
-
-    protected void addWafInputsTruncatedSize(InputTruncatedType type, long size) {
-        synchronized (this) {
-            wafInputsTruncatedSize.putIfAbsent(type, new ArrayList<>());
-            wafInputsTruncatedSize.get(type).add(size);
-        }
+        wafInputsTruncatedCount.putIfAbsent(type, new AtomicLong(0));
+        wafInputsTruncatedCount.get(type).incrementAndGet();
     }
 }

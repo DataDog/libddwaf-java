@@ -95,7 +95,7 @@ public class ByteBufferSerializer {
             parameterName = parameterName.substring(0, limits.maxStringSize);
             if (metrics != null) {
                 metrics.incrementWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG);
-                metrics.addWafInputsTruncatedSize(InputTruncatedType.STRING_TOO_LONG, parameterName.length());
+                // TODO - ADD METRIC FOR UNTRUNCATED SIZE
             }
         }
 
@@ -140,7 +140,7 @@ public class ByteBufferSerializer {
                 svalue = svalue.subSequence(0, limits.maxStringSize);
                 if (metrics != null) {
                     metrics.incrementWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG);
-                    metrics.addWafInputsTruncatedSize(InputTruncatedType.STRING_TOO_LONG, svalue.length());
+                    // TODO - ADD METRIC FOR UNTRUNCATED SIZE
                 }
             }
             if (!pwargsSlot.writeString(arena, parameterName, svalue)) {
@@ -159,10 +159,7 @@ public class ByteBufferSerializer {
         } else if (value instanceof Collection) {
             int size = Math.min(((Collection<?>) value).size(), remainingElements[0]);
 
-            int originalSize = ((Collection<?>) value).size();
-            if (metrics != null && remainingElements[0] < originalSize) {
-                metrics.addWafInputsTruncatedSize(InputTruncatedType.LIST_MAP_TOO_LARGE, originalSize);
-            }
+            // TODO - ADD METRIC FOR UNTRUNCATED SIZE
             Iterator<?> iterator = ((Collection<?>) value).iterator();
             serializeIterable(
                     arena, limits, pwargsSlot, parameterName,
@@ -170,10 +167,7 @@ public class ByteBufferSerializer {
         } else if (value.getClass().isArray()) {
             int size = Math.min(Array.getLength(value), remainingElements[0]);
 
-            int originalSize = Array.getLength(value);
-            if (metrics != null && remainingElements[0] < originalSize) {
-                metrics.addWafInputsTruncatedSize(InputTruncatedType.LIST_MAP_TOO_LARGE, originalSize);
-            }
+            // TODO - ADD METRIC FOR UNTRUNCATED SIZE
             Iterator<?> iterator = new GenericArrayIterator(value);
             serializeIterable(
                     arena, limits, pwargsSlot, parameterName, remainingElements,
@@ -188,6 +182,7 @@ public class ByteBufferSerializer {
                 size++;
             }
 
+            // TODO - ADD METRIC FOR UNTRUNCATED SIZE
             iterator = ((Iterable<?>) value).iterator();
             serializeIterable(
                     arena, limits, pwargsSlot, parameterName,
@@ -195,10 +190,7 @@ public class ByteBufferSerializer {
         } else if (value instanceof Map) {
             int size = Math.min(((Map<?, ?>) value).size(), remainingElements[0]);
 
-            int originalSize = ((Map<?, ?>) value).size();
-            if (metrics != null && remainingElements[0] < originalSize) {
-                metrics.addWafInputsTruncatedSize(InputTruncatedType.LIST_MAP_TOO_LARGE, originalSize);
-            }
+            // TODO - ADD METRIC FOR UNTRUNCATED SIZE
             PWArgsArrayBuffer pwArgsArrayBuffer = pwargsSlot.writeMap(arena, parameterName, size);
             if (pwArgsArrayBuffer == null) {
                 throw new RuntimeException("Could not write map");
