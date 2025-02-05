@@ -10,18 +10,17 @@ package io.sqreen.powerwaf;
 
 import io.sqreen.powerwaf.metrics.InputTruncatedType;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class PowerwafMetrics {
     // total accumulated time between runs, including metrics
     volatile long totalRunTimeNs;
     volatile long totalDdwafRunTimeNs;
-    volatile Map<InputTruncatedType, AtomicLong> wafInputsTruncatedCount;
+    volatile AtomicLong wafInputsTruncatedStringTooLongCount = new AtomicLong();
+    volatile AtomicLong wafInputsTruncatedListMapTooLargeCount = new AtomicLong();
+    volatile AtomicLong wafInputsTruncatedObjectTooDeepCount = new AtomicLong();
 
     PowerwafMetrics() {
-        this.wafInputsTruncatedCount = new HashMap<>();
     }
 
     public long getTotalRunTimeNs() {
@@ -32,12 +31,32 @@ public class PowerwafMetrics {
         return totalDdwafRunTimeNs;
     }
 
-    public Long getWafInputsTruncatedCount(InputTruncatedType type) {
-        return wafInputsTruncatedCount.get(type) == null ? 0 : wafInputsTruncatedCount.get(type).get();
+    public long getWafInputsTruncatedCount(InputTruncatedType type) {
+        switch (type) {
+            case STRING_TOO_LONG:
+                return wafInputsTruncatedStringTooLongCount.get();
+            case LIST_MAP_TOO_LARGE:
+                return wafInputsTruncatedListMapTooLargeCount.get();
+            case OBJECT_TOO_DEEP:
+                return wafInputsTruncatedObjectTooDeepCount.get();
+            default:
+                return 0L;
+        }
     }
 
     protected void incrementWafInputsTruncatedCount(InputTruncatedType type) {
-        wafInputsTruncatedCount.putIfAbsent(type, new AtomicLong(0));
-        wafInputsTruncatedCount.get(type).incrementAndGet();
+        switch (type) {
+            case STRING_TOO_LONG:
+                wafInputsTruncatedStringTooLongCount.incrementAndGet();
+                return;
+            case LIST_MAP_TOO_LARGE:
+                wafInputsTruncatedListMapTooLargeCount.incrementAndGet();
+                return;
+            case OBJECT_TOO_DEEP:
+                wafInputsTruncatedObjectTooDeepCount.incrementAndGet();
+                return;
+            default:
+                return;
+        }
     }
 }
