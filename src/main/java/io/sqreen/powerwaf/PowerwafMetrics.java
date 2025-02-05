@@ -28,20 +28,8 @@ public class PowerwafMetrics {
         return totalRunTimeNs;
     }
 
-    protected void incrementTotalRunTimeNs(long increment) {
-        synchronized (this) {
-            totalRunTimeNs += increment;
-        }
-    }
-
     public long getTotalDdwafRunTimeNs() {
         return totalDdwafRunTimeNs;
-    }
-
-    protected void incrementTotalDdwafRunTimeNs(long increment) {
-        synchronized (this) {
-            totalDdwafRunTimeNs += increment;
-        }
     }
 
     public Long getWafInputsTruncatedCount(InputTruncatedType type) {

@@ -117,7 +117,9 @@ public final class Additive implements Closeable {
                     if (metrics != null) {
                         long after = System.nanoTime();
                         long totalTimeNs = after - before;
-                        metrics.incrementTotalRunTimeNs(totalTimeNs);
+                        synchronized (metrics) {
+                            metrics.totalRunTimeNs += totalTimeNs;
+                        }
                     }
                 }
                 return result;
