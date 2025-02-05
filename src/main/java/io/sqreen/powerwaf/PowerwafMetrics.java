@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class PowerwafMetrics {
     // total accumulated time between runs, including metrics
-    volatile AtomicLong totalRunTimeNs = new AtomicLong();
-    volatile AtomicLong totalDdwafRunTimeNs = new AtomicLong();
+    AtomicLong totalRunTimeNs = new AtomicLong();
+    AtomicLong totalDdwafRunTimeNs = new AtomicLong();
 
     PowerwafMetrics() {
     }
