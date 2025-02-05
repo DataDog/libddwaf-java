@@ -25,13 +25,13 @@ bool metrics_init(JNIEnv *env)
     bool ret = false;
 
     _total_ddwaf_run_time_ns_field =
-            JNI(GetFieldID, pwaf_metrics_cls, "totalDdwafRunTimeNs", "J");
+            JNI(GetFieldID, pwaf_metrics_cls, "totalDdwafRunTimeNs", "Ljava/util/concurrent/atomic/AtomicLong;");
     if (!_total_ddwaf_run_time_ns_field) {
         goto error;
     }
 
     _total_run_time_ns_field =
-            JNI(GetFieldID, pwaf_metrics_cls, "totalRunTimeNs", "J");
+            JNI(GetFieldID, pwaf_metrics_cls, "totalRunTimeNs", "Ljava/util/concurrent/atomic/AtomicLong;");
     if (!_total_run_time_ns_field) {
         goto error;
     }
@@ -51,20 +51,22 @@ void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
     }
 
     if (run_time_ns > 0) {
-        jlong rt = JNI(GetLongField, metrics_obj, _total_run_time_ns_field);
+        jobject rt_obj = JNI(GetObjectField, metrics_obj, _total_run_time_ns_field);
         if (JNI(ExceptionCheck)) {
             goto error;
         }
-        JNI(SetLongField, metrics_obj, _total_run_time_ns_field,
-            rt + run_time_ns);
+        jclass atomic_long_cls = JNI(FindClass, "java/util/concurrent/atomic/AtomicLong");
+        jmethodID add_and_get = JNI(GetMethodID, atomic_long_cls, "addAndGet", "(J)J");
+        JNI(CallLongMethod, rt_obj, add_and_get, run_time_ns);
     }
 
-    jlong ddrt = JNI(GetLongField, metrics_obj, _total_ddwaf_run_time_ns_field);
+    jobject ddrt_obj = JNI(GetObjectField, metrics_obj, _total_ddwaf_run_time_ns_field);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    JNI(SetLongField, metrics_obj, _total_ddwaf_run_time_ns_field,
-        ddrt + ddwaf_run_time_ns);
+    jclass atomic_long_cls = JNI(FindClass, "java/util/concurrent/atomic/AtomicLong");
+    jmethodID add_and_get = JNI(GetMethodID, atomic_long_cls, "addAndGet", "(J)J");
+    JNI(CallLongMethod, ddrt_obj, add_and_get, ddwaf_run_time_ns);
     if (JNI(ExceptionCheck)) {
         goto error;
     }

@@ -8,18 +8,31 @@
 
 package io.sqreen.powerwaf;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class PowerwafMetrics {
     // total accumulated time between runs, including metrics
-    volatile long totalRunTimeNs;
-    volatile long totalDdwafRunTimeNs;
+    volatile AtomicLong totalRunTimeNs;
+    volatile AtomicLong totalDdwafRunTimeNs;
 
-    PowerwafMetrics() { }
+    PowerwafMetrics() {
+        totalRunTimeNs = new AtomicLong();
+        totalDdwafRunTimeNs = new AtomicLong();
+    }
 
     public long getTotalRunTimeNs() {
-        return totalRunTimeNs;
+        return totalRunTimeNs.get();
+    }
+
+    protected void addTotalRunTimeNs(long increment) {
+        totalRunTimeNs.addAndGet(increment);
     }
 
     public long getTotalDdwafRunTimeNs() {
-        return totalDdwafRunTimeNs;
+        return totalRunTimeNs.get();
+    }
+
+    protected void addTotalDdwafRunTimeNs(long increment) {
+        totalDdwafRunTimeNs.addAndGet(increment);
     }
 }

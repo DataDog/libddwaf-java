@@ -154,9 +154,7 @@ public class PowerwafContext implements Closeable {
                 if (metrics != null) {
                     long after = System.nanoTime();
                     long totalTimeNs = after - before;
-                    synchronized (metrics) {
-                        metrics.totalRunTimeNs += totalTimeNs;
-                    }
+                    metrics.addTotalRunTimeNs(totalTimeNs);
                 }
             }
 
