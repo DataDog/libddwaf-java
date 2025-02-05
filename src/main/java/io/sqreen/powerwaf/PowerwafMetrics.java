@@ -16,9 +16,9 @@ public class PowerwafMetrics {
     // total accumulated time between runs, including metrics
     volatile long totalRunTimeNs;
     volatile long totalDdwafRunTimeNs;
-    volatile AtomicLong wafInputsTruncatedStringTooLongCount = new AtomicLong();
-    volatile AtomicLong wafInputsTruncatedListMapTooLargeCount = new AtomicLong();
-    volatile AtomicLong wafInputsTruncatedObjectTooDeepCount = new AtomicLong();
+    AtomicLong wafInputsTruncatedStringTooLongCount = new AtomicLong();
+    AtomicLong wafInputsTruncatedListMapTooLargeCount = new AtomicLong();
+    AtomicLong wafInputsTruncatedObjectTooDeepCount = new AtomicLong();
 
     PowerwafMetrics() {
     }
