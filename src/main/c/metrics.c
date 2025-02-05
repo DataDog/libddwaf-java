@@ -13,6 +13,8 @@
 
 static jfieldID _total_ddwaf_run_time_ns_field;
 static jfieldID _total_run_time_ns_field;
+static jclass _atomic_long_cls;
+static jmethodID _add_and_get;
 
 bool metrics_init(JNIEnv *env)
 {
@@ -36,6 +38,16 @@ bool metrics_init(JNIEnv *env)
         goto error;
     }
 
+    _atomic_long_cls = JNI(FindClass, "java/util/concurrent/atomic/AtomicLong");
+    if (!_atomic_long_cls) {
+        goto error;
+    }
+
+    _add_and_get = JNI(GetMethodID, _atomic_long_cls, "addAndGet", "(J)J");
+    if (!_add_and_get) {
+        goto error;
+    }
+
     ret = true;
 error:
     JNI(DeleteLocalRef, pwaf_metrics_cls);
@@ -55,18 +67,14 @@ void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
         if (JNI(ExceptionCheck)) {
             goto error;
         }
-        jclass atomic_long_cls = JNI(FindClass, "java/util/concurrent/atomic/AtomicLong");
-        jmethodID add_and_get = JNI(GetMethodID, atomic_long_cls, "addAndGet", "(J)J");
-        JNI(CallLongMethod, rt_obj, add_and_get, run_time_ns);
+        JNI(CallLongMethod, rt_obj, _add_and_get, run_time_ns);
     }
 
     jobject ddrt_obj = JNI(GetObjectField, metrics_obj, _total_ddwaf_run_time_ns_field);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    jclass atomic_long_cls = JNI(FindClass, "java/util/concurrent/atomic/AtomicLong");
-    jmethodID add_and_get = JNI(GetMethodID, atomic_long_cls, "addAndGet", "(J)J");
-    JNI(CallLongMethod, ddrt_obj, add_and_get, ddwaf_run_time_ns);
+    JNI(CallLongMethod, ddrt_obj, _add_and_get, ddwaf_run_time_ns);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
