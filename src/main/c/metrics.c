@@ -57,13 +57,16 @@ error:
 void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
                             jlong ddwaf_run_time_ns)
 {
+    jobject rt_obj = NULL;
+    jobject ddrt_obj = NULL;
+
     if (JNI(MonitorEnter, metrics_obj) < 0) {
         JNI(ThrowNew, jcls_rte, "Error entering monitor on the metrics object");
         goto error;
     }
 
     if (run_time_ns > 0) {
-        jobject rt_obj = JNI(GetObjectField, metrics_obj, _total_run_time_ns_field);
+        rt_obj = JNI(GetObjectField, metrics_obj, _total_run_time_ns_field);
         if (JNI(ExceptionCheck)) {
             goto error;
         }
@@ -71,10 +74,9 @@ void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
         if (JNI(ExceptionCheck)) {
             goto error;
         }
-        JNI(DeleteLocalRef, rt_obj);
     }
 
-    jobject ddrt_obj = JNI(GetObjectField, metrics_obj, _total_ddwaf_run_time_ns_field);
+    ddrt_obj = JNI(GetObjectField, metrics_obj, _total_ddwaf_run_time_ns_field);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
@@ -83,7 +85,12 @@ void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
         goto error;
     }
 
-    JNI(DeleteLocalRef, ddrt_obj);
 error:
+    if (rt_obj) {
+        JNI(DeleteLocalRef, rt_obj);
+    }
+    if (ddrt_obj) {
+        JNI(DeleteLocalRef, ddrt_obj);
+    }
     JNI(MonitorExit, metrics_obj);
 }
