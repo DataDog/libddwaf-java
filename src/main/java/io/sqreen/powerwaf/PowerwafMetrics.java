@@ -29,8 +29,4 @@ public class PowerwafMetrics {
     public long getTotalDdwafRunTimeNs() {
         return totalRunTimeNs.get();
     }
-
-    protected void addTotalDdwafRunTimeNs(long increment) {
-        totalDdwafRunTimeNs.addAndGet(increment);
-    }
 }
