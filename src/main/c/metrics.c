@@ -68,6 +68,10 @@ void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
             goto error;
         }
         JNI(CallLongMethod, rt_obj, _add_and_get, run_time_ns);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
+        JNI(DeleteLocalRef, rt_obj);
     }
 
     jobject ddrt_obj = JNI(GetObjectField, metrics_obj, _total_ddwaf_run_time_ns_field);
@@ -79,6 +83,9 @@ void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
         goto error;
     }
 
+    JNI(DeleteLocalRef, ddrt_obj);
 error:
     JNI(MonitorExit, metrics_obj);
+    JNI(DeleteLocalRef, rt_obj);
+    JNI(DeleteLocalRef, ddrt_obj);
 }
