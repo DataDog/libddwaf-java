@@ -86,5 +86,4 @@ void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
     JNI(DeleteLocalRef, ddrt_obj);
 error:
     JNI(MonitorExit, metrics_obj);
-    JNI(DeleteLocalRef, ddrt_obj);
 }
