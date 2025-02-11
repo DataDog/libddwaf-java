@@ -96,7 +96,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         additive = ctx.openAdditive()
 
         ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
-        serializer.serialize([a: 'b']).withCloseable { lease ->
+        serializer.serialize([a: 'b'], metrics).withCloseable { lease ->
             ByteBuffer buffer = lease.firstPWArgsByteBuffer
             def slice = buffer.slice()
             slice.position(ByteBufferSerializer.SIZEOF_PWARGS)

@@ -133,7 +133,7 @@ public class PowerwafContext implements Closeable {
             long before = System.nanoTime();
             ByteBufferSerializer.ArenaLease lease;
             try {
-                lease = serializer.serialize(parameters);
+                lease = serializer.serialize(parameters, metrics);
             } catch (Exception e) {
                 throw new RuntimeException("Exception encoding parameters", e);
             }
