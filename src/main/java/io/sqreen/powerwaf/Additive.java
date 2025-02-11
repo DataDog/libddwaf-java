@@ -89,11 +89,11 @@ public final class Additive implements Closeable {
                 try {
                     try {
                         if (persistentData != null) {
-                            persistentBuffer = this.lease.serializeMore(limits, persistentData);
+                            persistentBuffer = this.lease.serializeMore(limits, persistentData, metrics);
                         }
                         if (ephemeralData != null) {
                             ephemeralLease = ByteBufferSerializer.getBlankLease();
-                            ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData);
+                            ephemeralBuffer = ephemeralLease.serializeMore(limits, ephemeralData, metrics);
                         }
                     } catch (Exception e) {
                         throw new UnclassifiedPowerwafException(
