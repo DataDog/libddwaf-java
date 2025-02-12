@@ -23,7 +23,7 @@ jobs:
           submodules: recursive
           clean: true
       - name: Cache Gradle artifacts
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -373,7 +373,7 @@ jobs:
     - run: find .
       working-directory: native_libs
     - name: Cache Gradle artifacts
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
