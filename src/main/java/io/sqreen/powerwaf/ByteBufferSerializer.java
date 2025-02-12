@@ -10,7 +10,6 @@ package io.sqreen.powerwaf;
 
 import java.math.BigDecimal;
 
-import io.sqreen.powerwaf.metrics.InputTruncatedType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -94,7 +93,7 @@ public class ByteBufferSerializer {
                     parameterName.length(), limits.maxStringSize);
             parameterName = parameterName.substring(0, limits.maxStringSize);
             if (metrics != null) {
-                metrics.incrementWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG);
+                metrics.incrementWafInputsTruncatedStringTooLongCount();
                 // TODO - ADD METRIC FOR UNTRUNCATED SIZE
             }
         }
@@ -111,14 +110,14 @@ public class ByteBufferSerializer {
                     LOGGER.debug("Ignoring element, for maxElements was exceeded");
                 }
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncatedCount(InputTruncatedType.LIST_MAP_TOO_LARGE);
+                    metrics.incrementWafInputsTruncatedListMapTooLargeCount();
                 }
             } else if (depthRemaining <= 0) {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("Ignoring element, for maxDepth was exceeded");
                 }
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncatedCount(InputTruncatedType.OBJECT_TOO_DEEP);
+                    metrics.incrementWafInputsTruncatedObjectTooDeepCount();
                 }
             }
             // write empty map
@@ -139,7 +138,7 @@ public class ByteBufferSerializer {
                         svalue.length(), limits.maxStringSize);
                 svalue = svalue.subSequence(0, limits.maxStringSize);
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG);
+                    metrics.incrementWafInputsTruncatedStringTooLongCount();
                     // TODO - ADD METRIC FOR UNTRUNCATED SIZE
                 }
             }
