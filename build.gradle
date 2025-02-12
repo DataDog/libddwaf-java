@@ -68,6 +68,13 @@ tasks.register('cmakeLibddwafDebug', Exec) {
     }
 
     def cmakeOpts = []
+    if (MACOS) {
+        // XXX: We target macos 12 for releases in CI, but macOS 15 cannot target it. So bump for local development.
+        cmakeOpts += ['-DCMAKE_OSX_DEPLOYMENT_TARGET=14']
+        if (project.hasProperty('macArch')) {
+            cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
+        }
+    }
 
     if (project.hasProperty('withASAN')) {
         cflags += ['-fsanitize=address,leak,undefined', '--coverage']
@@ -151,8 +158,15 @@ tasks.register('cmakeNativeLibDebug', Exec) {
     }
 
     def cmakeOpts = [
-            '-DCMAKE_BUILD_TYPE=Debug',
+        '-DCMAKE_BUILD_TYPE=Debug',
     ]
+    if (MACOS) {
+        // XXX: We target macos 12 for releases in CI, but macOS 15 cannot target it. So bump for local development.
+        cmakeOpts += ['-DCMAKE_OSX_DEPLOYMENT_TARGET=14']
+        if (project.hasProperty('macArch')) {
+            cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
+        }
+    }
 
     if (project.hasProperty('withASAN')) {
         cflags += ['-fsanitize=address,leak,undefined']
@@ -164,16 +178,12 @@ tasks.register('cmakeNativeLibDebug', Exec) {
         assert !WINDOWS, 'Address sanitizer not supported on Windows'
     }
 
-    if (project.hasProperty('macArch')) {
-        cmakeOpts += ["-DCMAKE_OSX_ARCHITECTURES=${project.macArch}"]
-    }
-
     cmakeOpts += [
             "-DCMAKE_C_FLAGS=${cflags.join(' ')}",
             "-DCMAKE_SHARED_LINKER_FLAGS=${linkerFlags.join(' ')}",
     ]
 
-    commandLine 'cmake', '-DCMAKE_BUILD_TYPE=Debug', "-DCMAKE_PREFIX_PATH=$libddwafConfDir", *cmakeOpts, '-S', projectDir, '-B', '.'
+    commandLine 'cmake', "-DCMAKE_PREFIX_PATH=$libddwafConfDir", *cmakeOpts, '-S', projectDir, '-B', '.'
     workingDir cmakeNativeLibDir
 }
 
