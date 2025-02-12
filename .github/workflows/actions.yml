@@ -215,11 +215,11 @@ jobs:
           - libc: glibc
             arch: x86_64
             dockerfile: ci/manylinux/x86_64
-            runs-on: ubuntu-20.04
+            runs-on: ubuntu-24.04
           - libc: musl
             arch: x86_64
             dockerfile: ci/alpine
-            runs-on: ubuntu-20.04
+            runs-on: ubuntu-24.04
           - libc: glibc
             arch: aarch64
             dockerfile: ci/manylinux/aarch64
@@ -317,7 +317,7 @@ jobs:
 
   Jar_File_Stage_build_jar:
     name: Build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     needs:
       - Native_binaries_Stage_macos_x86_64
       - Native_binaries_Stage_macos_aarch64
@@ -409,57 +409,57 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-temurin8
             test_java_home_var: JAVA_8_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-temurin11
             test_java_home_var: JAVA_11_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-temurin17
             test_java_home_var: JAVA_17_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-temurin21
             test_java_home_var: JAVA_21_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-semeru8
             test_java_home_var: JAVA_SEMERU8_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-semeru11
             test_java_home_var: JAVA_SEMERU11_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-semeru17
             test_java_home_var: JAVA_SEMERU17_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: ubuntu2204-semeru21
             test_java_home_var: JAVA_SEMERU21_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: centos7-stock8
             test_java_home_var: JAVA_8_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: alpine-stock8
             test_java_home_var: JAVA_8_HOME
-          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-24.04
             os: linux
             arch: x86_64
             docker_image: centos6-stock8
@@ -560,14 +560,14 @@ jobs:
       - Test
       - Dev_Tests
       - Jar_File_Stage_build_jar
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
     - name: Done
       run: echo Done
 
   Publish:
     name: Publish
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     needs:
       - Test
       - Dev_Tests
