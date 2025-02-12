@@ -13,6 +13,8 @@
 
 static jfieldID _total_ddwaf_run_time_ns_field;
 static jfieldID _total_run_time_ns_field;
+static jclass _atomic_long_cls;
+static jmethodID _add_and_get;
 
 bool metrics_init(JNIEnv *env)
 {
@@ -25,14 +27,24 @@ bool metrics_init(JNIEnv *env)
     bool ret = false;
 
     _total_ddwaf_run_time_ns_field =
-            JNI(GetFieldID, pwaf_metrics_cls, "totalDdwafRunTimeNs", "J");
+            JNI(GetFieldID, pwaf_metrics_cls, "totalDdwafRunTimeNs", "Ljava/util/concurrent/atomic/AtomicLong;");
     if (!_total_ddwaf_run_time_ns_field) {
         goto error;
     }
 
     _total_run_time_ns_field =
-            JNI(GetFieldID, pwaf_metrics_cls, "totalRunTimeNs", "J");
+            JNI(GetFieldID, pwaf_metrics_cls, "totalRunTimeNs", "Ljava/util/concurrent/atomic/AtomicLong;");
     if (!_total_run_time_ns_field) {
+        goto error;
+    }
+
+    _atomic_long_cls = JNI(FindClass, "java/util/concurrent/atomic/AtomicLong");
+    if (!_atomic_long_cls) {
+        goto error;
+    }
+
+    _add_and_get = JNI(GetMethodID, _atomic_long_cls, "addAndGet", "(J)J");
+    if (!_add_and_get) {
         goto error;
     }
 
@@ -45,30 +57,40 @@ error:
 void metrics_update_checked(JNIEnv *env, jobject metrics_obj, jlong run_time_ns,
                             jlong ddwaf_run_time_ns)
 {
+    jobject rt_obj = NULL;
+    jobject ddrt_obj = NULL;
+
     if (JNI(MonitorEnter, metrics_obj) < 0) {
         JNI(ThrowNew, jcls_rte, "Error entering monitor on the metrics object");
         goto error;
     }
 
     if (run_time_ns > 0) {
-        jlong rt = JNI(GetLongField, metrics_obj, _total_run_time_ns_field);
+        rt_obj = JNI(GetObjectField, metrics_obj, _total_run_time_ns_field);
         if (JNI(ExceptionCheck)) {
             goto error;
         }
-        JNI(SetLongField, metrics_obj, _total_run_time_ns_field,
-            rt + run_time_ns);
+        JNI(CallLongMethod, rt_obj, _add_and_get, run_time_ns);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
     }
 
-    jlong ddrt = JNI(GetLongField, metrics_obj, _total_ddwaf_run_time_ns_field);
+    ddrt_obj = JNI(GetObjectField, metrics_obj, _total_ddwaf_run_time_ns_field);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    JNI(SetLongField, metrics_obj, _total_ddwaf_run_time_ns_field,
-        ddrt + ddwaf_run_time_ns);
+    JNI(CallLongMethod, ddrt_obj, _add_and_get, ddwaf_run_time_ns);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
 
 error:
+    if (rt_obj) {
+        JNI(DeleteLocalRef, rt_obj);
+    }
+    if (ddrt_obj) {
+        JNI(DeleteLocalRef, ddrt_obj);
+    }
     JNI(MonitorExit, metrics_obj);
 }

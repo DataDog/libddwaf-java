@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class PowerwafMetrics {
     // total accumulated time between runs, including metrics
-    volatile long totalRunTimeNs;
-    volatile long totalDdwafRunTimeNs;
+    AtomicLong totalRunTimeNs = new AtomicLong();
+    AtomicLong totalDdwafRunTimeNs = new AtomicLong();
     AtomicLong wafInputsTruncatedStringTooLongCount = new AtomicLong();
     AtomicLong wafInputsTruncatedListMapTooLargeCount = new AtomicLong();
     AtomicLong wafInputsTruncatedObjectTooDeepCount = new AtomicLong();
@@ -24,11 +24,15 @@ public class PowerwafMetrics {
     }
 
     public long getTotalRunTimeNs() {
-        return totalRunTimeNs;
+        return totalRunTimeNs.get();
+    }
+
+    protected void addTotalRunTimeNs(long increment) {
+        totalRunTimeNs.addAndGet(increment);
     }
 
     public long getTotalDdwafRunTimeNs() {
-        return totalDdwafRunTimeNs;
+        return totalDdwafRunTimeNs.get();
     }
 
     public long getWafInputsTruncatedCount(InputTruncatedType type) {
