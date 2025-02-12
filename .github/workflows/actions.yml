@@ -223,11 +223,11 @@ jobs:
           - libc: glibc
             arch: aarch64
             dockerfile: ci/manylinux/aarch64
-            runs-on: arm-4core-linux
+            runs-on: arm-4core-linux-ubuntu24.04
           - libc: musl
             arch: aarch64
             dockerfile: ci/alpine
-            runs-on: arm-4core-linux
+            runs-on: arm-4core-linux-ubuntu24.04
     name: Linux ${{ matrix.libc }} ${{ matrix.arch }}
     runs-on: ${{ matrix.runs-on }}
     env:
@@ -236,11 +236,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install docker
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-        if: ${{ matrix.runs-on == 'arm-4core-linux' }}
       - name: Prepare libddwaf
         run: |
           wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-${{ matrix.arch }}-linux-musl.tar.gz
@@ -250,10 +245,10 @@ jobs:
           tar xvzf libddwaf-${{ env.libddwafVersion }}-${{ matrix.arch }}-linux-musl.tar.gz -C libddwaf/out --strip-components=1
           mv libddwaf/out/lib/.build-id/*/*.debug libddwaf/out/lib/libddwaf.so.debug
       - name: Build docker linux image
-        run: sudo docker build ${{ matrix.dockerfile  }} -t linux_cmake
+        run: docker build ${{ matrix.dockerfile  }} -t linux_cmake
       - name: Build bindings
         run: |
-          sudo docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
+          docker run --name pwaf_java_build -u $(id -u):$(id -g) -w ${{ github.workspace }} -v ${{ github.workspace }}:${{ github.workspace }} linux_cmake bash -e -c 'export VERBOSE=1;
             export LIBDDWAF_INSTALL_PREFIX=${{ github.workspace }}/libddwaf/out;
             set -x;
             mkdir buildAG &&
@@ -464,12 +459,12 @@ jobs:
             arch: x86_64
             docker_image: centos6-stock8
             test_java_home_var: JAVA_8_HOME
-          - runs-on: arm-4core-linux
+          - runs-on: arm-4core-linux-ubuntu24.04
             os: linux
             arch: aarch64
             docker_image: ubuntu2204-temurin8
             test_java_home_var: JAVA_8_HOME
-          - runs-on: arm-4core-linux
+          - runs-on: arm-4core-linux-ubuntu24.04
             os: linux
             arch: aarch64
             docker_image: alpine-stock8
@@ -533,17 +528,12 @@ jobs:
       with:
         name: native_libs
         path: native_libs
-    - name: Install docker
-      run: |
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sudo sh get-docker.sh
-      if: ${{ matrix.runs-on == 'arm-4core-linux' }}
     - name: Build Docker image
-      run: sudo docker build -t ${{ matrix.docker_image }} ci/${{ matrix.docker_image }}
+      run: docker build -t ${{ matrix.docker_image }} ci/${{ matrix.docker_image }}
       if: ${{ matrix.docker_image != '' }}
     - name: Run tests (docker)
       run: |
-        sudo docker run --rm -w $(pwd) -v $(pwd):$(pwd) ${{ matrix.docker_image }} \
+        docker run --rm -w $(pwd) -v $(pwd):$(pwd) ${{ matrix.docker_image }} \
           sh -c './gradlew check --no-daemon --info -Prelease -PuseReleaseBinaries -Dorg.gradle.native=false -PtestJavaHome="$${{ matrix.test_java_home_var }}"'
       if: ${{ matrix.os == 'linux' }}
     - name: Run tests (no docker)
