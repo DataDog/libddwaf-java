@@ -46,7 +46,7 @@ jobs:
           files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
   Native_binaries_Stage_macos_x86_64:
     name: MacOS x86_64
-    runs-on: macOS-12
+    runs-on: macos-13
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
@@ -57,6 +57,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       name: Checkout
+    - name: Select Xcode version
+      # Matches libddwaf https://github.com/DataDog/libddwaf/blob/6aabaa97fb224c251dacc70e427a4c1d7d985af4/.github/workflows/build.yml#L68-L69
+      run: sudo xcode-select --switch /Applications/Xcode_14.3.1.app
     - name: Prepare libddwaf
       run: |
         # Get sha256sum
@@ -71,9 +74,10 @@ jobs:
       run: cmake -E make_directory "${{ env.tempdir }}/buildAG"
     - name: Generate Build Scripts for JNI binding
       run: |
-        cmake -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
+        cmake -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+          -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
           -DCMAKE_PREFIX_PATH='${{ github.workspace }}/libddwaf/out/share/cmake/libddwaf/' \
-          -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
+          -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" \
           -G "${{ env.generator }}" ${{ github.workspace }}
       working-directory: ${{ env.tempdir }}/buildAG
     - name: Build Binaries for JNI Binding
@@ -99,7 +103,7 @@ jobs:
 
   Native_binaries_Stage_macos_aarch64:
     name: MacOS aarch64
-    runs-on: macOS-12
+    runs-on: macos-13
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
@@ -110,6 +114,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         name: Checkout
+      - name: Select Xcode version
+        # Matches libddwaf https://github.com/DataDog/libddwaf/blob/6aabaa97fb224c251dacc70e427a4c1d7d985af4/.github/workflows/build.yml#L68-L69
+        run: sudo xcode-select --switch /Applications/Xcode_14.3.1.app
       - name: Prepare libddwaf
         run: |
           # Get sha256sum
@@ -127,7 +134,7 @@ jobs:
           cmake -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_BUILD_TYPE=${{ env.buildType }} \
             -DCMAKE_PREFIX_PATH='${{ github.workspace }}/libddwaf/out/share/cmake/libddwaf/' \
-            -DCMAKE_C_FLAGS="-mmacosx-version-min=11.6 -fno-omit-frame-pointer" \
+            -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" \
             -G "${{ env.generator }}" ${{ github.workspace }}
         working-directory: ${{ env.tempdir }}/buildAG
       - name: Build Binaries for JNI Binding
@@ -291,8 +298,7 @@ jobs:
       matrix:
         include:
           - runs-on: ubuntu-22.04
-          # FIXME: Use macos-14 once https://bugs.openjdk.org/browse/JDK-8205076 is solved.
-          - runs-on: macos-12
+          - runs-on: macos-15
     name: Development tests
     runs-on: ${{ matrix.runs-on }}
     steps:
@@ -301,10 +307,10 @@ jobs:
       with:
         submodules: recursive
         clean: true
-    - name: Setup JDK 1.8
+    - name: Setup JDK 11
       uses: actions/setup-java@v4
       with:
-        java-version: 8
+        java-version: 11
         distribution: temurin
     - name: Build and run tests
       run: ./gradlew check
@@ -468,46 +474,46 @@ jobs:
             arch: aarch64
             docker_image: alpine-stock8
             test_java_home_var: JAVA_8_HOME
-          # FIXME: Gradle daemon crashes
-          #- runs-on: macos-11
-          #  os: macos
-          #  arch: x86_64
-          #  jdk: temurin8
-          - runs-on: macos-12
-            os: macos
-            arch: x86_64
-            jdk: temurin8
-            java_home_var: JAVA_HOME_8_X64
           - runs-on: macos-13
             os: macos
             arch: x86_64
             jdk: temurin8
             java_home_var: JAVA_HOME_8_X64
-          # FIXME: We hit https://bugs.openjdk.org/browse/JDK-8205076 on macos-13.
-          #        This should be fixed when we have Temurin 17.0.11.
-          # - runs-on: macos-13
-          #   os: macos
-          #   arch: x86_64
-          #   jdk: temurin17
-          #   java_home_var: JAVA_HOME_17_X64
-          # FIXME: https://bugs.openjdk.org/browse/JDK-8205076
-          # - runs-on: macos-14
-          #   os: macos
-          #   arch: x86_64
-          #   jdk: temurin11
-          #   java_home_var: JAVA_HOME_11_X64
-          # FIXME: https://bugs.openjdk.org/browse/JDK-8205076
-          # - runs-on: macos-13-xlarge
-          #   os: macos
-          #   arch: aarch64
-          #   jdk: temurin11
-          #   java_home_var: JAVA_HOME_11_arm64
-          # FIXME: https://bugs.openjdk.org/browse/JDK-8205076
-          # - runs-on: macos-14-xlarge
-          #   os: macos
-          #   arch: aarch64
-          #   jdk: temurin11
-          #   java_home_var: JAVA_HOME_11_arm64
+          - runs-on: macos-14-large
+            os: macos
+            arch: x86_64
+            jdk: temurin8
+            java_home_var: JAVA_HOME_8_X64
+          - runs-on: macos-13-xlarge
+            os: macos
+            arch: aarch64
+            jdk: temurin11
+            java_home_var: JAVA_HOME_11_arm64
+          - runs-on: macos-14-large
+            os: macos
+            arch: x86_64
+            jdk: temurin11
+            java_home_var: JAVA_HOME_11_X64
+          - runs-on: macos-14
+            os: macos
+            arch: aarch64
+            jdk: temurin11
+            java_home_var: JAVA_HOME_11_arm64
+          - runs-on: macos-15
+            os: macos
+            arch: aarch64
+            jdk: temurin11
+            java_home_var: JAVA_HOME_11_arm64
+          - runs-on: macos-13
+            os: macos
+            arch: x86_64
+            jdk: temurin17
+            java_home_var: JAVA_HOME_17_X64
+          - runs-on: macos-15
+            os: macos
+            arch: aarch64
+            jdk: temurin17
+            java_home_var: JAVA_HOME_17_arm64
           - runs-on: windows-2019
             os: windows
             arch: x86_64

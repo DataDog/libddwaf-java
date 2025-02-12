@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(libsqreen_java)
 
+if (APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.7" CACHE STRING "Minimum OS X deployment version")
+endif()
+
 include(FindJNI)
 if (JNI_FOUND)
     message(STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
