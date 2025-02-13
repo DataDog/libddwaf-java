@@ -14,9 +14,9 @@ public class PowerwafMetrics {
     // total accumulated time between runs, including metrics
     AtomicLong totalRunTimeNs = new AtomicLong();
     AtomicLong totalDdwafRunTimeNs = new AtomicLong();
-    AtomicLong wafInputsTruncatedStringTooLongCount = new AtomicLong();
-    AtomicLong wafInputsTruncatedListMapTooLargeCount = new AtomicLong();
-    AtomicLong wafInputsTruncatedObjectTooDeepCount = new AtomicLong();
+    AtomicLong truncatedStringTooLongCount = new AtomicLong();
+    AtomicLong truncatedListMapTooLargeCount = new AtomicLong();
+    AtomicLong truncatedObjectTooDeepCount = new AtomicLong();
 
     PowerwafMetrics() {
     }
@@ -33,27 +33,27 @@ public class PowerwafMetrics {
         return totalDdwafRunTimeNs.get();
     }
 
-    public long getWafInputsTruncatedStringTooLongCount() {
-        return wafInputsTruncatedStringTooLongCount.get();
+    public long getTruncatedStringTooLongCount() {
+        return truncatedStringTooLongCount.get();
     }
 
-    public long getWafInputsTruncatedListMapTooLargeCount() {
-        return wafInputsTruncatedListMapTooLargeCount.get();
+    public long getTruncatedListMapTooLargeCount() {
+        return truncatedListMapTooLargeCount.get();
     }
 
-    public long getWafInputsTruncatedObjectTooDeepCount() {
-        return wafInputsTruncatedObjectTooDeepCount.get();
+    public long getTruncatedObjectTooDeepCount() {
+        return truncatedObjectTooDeepCount.get();
     }
 
-    protected void incrementWafInputsTruncatedStringTooLongCount() {
-        wafInputsTruncatedStringTooLongCount.incrementAndGet();
+    protected void incrementTruncatedStringTooLongCount() {
+        truncatedStringTooLongCount.incrementAndGet();
     }
 
-    protected void incrementWafInputsTruncatedListMapTooLargeCount() {
-        wafInputsTruncatedListMapTooLargeCount.incrementAndGet();
+    protected void incrementTruncatedListMapTooLargeCount() {
+        truncatedListMapTooLargeCount.incrementAndGet();
     }
 
-    protected void incrementWafInputsTruncatedObjectTooDeepCount() {
-        wafInputsTruncatedObjectTooDeepCount.incrementAndGet();
+    protected void incrementTruncatedObjectTooDeepCount() {
+        truncatedObjectTooDeepCount.incrementAndGet();
     }
 }

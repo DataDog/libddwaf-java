@@ -93,7 +93,7 @@ public class ByteBufferSerializer {
                     parameterName.length(), limits.maxStringSize);
             parameterName = parameterName.substring(0, limits.maxStringSize);
             if (metrics != null) {
-                metrics.incrementWafInputsTruncatedStringTooLongCount();
+                metrics.incrementTruncatedStringTooLongCount();
                 // TODO - ADD METRIC FOR UNTRUNCATED SIZE
             }
         }
@@ -110,14 +110,14 @@ public class ByteBufferSerializer {
                     LOGGER.debug("Ignoring element, for maxElements was exceeded");
                 }
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncatedListMapTooLargeCount();
+                    metrics.incrementTruncatedListMapTooLargeCount();
                 }
             } else if (depthRemaining <= 0) {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("Ignoring element, for maxDepth was exceeded");
                 }
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncatedObjectTooDeepCount();
+                    metrics.incrementTruncatedObjectTooDeepCount();
                 }
             }
             // write empty map
@@ -138,7 +138,7 @@ public class ByteBufferSerializer {
                         svalue.length(), limits.maxStringSize);
                 svalue = svalue.subSequence(0, limits.maxStringSize);
                 if (metrics != null) {
-                    metrics.incrementWafInputsTruncatedStringTooLongCount();
+                    metrics.incrementTruncatedStringTooLongCount();
                     // TODO - ADD METRIC FOR UNTRUNCATED SIZE
                 }
             }
