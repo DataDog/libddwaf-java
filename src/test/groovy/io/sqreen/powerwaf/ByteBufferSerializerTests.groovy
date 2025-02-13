@@ -8,7 +8,6 @@
 
 package io.sqreen.powerwaf
 
-import io.sqreen.powerwaf.metrics.InputTruncatedType
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -383,8 +382,8 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     private void assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
-        assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.STRING_TOO_LONG), is(countStringTooLong))
-        assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.LIST_MAP_TOO_LARGE), is(countListMapTooLarge))
-        assertThat(metrics.getWafInputsTruncatedCount(InputTruncatedType.OBJECT_TOO_DEEP), is(countObjectTooDeep))
+        assertThat(metrics.wafInputsTruncatedStringTooLongCount, is(countStringTooLong))
+        assertThat(metrics.wafInputsTruncatedListMapTooLargeCount, is(countListMapTooLarge))
+        assertThat(metrics.wafInputsTruncatedObjectTooDeepCount, is(countObjectTooDeep))
     }
 }
