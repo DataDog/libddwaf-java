@@ -45,7 +45,7 @@ public class ByteBufferSerializerBenchmark {
     @OperationsPerInvocation(OP_COUNT)
     public void empty() {
         for (int i = 0; i < OP_COUNT; i++) {
-            final ByteBufferSerializer.ArenaLease lease = serializer.serialize(Collections.emptyMap());
+            final ByteBufferSerializer.ArenaLease lease = serializer.serialize(Collections.emptyMap(), null);
             lease.close();
         }
     }
@@ -54,7 +54,7 @@ public class ByteBufferSerializerBenchmark {
     @OperationsPerInvocation(OP_COUNT)
     public void small() {
         for (int i = 0; i < OP_COUNT; i++) {
-            final ByteBufferSerializer.ArenaLease lease = serializer.serialize(simplePayload);
+            final ByteBufferSerializer.ArenaLease lease = serializer.serialize(simplePayload, null);
             lease.close();
         }
     }
