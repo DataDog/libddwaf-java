@@ -37,7 +37,7 @@ public class PowerwafContextRunRulesBenchmark {
 
     @Setup(Level.Iteration)
     public void setup() throws Exception {
-        Powerwaf.initialize(false);
+        Powerwaf.initialize(System.getProperty("useReleaseBinaries") == null);
 
         Map<String, Object> rules = new HashMap<>();
         rules.put("version", "1.0");

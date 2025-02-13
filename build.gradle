@@ -467,6 +467,21 @@ codenarcTest {
 jmh {
     jmhVersion = '1.37'
     duplicateClassesStrategy = DuplicatesStrategy.EXCLUDE
+    failOnError = true
+    if (project.hasProperty('useReleaseBinaries')) {
+        jvmArgsAppend = ['-DuseReleaseBinaries=true']
+    } else {
+        def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
+        jvmArgsAppend = ["-Djava.library.path=$javaLibPath"] as List<String>
+    }
+}
+
+tasks.named("jmh").configure {
+    if (project.hasProperty('useReleaseBinaries')) {
+        dependsOn copyNativeLibs
+    } else {
+        dependsOn buildNativeLibDebug
+    }
 }
 
 // vim: set et ts=4 sw=4 list:
