@@ -22,6 +22,7 @@ plugins {
     id 'ivy-publish'
     id 'codenarc'
     id 'me.champeau.jmh' version '0.7.2'
+    id 'info.solidsoft.pitest' version '1.15.0'
 }
 
 repositories {
@@ -467,6 +468,22 @@ codenarcTest {
 jmh {
     jmhVersion = '1.37'
     duplicateClassesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+pitest {
+    pitestVersion = '1.18.1'
+    junit5PluginVersion = '1.2.1'
+    targetClasses = ['io.sqreen.*']
+    def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
+    jvmArgs = ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true', "-Djava.library.path=$javaLibPath"]
+    threads = 8
+    outputFormats = ['HTML']
+    mutators = ['STRONGER']
+    timeoutFactor = 2.0
+}
+
+tasks.named("pitest").configure {
+    dependsOn buildNativeLibDebug
 }
 
 // vim: set et ts=4 sw=4 list:
