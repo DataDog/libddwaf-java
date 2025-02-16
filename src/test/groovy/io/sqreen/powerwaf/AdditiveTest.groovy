@@ -10,12 +10,15 @@ package io.sqreen.powerwaf
 
 import groovy.json.JsonSlurper
 import io.sqreen.powerwaf.exception.AbstractPowerwafException
+import io.sqreen.powerwaf.exception.TimeoutPowerwafException
+import io.sqreen.powerwaf.exception.UnclassifiedPowerwafException
 import org.junit.Test
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.containsString
 import static org.hamcrest.Matchers.is
 
 class AdditiveTest implements ReactiveTrait {
@@ -145,22 +148,31 @@ class AdditiveTest implements ReactiveTrait {
     }
 
     @Test
-    void 'throw an exception when both persistent and ephemeral are null in additive'() {
-        shouldFail(AbstractPowerwafException) {
-            ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
-            additive = ctx.openAdditive()
-            metrics = ctx.createMetrics()
+    void 'timeout when general budget is exhausted'() {
+        final limits = new Powerwaf.Limits(100, 100, 100, 0, Long.MAX_VALUE)
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+        additive = ctx.openAdditive()
+        metrics = ctx.createMetrics()
+        shouldFail(TimeoutPowerwafException) {
+            additive.run([arg1: 'string 1'], limits, metrics)
+        }
+    }
 
+    @Test
+    void 'throw an exception when both persistent and ephemeral are null in additive'() {
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+        additive = ctx.openAdditive()
+        metrics = ctx.createMetrics()
+        shouldFail(AbstractPowerwafException) {
             additive.run(null, null, limits, metrics)
         }
     }
 
     @Test
     void 'throw an exception when both persistent and ephemeral are null'() {
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+        metrics = ctx.createMetrics()
         shouldFail(AbstractPowerwafException) {
-            ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
-            metrics = ctx.createMetrics()
-
             ctx.runRules(null, limits, metrics)
         }
     }
@@ -172,23 +184,35 @@ class AdditiveTest implements ReactiveTrait {
         }
     }
 
-    @Test(expected = RuntimeException)
-    void 'Should throw RuntimeException if double free'() {
-        ctx = new PowerwafContext('test', ARACHNI_ATOM)
-        additive = ctx.openAdditive()
+    @Test
+    void 'should throw if double free'() {
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+        def additive = ctx.openAdditive()
         additive.close()
-        try {
+        final t = shouldFail(IllegalStateException) {
             additive.close()
-        } finally {
-            additive = null
         }
+        assertThat t.message, is('This Additive is no longer online')
     }
 
-    @Test(expected = IllegalArgumentException)
-    void 'Should throw IllegalArgumentException if Limits is null while run'() {
+    @Test
+    void 'should throw if run after close'() {
+        ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
+        def additive = ctx.openAdditive()
+        additive.close()
+        final t = shouldFail(UnclassifiedPowerwafException) {
+            additive.run([arg1: 'string 1'], limits, metrics)
+        }
+        assertThat t.message, containsString('This Additive is no longer online')
+    }
+
+    @Test
+    void 'should throw IllegalArgumentException if Limits is null while run'() {
         ctx = new PowerwafContext('test', null, ARACHNI_ATOM_V2_1)
         additive = ctx.openAdditive()
-        additive.run([:], null, metrics)
+        shouldFail(IllegalArgumentException) {
+            additive.run([:], null, metrics)
+        }
     }
 
     @Test

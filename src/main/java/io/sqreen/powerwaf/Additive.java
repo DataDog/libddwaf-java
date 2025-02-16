@@ -78,9 +78,7 @@ public final class Additive implements Closeable {
         try {
             long before = System.nanoTime();
             synchronized (this) {
-                if (!online) {
-                    throw new IllegalStateException("This Additive is no longer online");
-                }
+                checkOnline();
                 ByteBuffer persistentBuffer = null;
                 ByteBuffer ephemeralBuffer = null;
                 ByteBufferSerializer.ArenaLease ephemeralLease = null;
@@ -103,9 +101,7 @@ public final class Additive implements Closeable {
                     long elapsedNs = System.nanoTime() - before;
                     Powerwaf.Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
                     if (newLimits.generalBudgetInUs == 0L) {
-                        LOGGER.debug(
-                                "Budget exhausted after serialization; " +
-                                        "not running on additive {}", this);
+                        LOGGER.debug("Budget exhausted after serialization; not running on additive {}", this);
                         throw new TimeoutPowerwafException();
                     }
 
@@ -145,9 +141,7 @@ public final class Additive implements Closeable {
     public void close() {
         Throwable exc = null;
         synchronized (this) {
-            if (!online) {
-                throw new IllegalStateException("This Additive is no longer online");
-            }
+            checkOnline();
             online = false;
 
             try {

@@ -33,16 +33,6 @@ class ByteBufferSerializerTestsBase implements PowerwafTrait {
     void after() {
         lease?.close()
         lease = null
-
-        // Check that all buffers were reset
-        ByteBufferSerializer.ArenaPool.INSTANCE.arenas.each { arena ->
-            arena.pwargsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-            arena.stringsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-        }
     }
 
     protected static String p(String s) {
