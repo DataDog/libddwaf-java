@@ -382,8 +382,8 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     private void assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
-        assertThat(metrics.wafInputsTruncatedStringTooLongCount, is(countStringTooLong))
-        assertThat(metrics.wafInputsTruncatedListMapTooLargeCount, is(countListMapTooLarge))
-        assertThat(metrics.wafInputsTruncatedObjectTooDeepCount, is(countObjectTooDeep))
+        assertThat(metrics.truncatedStringTooLongCount, is(countStringTooLong))
+        assertThat(metrics.truncatedListMapTooLargeCount, is(countListMapTooLarge))
+        assertThat(metrics.truncatedObjectTooDeepCount, is(countObjectTooDeep))
     }
 }
