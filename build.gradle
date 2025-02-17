@@ -430,6 +430,9 @@ tasks.withType(Test).configureEach {
         it.dependsOn buildNativeLibDebug
     }
 
+    // ByteBufferSerializerTest will fail in some locales because of float formatting (that's just for test code).
+    it.environment.put('LC_ALL', 'C')
+
     if (project.hasProperty("withASAN")) {
         it.environment ASAN_OPTIONS: 'verbosity=1 handle_segv=0 fast_unwind_on_malloc=0 detect_leaks=0', LD_PRELOAD: '/usr/lib/x86_64-linux-gnu/libasan.so.8'
     }
