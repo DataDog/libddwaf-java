@@ -8,8 +8,6 @@
 
 package io.sqreen.powerwaf
 
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 
 import java.nio.ByteBuffer
@@ -19,106 +17,96 @@ import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.*
 
-class ByteBufferSerializerTests implements PowerwafTrait {
-
-    @Lazy
-    ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
-
-    ByteBufferSerializer.ArenaLease lease
-
-    PowerwafMetrics metrics
-
-    @Before
-    void before() {
-        metrics = new PowerwafMetrics()
-    }
-
-    @After
-    @Override
-    void after() {
-        lease?.close()
-    }
+@SuppressWarnings('MethodCount')
+class ByteBufferSerializerTests extends ByteBufferSerializerTestsBase {
 
     @Test
     void 'can serialize a string'() {
-        lease = serializer.serialize([my_key: 'my string'], metrics)
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          my_key: <STRING> my string
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 0, 0)
+        assertSerializeValue('my string', '<STRING> my string')
+    }
+
+    @Test
+    void 'can serialize Unicode characters'() {
+        // Test boundaries for:
+        //   - 1-byte UTF-8 encoding: U+007F, U+0080, U+0081
+        //   - 2-byte UTF-8 encoding: U+07FF, U+0800, U+0801
+        //   - Surrogate pairs lower bound: \uD800\uDC00
+        assertSerializeValue('👍', '<STRING> 👍')
+        assertSerializeValue('\u007F\u0080\u0081', '<STRING> \u007F\u0080\u0081')
+        assertSerializeValue('\u07FF\u0800\u0801', '<STRING> \u07FF\u0800\u0801')
+        assertSerializeValue('\uD800\uDC00', '<STRING> \uD800\uDC00')
+    }
+
+    @Test
+    void 'can serialize a dangling surrogate pair'() {
+        assertSerializeValue('a\uD83C', '<STRING> a�')
+        assertSerializeValue('a\udf09', '<STRING> a�')
+        assertSerializeValue('\uD83Ca', '<STRING> �a')
+        assertSerializeValue('\udf09a', '<STRING> �a')
+        assertSerializeValue('\uD83C👍', '<STRING> �👍')
+        assertSerializeValue('\udf09👍', '<STRING> �👍')
     }
 
     @Test
     void 'can serialize a CharBuffer'() {
         char[] storedBody = 'my string' as char[]
         CharBuffer cb = CharBuffer.wrap(storedBody, 0, storedBody.length)
+        assertSerializeValue(cb, '<STRING> my string')
+    }
 
-        lease = serializer.serialize([my_key: cb], metrics)
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          my_key: <STRING> my string
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 0, 0)
+    @Test
+    void 'can serialize a byte'() {
+        assertSerializeValue(42 as byte, '<SIGNED> 42')
+        assertSerializeValue(-42 as byte, '<SIGNED> -42')
+    }
+
+    @Test
+    void 'can serialize a short'() {
+        assertSerializeValue(42 as short, '<SIGNED> 42')
+        assertSerializeValue(-42 as short, '<SIGNED> -42')
+    }
+
+    @Test
+    void 'can serialize an int'() {
+        assertSerializeValue(42, '<SIGNED> 42')
+        assertSerializeValue(-42, '<SIGNED> -42')
     }
 
     @Test
     void 'can serialize a long'() {
-        long l = -2305843009213693952
-        lease = serializer.serialize([my_key: l], metrics)
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          my_key: <SIGNED> -2305843009213693952
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 0, 0)
+        assertSerializeValue(-2305843009213693952L, '<SIGNED> -2305843009213693952')
     }
 
     @Test
     void 'can serialize a big int as a long'() {
+        assertSerializeValue(BigInteger.valueOf(42L), '<SIGNED> 42')
+    }
+
+    @Test
+    void 'can serialize a big int as a long with overflow'() {
         BigInteger bi = 18446744073709551623.toLong() // 2^64 + 7
-        lease = serializer.serialize([my_key: bi], metrics)
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          my_key: <SIGNED> 7
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 0, 0)
+        assertSerializeValue(bi, '<SIGNED> 7')
     }
 
     @Test
     void 'can serialize a boolean'() {
-        lease = serializer.serialize([my_key: [true, false]], metrics)
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          my_key: <ARRAY>
-            <BOOL> true
-            <BOOL> false
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 0, 0)
+        assertSerializeValue(true, '<BOOL> true')
+        assertSerializeValue(false, '<BOOL> false')
     }
 
     @Test
-    void 'can serialize decimals and floats'() {
-        lease = serializer.serialize([my_key: [8.5d, 8.5f, 8.5]], metrics)
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          my_key: <ARRAY>
-            <FLOAT> 8.500000000000000000e+00
-            <FLOAT> 8.500000000000000000e+00
-            <FLOAT> 8.500000000000000000e+00
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 0, 0)
+    void 'can serialize a float'() {
+        assertSerializeValue(8.5f, '<FLOAT> 8.500000000000000000e+00')
+    }
+
+    @Test
+    void 'can serialize a double'() {
+        assertSerializeValue(8.5d, '<FLOAT> 8.500000000000000000e+00')
+    }
+
+    @Test
+    void 'can serialize a BigDecimal'() {
+        assertSerializeValue(BigDecimal.valueOf(8.5d), '<FLOAT> 8.500000000000000000e+00')
     }
 
     @Test
@@ -154,6 +142,28 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
+    void 'can serialize nested arrays'() {
+        def arr = [[1], [2, 3], [4, 5, 6]] as ArrayList
+        lease = serializer.serialize([my_key: arr], metrics)
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <ARRAY>
+            <ARRAY>
+              <SIGNED> 1
+            <ARRAY>
+              <SIGNED> 2
+              <SIGNED> 3
+            <ARRAY>
+              <SIGNED> 4
+              <SIGNED> 5
+              <SIGNED> 6
+        '''
+        assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
+    }
+
+    @Test
     void 'can serialize maps'() {
         def map = [(1): 'xx', 2: 'yy']
         lease = serializer.serialize([my_key: map], metrics)
@@ -163,6 +173,59 @@ class ByteBufferSerializerTests implements PowerwafTrait {
           my_key: <MAP>
             1: <STRING> xx
             2: <STRING> yy
+        '''
+        assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
+    }
+
+    @Test
+    void 'can serialize an empty map'() {
+        lease = serializer.serialize([my_key: [:]], metrics)
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <MAP>
+        '''
+        assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
+    }
+
+    @Test
+    void 'can serialize a map with a null key'() {
+        lease = serializer.serialize([(null): [:]], metrics)
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          : <MAP>
+        '''
+        assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
+    }
+
+    @Test
+    void 'can serialize nested maps'() {
+        def map = [(1): [2: 'xx'], 3: [4: 'yy']]
+        lease = serializer.serialize([my_key: map], metrics)
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <MAP>
+            1: <MAP>
+              2: <STRING> xx
+            3: <MAP>
+              4: <STRING> yy
+        '''
+        assertThat res, is(exp)
+        assertMetrics(0, 0, 0)
+    }
+
+    @Test
+    void 'can serialize an empty array'() {
+        lease = serializer.serialize([my_key: []], metrics)
+        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+        def exp = p '''
+        <MAP>
+          my_key: <ARRAY>
         '''
         assertThat res, is(exp)
         assertMetrics(0, 0, 0)
@@ -220,6 +283,16 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
+    void 'does not accept null top-level object'() {
+        shouldFail(NullPointerException) {
+            serializer.serialize(null, metrics)
+        }
+        assertMetrics(0, 0, 0)
+        // XXX: Hack to make this test work standalone
+        ByteBufferSerializer.blankLease.close()
+    }
+
+    @Test
     void 'map reports size larger than what is gotten through iteration'() {
         def orig = [b: 2]
         Map newMap = new Map() {
@@ -256,96 +329,11 @@ class ByteBufferSerializerTests implements PowerwafTrait {
     }
 
     @Test
-    void 'force creation of new string segment'() {
-        maxStringSize = Integer.MAX_VALUE
-
-        def size = ByteBufferSerializer.STRINGS_MIN_SEGMENTS_SIZE + 1
-        def str = 'x' * size
-        2.times {
-            serializer.serialize([key1: str, key2: 42], metrics).withCloseable { lease ->
-                String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-                assertThat res, containsString(str)
-            }
-        }
-        assertMetrics(0, 0, 0)
-    }
-
-    @Test
-    void 'force creation of new pwargs segment'() {
-        maxElements = Integer.MAX_VALUE
-
-        def size = ByteBufferSerializer.PWARGS_MIN_SEGMENTS_SIZE
-        def arr = ['x'] * size
-        2.times {
-            serializer.serialize([key1: arr, key2: 'x'], metrics).withCloseable { lease ->
-                String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-                assertThat res.count('\n'), is(size + 3)
-            }
-        }
-        assertMetrics(0, 0, 0)
-    }
-
-    // Limits
-
-    @Test
-    void 'observes max elements limit'() {
-        maxElements = 5
-        def obj = [a: 1, b: 2, c: [3, 4], d: 5, e: 6]
-        lease = serializer.serialize(obj, metrics)
-
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        // maps and arrays count towards the limits.
-        // d is included because when the map starts there are still 4 elements
-        // remaining and the amount of entries needs is preallocated before
-        // going through them
-        def exp = p '''
-        <MAP>
-          a: <SIGNED> 1
-          b: <SIGNED> 2
-          c: <ARRAY>
-            <SIGNED> 3
-          d: <MAP>
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 1, 0)
-    }
-
-    @Test
-    void 'observes maximum depth'() {
-        maxDepth = 2
-        def obj = [ // 1
-                a: [ // 2
-                        [ // 3: elements here are not serialized anymore
-                                b: 'd']]]
-        lease = serializer.serialize(obj, metrics)
-
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          a: <ARRAY>
-            <MAP>
-              b: <MAP>
-        '''
-        assertThat res, is(exp)
-        assertMetrics(0, 0, 1)
-    }
-
-    @Test
-    void 'observes maximum string size'() {
-        maxStringSize = 3
-        // the size is number of UTF-16 code units
-        def str = '\uFFFD' * 3 + 'x'
-
-        def obj = ['12\uAAAA4': str]
-        lease = serializer.serialize(obj, metrics)
-
-        String res = Powerwaf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          12\uAAAA: <STRING> \uFFFD\uFFFD\uFFFD
-        '''
-        assertThat res, is(exp)
-        assertMetrics(2, 0, 0)
+    @SuppressWarnings('JUnitTestMethodWithoutAssert')
+    void 'double close'() {
+        lease = ByteBufferSerializer.blankLease
+        lease.close()
+        lease.close()
     }
 
     @Test
@@ -377,13 +365,4 @@ class ByteBufferSerializerTests implements PowerwafTrait {
         assertMetrics(0, 0, 0)
     }
 
-    private static String p(String s) {
-        s.stripIndent()[1..-1]
-    }
-
-    private void assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
-        assertThat(metrics.truncatedStringTooLongCount, is(countStringTooLong))
-        assertThat(metrics.truncatedListMapTooLargeCount, is(countListMapTooLarge))
-        assertThat(metrics.truncatedObjectTooDeepCount, is(countObjectTooDeep))
-    }
 }
