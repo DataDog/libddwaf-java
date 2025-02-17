@@ -9,7 +9,6 @@
 package io.sqreen.powerwaf;
 
 import io.sqreen.powerwaf.exception.UnsupportedVMException;
-import io.sqreen.powerwaf.util.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +33,7 @@ public class NativeLibLoader {
         ClassLoader cl = NativeLibLoader.class.getClassLoader();
         List<String> nativeLibs = getNativeLibs(getOsType());
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("Native libs to copy: {}", Joiner.on(", ").join(nativeLibs));
+            LOGGER.debug("Native libs to copy: {}", String.join(", ", nativeLibs));
         }
 
         Path tempDir = Files.createTempDirectory("pwaf");
