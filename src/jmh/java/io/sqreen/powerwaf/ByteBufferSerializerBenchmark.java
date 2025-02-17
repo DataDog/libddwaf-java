@@ -33,7 +33,7 @@ public class ByteBufferSerializerBenchmark {
 
     @Setup(Level.Iteration)
     public void setup() throws Exception {
-        Powerwaf.initialize(false);
+        Powerwaf.initialize(System.getProperty("useReleaseBinaries") == null);
 
         Powerwaf.Limits limits = new Powerwaf.Limits(5, 20, 100, 200000, 0);
         serializer = new ByteBufferSerializer(limits);
