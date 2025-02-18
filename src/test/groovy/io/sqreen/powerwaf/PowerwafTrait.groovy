@@ -14,6 +14,9 @@ import io.sqreen.jni.JNITrait
 import org.junit.After
 import org.junit.AfterClass
 
+import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.is
+
 @CompileStatic
 trait PowerwafTrait extends JNITrait {
 
@@ -179,6 +182,16 @@ trait PowerwafTrait extends JNITrait {
     @After
     void after() {
         ctx?.close()
+
+        // Check that all buffers were reset
+        ByteBufferSerializer.ArenaPool.INSTANCE.arenas.each { arena ->
+            arena.pwargsSegments.each { segment ->
+                assertThat segment.buffer.position(), is(0)
+            }
+            arena.stringsSegments.each { segment ->
+                assertThat segment.buffer.position(), is(0)
+            }
+        }
     }
 
     @AfterClass
