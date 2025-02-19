@@ -78,7 +78,6 @@ public class RuleSetInfo {
         }
     }
 
-
     public final String rulesetVersion;
     public final SectionInfo rules;
     public final SectionInfo customRules;
@@ -110,19 +109,25 @@ public class RuleSetInfo {
     }
 
     public int getNumRulesError() {
-        int count = 0;
-        if (this.rules != null) {
-            count += this.rules.getFailed().size();
-        }
-        if (this.customRules != null) {
-            count += this.customRules.getFailed().size();
-        }
+        int count = countErrorsForSection(this.rules);
+        count += countErrorsForSection(this.customRules);
+        count += countErrorsForSection(this.rulesData);
+        count += countErrorsForSection(this.rulesOverride);
+        count += countErrorsForSection(this.exclusions);
+        count += countErrorsForSection(this.exclusionData);
 
         return count;
     }
 
+    private int countErrorsForSection(SectionInfo section) {
+        if (section != null) {
+            return section.getErrors().size();
+        }
+        return 0;
+    }
+
     public Map<String, List<String>> getErrors() {
-        return Stream.of(this.rules, this.customRules)
+        return Stream.of(this.rules, this.customRules, this.rulesData, this.rulesOverride, this.exclusions, this.exclusionData)
                 .filter(Objects::nonNull)
                 .map(r -> r.getErrors())
                 .flatMap(e -> e.entrySet().stream())
