@@ -120,7 +120,7 @@ public class RuleSetInfo {
     }
 
     private int countErrorsForSection(SectionInfo section) {
-        if (section != null) {
+        if (section != null && section.getErrors() != null) {
             return section.getErrors().size();
         }
         return 0;
