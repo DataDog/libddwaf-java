@@ -25,3 +25,4 @@
 CMakeFiles
 Makefile
 CMakeCache.txt
+hs_err*.log
