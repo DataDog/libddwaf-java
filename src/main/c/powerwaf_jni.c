@@ -55,7 +55,6 @@ struct _init_or_update {
     jobject jspec;
     jobjectArray jrsi_arr;
 };
-static jobject _ddwaf_init_or_update_checked(JNIEnv *env, struct _init_or_update *s);
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
 static ddwaf_object* _convert_buffer_checked(JNIEnv *env, jobject buffer);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
@@ -272,123 +271,6 @@ JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_deinitialize(
     _deinitialize(env);
 }
 
-/*
- * Class:     io.sqreen.powerwaf.Powerwaf
- * Method:    addRules
- * Signature: (Ljava/util/Map;[Lio/sqreen/powerwaf/PowerwafConfig;[Lio/sqreen/powerwaf/RuleSetInfo;)Lio/sqreen/powerwaf/PowerwafHandle;
- */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addRules(
-        JNIEnv *env, jclass clazz,
-        jobject rule_def, jobject jconfig, jobjectArray rule_set_info_arr)
-{
-    UNUSED(clazz);
-
-    return _ddwaf_init_or_update_checked(env, &(struct _init_or_update){
-        .jconfig = jconfig,
-        .jspec = rule_def,
-        .jrsi_arr = rule_set_info_arr,
-    });
-}
-
-static jobject _ddwaf_init_or_update_checked(JNIEnv *env,
-                                             struct _init_or_update *s)
-{
-    if (!_check_init(env)) {
-        return NULL;
-    }
-
-    ddwaf_handle new_handle = NULL;
-
-    struct _limits limits = {
-            .max_depth = 20,
-            .max_elements = 1000000,
-            .max_string_size = 1000000,
-    };
-    ddwaf_object input = _convert_checked(env, s->jspec, &limits, 0);
-    jthrowable thr = JNI(ExceptionOccurred);
-    if (thr) {
-        JAVA_LOG_THR(DDWAF_LOG_ERROR, thr,
-                     "Exception encoding init/update rule specifications");
-        java_wrap_exc("%s",
-                      "Exception encoding init/update rule specification");
-        JNI(DeleteLocalRef, thr);
-        return NULL;
-    }
-
-    ddwaf_object *diagnostics = NULL;
-    // jump to error henceforth
-
-    bool has_rule_set_info = !JNI(IsSameObject, s->jrsi_arr, NULL) &&
-                             JNI(GetArrayLength, s->jrsi_arr) == 1;
-    if (JNI(ExceptionCheck)) {
-        goto error;
-    }
-    diagnostics = has_rule_set_info ? &(ddwaf_object){0} : NULL;
-
-    if (s->is_update) {
-        ddwaf_handle nat_handle;
-        if (!(nat_handle = get_pwaf_handle_checked(env, s->jold_handle))) {
-            goto error;
-        }
-        new_handle = ddwaf_update(nat_handle, &input, diagnostics);
-    } else {
-        ddwaf_config config;
-        if (!_convert_ddwaf_config_checked(env, s->jconfig, &config)) {
-            java_wrap_exc("%s", "Error converting PowerwafConfig");
-            goto error;
-        }
-        new_handle = ddwaf_init(&input, &config, diagnostics);
-        _dispose_of_ddwaf_config(&config);
-    }
-
-    // even if ddwaf_update/init failed, we try to report ruleset info
-    if (diagnostics && memcmp(diagnostics, &(ddwaf_object){0},
-                                sizeof(*diagnostics)) != 0) {
-        jobject jrsi = output_convert_diagnostics_checked(env, diagnostics);
-
-        if (JNI(ExceptionCheck)) {
-            java_wrap_exc("Error converting rule info structure");
-            goto error;
-        }
-        JNI(SetObjectArrayElement, s->jrsi_arr, 0, jrsi);
-        JNI(DeleteLocalRef, jrsi);
-        if (JNI(ExceptionCheck)) {
-            java_wrap_exc("Error setting reference for RuleSetInfo");
-            goto error;
-        }
-    }
-
-    if (!new_handle) {
-        if (s->is_update) {
-            JAVA_LOG(DDWAF_LOG_WARN, "call to ddwaf_update failed");
-            JNI(ThrowNew, jcls_iae, "Call to ddwaf_update failed");
-        } else {
-            JAVA_LOG(DDWAF_LOG_WARN,
-                     "call to ddwaf_init failed (or no update)");
-            JNI(ThrowNew, jcls_iae, "Call to ddwaf_init failed (or no update)");
-        }
-        goto error;
-    } else {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "Successfully created ddwaf_handle");
-    }
-
-    ddwaf_object_free(&input);
-    if (diagnostics) {
-        ddwaf_object_free(diagnostics);
-    }
-    return java_meth_call(env, &_pwaf_handle_init, NULL,
-                          (jlong) (intptr_t) new_handle);
-
-error:
-    ddwaf_object_free(&input);
-    if (diagnostics) {
-        ddwaf_object_free(diagnostics);
-    }
-    if (new_handle) {
-        ddwaf_destroy(new_handle);
-    }
-    return NULL;
-}
 
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
@@ -637,22 +519,62 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules
     return _run_rule_common(env, clazz, handle_obj, main_byte_buffer, limits_obj, metrics_obj);
 }
 
-/*
- * Class:     io_sqreen_powerwaf_Powerwaf
- * Method:    update
- * Signature: (Lio/sqreen/powerwaf/PowerwafHandle;Ljava/util/Map;[Lio/sqreen/powerwaf/RuleSetInfo;)Lio/sqreen/powerwaf/PowerwafHandle;
- */
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_update
-  (JNIEnv *env, jclass clazz, jobject jhandle, jobject jspec, jobjectArray jrsi_arr)
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addOrUpdateConfig
+  (JNIEnv *env, jobject builder, jstring path, jobject configuration, jobject diagnostics)
 {
-    UNUSED(clazz);
+    ddwaf_object *ddwaf_diagnostics = NULL;
+    ddwaf_object ddwaf_configuration =_convert_checked(env, configuration, NULL, 0);
+    uint32_t pathLength = JNI(GetStringLength, path);
+    bool result = ddwaf_builder_add_or_update_config(&builder, &path, &pathLength, &ddwaf_configuration, &ddwaf_diagnostics);
+    ddwaf_object_free(&ddwaf_configuration);
+    jobjectArray ruleSetInfoArray = convert_ddwaf_diagnostics_to_rule_set_info(env, &ddwaf_diagnostics);
+    ddwaf_object_free(ddwaf_diagnostics);
+    return ruleSetInfoArray;
+}
 
-    return _ddwaf_init_or_update_checked(env, &(struct _init_or_update){
-        .is_update = true,
-        .jold_handle = jhandle,
-        .jspec = jspec,
-        .jrsi_arr = jrsi_arr,
-    });
+jobjectArray convert_ddwaf_diagnostics_to_rule_set_info(JNIEnv *env, ddwaf_object *ddwaf_diagnostics) {
+    // Assuming RuleSetInfo class and its constructor are already cached
+    jclass ruleSetInfoClass = env->FindClass("io/sqreen/powerwaf/RuleSetInfo");
+    jmethodID ruleSetInfoConstructor = env->GetMethodID(ruleSetInfoClass, "<init>", "(Ljava/lang/String;)V");
+
+    // Create a new jobjectArray of RuleSetInfo
+    jobjectArray ruleSetInfoArray = env->NewObjectArray(ddwaf_diagnostics->nbEntries, ruleSetInfoClass, NULL);
+
+    for (uint32_t i = 0; i < ddwaf_diagnostics->nbEntries; i++) {
+        ddwaf_object entry = ddwaf_diagnostics->array[i];
+        jstring entryString = env->NewStringUTF(entry.stringValue);
+        jobject ruleSetInfo = env->NewObject(ruleSetInfoClass, ruleSetInfoConstructor, entryString);
+        env->SetObjectArrayElement(ruleSetInfoArray, i, ruleSetInfo);
+        env->DeleteLocalRef(entryString);
+        env->DeleteLocalRef(ruleSetInfo);
+    }
+
+    return &ruleSetInfoArray;
+}
+
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_initBuilder
+  (JNIEnv *env, jobject config)
+{
+    ddwaf_config ddwaf_configuration;
+    _convert_ddwaf_config_checked(env, config, &ddwaf_configuration);
+    return ddwaf_builder_init(&ddwaf_configuration);
+}
+
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_buildInstance
+  (JNIEnv *env, jobject builder)
+{
+    return ddwaf_builder_build_instance(builder);
+}
+
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyInstance
+  (JNIEnv *env, jobject handle)
+{
+    ddwaf_destroy(&handle);
+}
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyBuilder
+  (JNIEnv *env, jobject builder)
+{
+    ddwaf_builder_destroy(&builder);
 }
 
 /*

@@ -13,6 +13,11 @@ import io.sqreen.powerwaf.RuleSetInfo;
 public class InvalidRuleSetException extends UnclassifiedPowerwafException {
     public final RuleSetInfo ruleSetInfo;
 
+    public InvalidRuleSetException(RuleSetInfo ruleSetInfo, String message) {
+        super(message);
+        this.ruleSetInfo = ruleSetInfo;
+    }
+
     public InvalidRuleSetException(RuleSetInfo ruleSetInfo, Throwable orig) {
         super(orig);
         this.ruleSetInfo = ruleSetInfo;
