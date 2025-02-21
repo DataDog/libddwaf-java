@@ -38,6 +38,8 @@ public class PowerwafContext implements Closeable {
     private final RuleSetInfo ruleSetInfo;
     private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
+    private final Builder builder;
+
     PowerwafContext(String uniqueName, PowerwafConfig config, Map<String, Object> definition) throws AbstractPowerwafException {
         LOGGER.debug("Creating PowerWAF context {}", uniqueName);
         ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
@@ -60,9 +62,14 @@ public class PowerwafContext implements Closeable {
             config = PowerwafConfig.DEFAULT_CONFIG;
         }
 
+        builder = new Builder(config);
         RuleSetInfo[] infoRef = new RuleSetInfo[1];
+
         try {
-            this.handle = Powerwaf.addRules(definition, config, infoRef);
+            this.handle = Powerwaf.buildInstance(builder);
+            if(!Powerwaf.update(builder, definition, infoRef)){
+                throw new InvalidRuleSetException(infoRef[0], "Failed to update rule set");
+            }
         } catch (IllegalArgumentException iae) {
             if (infoRef[0] != null) {
                 throw new InvalidRuleSetException(infoRef[0], iae);
@@ -96,6 +103,7 @@ public class PowerwafContext implements Closeable {
             this.selfRef = null;
         }
         LOGGER.debug("Successfully create PowerWAF context {} (update)", uniqueName);
+        builder = new Builder();
     }
 
     public String[] getUsedAddresses() {
@@ -188,7 +196,10 @@ public class PowerwafContext implements Closeable {
             RuleSetInfo[] ruleSetInfoRef = new RuleSetInfo[1];
             synchronized (PowerwafContext.class) {
                 try {
-                    PowerwafHandle newHandle = Powerwaf.update(this.handle, specification, ruleSetInfoRef);
+                    PowerwafHandle newHandle = Powerwaf.buildInstance(builder);
+                    if(!Powerwaf.update(builder, specification, ruleSetInfoRef)){
+                        throw new InvalidRuleSetException(ruleSetInfoRef[0], "Failed to update rule set");
+                    }
                     return new PowerwafContext(uniqueId, newHandle, ruleSetInfoRef[0]);
                 } catch (RuntimeException rte) {
                     if (ruleSetInfoRef[0] == null) {
