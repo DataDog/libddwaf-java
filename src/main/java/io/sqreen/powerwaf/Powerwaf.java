@@ -21,10 +21,11 @@ import java.util.Collections;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.22.0";
+    public static final String LIB_VERSION = "1.23.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean EXIT_ON_LEAK;
+    private static final String CONFIGURATION_RULES = "configuration_rules_java_path_";
 
     private static boolean triedInitializing;
     private static boolean initialized;
@@ -86,20 +87,13 @@ public final class Powerwaf {
         return new PowerwafContext(uniqueId, config, ruleDefinitions);
     }
 
-    /**
-     * Creates a rule given its definition.
-     *
-     * See also pw_initH.
-     *
-     * @param definition map with keys version and events
-     * @param config configuration for the obfuscator. Non-null.
-     * @param rulesetInfoOut either a null or a 1-byte element holding an out
-     *                       reference for a {@link RuleSetInfo}.
-     * @return a non-null native handle
-     * @throws IllegalArgumentException
-     */
-    static native PowerwafHandle addRules(
-            Map<String, Object> definition, PowerwafConfig config, RuleSetInfo[] rulesetInfoOut);
+    public static native Builder initBuilder(PowerwafConfig config);
+    public static native PowerwafHandle buildInstance(Builder builder);
+
+    public static native void destroyInstance(PowerwafHandle handle);
+    public static native void destroyBuilder(Builder builder);
+
+    public static native boolean addOrUpdateConfig(Builder builder, String path, Map<String, Object> definition, RuleSetInfo[] infoRef);
 
     /* pw_clearRuleH */
     static native void clearRules(PowerwafHandle handle);
@@ -130,10 +124,6 @@ public final class Powerwaf {
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
-    static native PowerwafHandle update(PowerwafHandle handle,
-                                        Map<String, Object> specification,
-                                        RuleSetInfo[] ruleSetInfoRef);
-
     public static native String getVersion();
 
     /**
@@ -149,6 +139,14 @@ public final class Powerwaf {
     // called from JNI
     private static AbstractPowerwafException createException(int retCode) {
         return AbstractPowerwafException.createFromErrorCode(retCode);
+    }
+
+    public static boolean update(Builder builder, Map<String, Object> configuration, RuleSetInfo[] infoRef) {
+        return addOrUpdateConfig(builder, createPath(configuration), configuration, infoRef);
+    }
+
+    private static String createPath(Map<String, Object> configuration) {
+        return CONFIGURATION_RULES + configuration.hashCode();
     }
 
     public enum Result {

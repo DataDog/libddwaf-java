@@ -21,14 +21,18 @@ public class RuleSetInfo {
         private final String error;
         private final List<String> loaded;
         private final List<String> failed;
+        private final List<String> skipped;
         // map error string -> array of rule ids
         private final Map<String, List<String>> errors;
+        private final Map<String, List<String>> warnings;
 
         public SectionInfo(String error) {
             this.error = error;
             this.loaded = null;
             this.failed = null;
             this.errors = null;
+            this.skipped = null;
+            this.warnings = null;
         }
 
         public SectionInfo(List<String> loaded, List<String> failed, Map<String, List<String>> errors) {
@@ -36,6 +40,8 @@ public class RuleSetInfo {
             this.loaded = loaded;
             this.failed = failed;
             this.errors = errors;
+            this.skipped = null;
+            this.warnings = null;
         }
 
         public String getError() {
@@ -78,51 +84,62 @@ public class RuleSetInfo {
         }
     }
 
-
+    public final String error;
     public final String rulesetVersion;
     public final SectionInfo rules;
     public final SectionInfo customRules;
     public final SectionInfo rulesData;
     public final SectionInfo rulesOverride;
     public final SectionInfo exclusions;
-    public final SectionInfo exclusionData;
+    public final SectionInfo actions;
+    public final SectionInfo processors;
+    public final SectionInfo scanners;
 
-    public RuleSetInfo(String rulesetVersion, SectionInfo rules, SectionInfo customRules, SectionInfo rulesData, SectionInfo rulesOverride, SectionInfo exclusions, SectionInfo exclusionData) {
+    public RuleSetInfo(String error, String rulesetVersion, SectionInfo rules,
+                       SectionInfo customRules, SectionInfo rulesData, SectionInfo rulesOverride,
+                       SectionInfo exclusions, SectionInfo actions, SectionInfo processors, SectionInfo scanners) {
+        this.error = error;
         this.rulesetVersion = rulesetVersion;
         this.rules = rules;
         this.customRules = customRules;
         this.rulesData = rulesData;
         this.rulesOverride = rulesOverride;
         this.exclusions = exclusions;
-        this.exclusionData = exclusionData;
+        this.actions = actions;
+        this.processors = processors;
+        this.scanners = scanners;
     }
 
     public int getNumRulesOK() {
-        int count = 0;
-        if (this.rules != null) {
-            count += this.rules.getLoaded().size();
-        }
-        if (this.customRules != null) {
-            count += this.customRules.getLoaded().size();
-        }
-
+        int count = countLoadedForSection(this.rules);
+        count += countLoadedForSection(this.customRules);
+        count += countLoadedForSection(this.rulesData);
+        count += countLoadedForSection(this.rulesOverride);
+        count += countLoadedForSection(this.exclusions);
+        count += countLoadedForSection(this.actions);
+        count += countLoadedForSection(this.processors);
+        count += countLoadedForSection(this.scanners);
         return count;
     }
 
     public int getNumRulesError() {
-        int count = 0;
-        if (this.rules != null) {
-            count += this.rules.getFailed().size();
+        if (this.error != null && !this.error.isEmpty()) {
+            return 1;
         }
-        if (this.customRules != null) {
-            count += this.customRules.getFailed().size();
-        }
+        int count = countErrorsForSection(this.rules);
+        count += countErrorsForSection(this.customRules);
+        count += countErrorsForSection(this.rulesData);
+        count += countErrorsForSection(this.rulesOverride);
+        count += countErrorsForSection(this.exclusions);
+        count += countErrorsForSection(this.actions);
+        count += countErrorsForSection(this.processors);
+        count += countErrorsForSection(this.scanners);
 
         return count;
     }
 
     public Map<String, List<String>> getErrors() {
-        return Stream.of(this.rules, this.customRules)
+        return Stream.of(this.rules, this.customRules, this.rulesData, this.rulesOverride, this.exclusions, this.actions, this.processors, this.scanners)
                 .filter(Objects::nonNull)
                 .map(r -> r.getErrors())
                 .flatMap(e -> e.entrySet().stream())
@@ -141,7 +158,25 @@ public class RuleSetInfo {
                 .add("rulesData=" + rulesData)
                 .add("rulesOverride=" + rulesOverride)
                 .add("exclusions=" + exclusions)
-                .add("exclusionData=" + exclusionData)
+                .add("actions=" + actions)
+                .add("processors=" + processors)
+                .add("scanners=" + scanners)
                 .toString();
+    }
+
+    private int countErrorsForSection(RuleSetInfo.SectionInfo section) {
+        if (section != null && section.getError() != null && !section.getError().isEmpty()) {
+            return 1;
+        }
+        if (section != null && section.getErrors() != null) {
+            return section.getErrors().size();
+        }
+        return 0;
+    }
+    private int countLoadedForSection(RuleSetInfo.SectionInfo section) {
+        if (section != null && section.getLoaded() != null) {
+            return section.getLoaded().size();
+        }
+        return 0;
     }
 }
