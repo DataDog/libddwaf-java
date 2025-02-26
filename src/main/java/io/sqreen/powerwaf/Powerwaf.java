@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public final class Powerwaf {
-    public static final String LIB_VERSION = "1.22.0";
+    public static final String LIB_VERSION = "1.23.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Powerwaf.class);
     static final boolean EXIT_ON_LEAK;

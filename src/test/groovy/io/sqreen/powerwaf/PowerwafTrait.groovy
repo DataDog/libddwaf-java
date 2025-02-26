@@ -163,6 +163,116 @@ trait PowerwafTrait extends JNITrait {
           ]
         }''')
 
+    static final Map BROKEN_EXCLUSIONS = (Map) new JsonSlurper().parseText('''
+        {
+          "version": "2.1",
+          "metadata": {
+            "rules_version": "1.2.6"
+          },
+          "actions": [
+            {
+              "id": "redirect1",
+              "type": "redirect_request",
+              "parameters": {
+                "location": "https://example1.com/"
+              }
+            },
+            {
+              "id": "redirect2",
+              "type": "redirect_request",
+              "parameters": {
+                "status_code": 301,
+                "location": "https://example2.com/"
+              }
+            },
+            {
+              "id": "redirect3",
+              "type": "redirect_request",
+              "parameters": {
+                "status_code": 400,
+                "location": "https://example3.com/"
+              }
+            }
+          ],
+          "rules": [
+            {
+              "name": "Arachni",
+              "tags": {
+                "type": "security_scanner",
+                "category": "attack_attempt"
+              },
+              "conditions": [
+                {
+                  "parameters": {
+                    "inputs": [
+                      {
+                        "address": "server.request.headers.no_cookies",
+                        "key_path": [
+                          "user-agent"
+                        ]
+                      }
+                    ],
+                    "regex": "^Arachni\\\\/v"
+                  },
+                  "operator": "match_regex"
+                }
+              ],
+              "on_match": ["block"]
+            },
+            {
+                "id": "dummy_rule",
+                "name": "Dummy",
+                "tags": {
+                    "type": "dummy"
+                },
+                "conditions": [
+                    {
+                        "parameters": {
+                            "inputs": [
+                                {
+                                    "address": "server.request.headers.no_cookies",
+                                    "key_path": [
+                                        "user-agent"
+                                    ]
+                                }
+                            ],
+                            "regex": "^Dummy"
+                        },
+                        "operator": "match_regex"
+                    }
+                ],
+                "on_match": ["stack_trace", "redirect2"]
+            }
+          ],
+          "exclusions": [
+            {
+              "id": "arachni_rule",
+              "name": "Arachni",
+              "tags": {
+                "type": "security_scanner",
+                "category": "attack_attempt"
+              },
+              "conditions": [
+                {
+                  "parameters": {
+                    "inputs": [
+                      {
+                        "address": "server.request.headers.no_cookies",
+                        "key_path": [
+                          "user-agent"
+                        ]
+                      }
+                    ],
+                    "regex": "^Arachni\\\\/v"
+                  },
+                  "operator": "match_regex"
+                }
+              ],
+              "on_match": ["block"]
+            }
+          ]
+        }''')
+
     int maxDepth = 5
     int maxElements = 20
     int maxStringSize = 100

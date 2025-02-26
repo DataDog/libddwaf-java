@@ -63,8 +63,35 @@ class BadRuleTests implements PowerwafTrait {
         assert rsi.errors == ['duplicate rule': ['arachni_rule'] as String[]]
     }
 
+    @Test
+    void 'more than one error without exception'() {
+        def rules = copyMap(BROKEN_EXCLUSIONS)
+        ctx = Powerwaf.createContext('test', rules)
+
+        def rsi = ctx.ruleSetInfo
+        assert rsi.numRulesOK == 1
+        assert rsi.numRulesError == 2
+        assert rsi.errors == ['missing key \'id\'':['index:0']
+                              , "invalid type 'array' for key 'on_match', expected 'string_view'":['arachni_rule']]
+    }
+
+    @Test
+    void 'more than one type of error'() {
+        def rules = copyMap(BROKEN_EXCLUSIONS)
+        rules['rules'][1].remove('tags')
+        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+            ctx = Powerwaf.createContext('test', rules)
+        }
+
+        def rsi = exc.ruleSetInfo
+        assert rsi.numRulesOK == 0
+        assert rsi.numRulesError == 3
+        assert rsi.errors == ['missing key \'id\'':['index:0']
+                              , 'missing key \'tags\'':['dummy_rule']
+                              , "invalid type 'array' for key 'on_match', expected 'string_view'":['arachni_rule']]
+    }
+
     private Map copyMap(Map map) {
         new JsonSlurper().parseText(JsonOutput.toJson(map))
     }
-
 }
