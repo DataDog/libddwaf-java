@@ -12,7 +12,7 @@ public class PowerwafHandle {
     private final long nativeHandle;
 
     // called from JNI
-    private PowerwafHandle(long handle) {
+    public PowerwafHandle(long handle) {
         if (handle == 0) {
             throw new IllegalArgumentException("Cannot build null PowerwafHandles");
         }

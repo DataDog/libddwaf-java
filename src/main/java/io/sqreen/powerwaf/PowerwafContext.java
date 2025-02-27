@@ -66,7 +66,7 @@ public class PowerwafContext implements Closeable {
         RuleSetInfo[] infoRef = new RuleSetInfo[1];
 
         try {
-            this.handle = Powerwaf.buildInstance(builder);
+            this.handle = new PowerwafHandle(Powerwaf.buildInstance(builder));
             if(!Powerwaf.update(builder, definition, infoRef)){
                 throw new InvalidRuleSetException(infoRef[0], "Failed to update rule set");
             }
@@ -196,7 +196,7 @@ public class PowerwafContext implements Closeable {
             RuleSetInfo[] ruleSetInfoRef = new RuleSetInfo[1];
             synchronized (PowerwafContext.class) {
                 try {
-                    PowerwafHandle newHandle = Powerwaf.buildInstance(builder);
+                    PowerwafHandle newHandle = new PowerwafHandle(Powerwaf.buildInstance(builder));
                     if(!Powerwaf.update(builder, specification, ruleSetInfoRef)){
                         throw new InvalidRuleSetException(ruleSetInfoRef[0], "Failed to update rule set");
                     }
@@ -224,6 +224,8 @@ public class PowerwafContext implements Closeable {
             checkIfOnline();
             this.online = false;
             Powerwaf.clearRules(this.handle);
+            Powerwaf.destroyInstance(this.handle);
+            Powerwaf.destroyBuilder(this.builder);
             LOGGER.debug("Deleted WAF context {}", this);
             if (this.selfRef != null) {
                 LeakDetection.notifyClose(this.selfRef);

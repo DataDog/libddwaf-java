@@ -87,10 +87,10 @@ public final class Powerwaf {
         return new PowerwafContext(uniqueId, config, ruleDefinitions);
     }
 
-    public static native PowerwafHandle buildInstance(Builder builder);
+    public static native long buildInstance(Builder builder);
 
-    public static native void destroyInstance(PowerwafHandle handle);
-    private static native void destroyBuilder(Builder builder);
+    static native void destroyInstance(PowerwafHandle handle);
+    static native void destroyBuilder(Builder builder);
 
     private static native boolean addOrUpdateConfig(Builder builder, String path, Map<String, Object> definition, RuleSetInfo[] infoRef);
 
