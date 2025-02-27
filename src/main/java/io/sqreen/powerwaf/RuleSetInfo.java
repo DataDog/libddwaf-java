@@ -80,8 +80,10 @@ public class RuleSetInfo {
             }
             return new StringJoiner(", ", SectionInfo.class.getSimpleName() + "[", "]")
                     .add("loaded=" + loaded)
+                    .add("skipped=" + skipped)
                     .add("failed=" + failed)
                     .add("errors=" + errors)
+                    .add("warnings=" + warnings)
                     .toString();
         }
     }
@@ -97,6 +99,7 @@ public class RuleSetInfo {
     public final SectionInfo processors;
     public final SectionInfo scanners;
 
+    // used in output.c to create a new RuleSetInfo
     public RuleSetInfo(String error, String rulesetVersion, SectionInfo rules,
                        SectionInfo customRules, SectionInfo rulesData, SectionInfo rulesOverride,
                        SectionInfo exclusions, SectionInfo actions, SectionInfo processors, SectionInfo scanners) {
