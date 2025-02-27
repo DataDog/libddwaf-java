@@ -139,16 +139,16 @@ void output_init_checked(JNIEnv *env)
 {
     if (!java_meth_init_checked(env, &_rsi_init,
                                 "io/sqreen/powerwaf/RuleSetInfo", "<init>",
-                                "(Ljava/lang/String;Lio/sqreen/powerwaf/"
-                                "Ljava/lang/String;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;)V",
+                                "(Ljava/lang/String;"
+                                "Ljava/lang/String;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;)V",
                                 JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
