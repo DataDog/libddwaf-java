@@ -996,17 +996,21 @@ static bool _cache_single_class_weak(JNIEnv *env,
 }
 
 
-ddwaf_builder get_pwaf_builder_checked(JNIEnv *env, jobject builder) {
-    if (!_check_init(env)) {
-        return NULL;
-    }
+static ddwaf_builder _get_builder_checked(JNIEnv *env,
+                                                   jobject builder_obj)
+{
 
-    jlong builder_ptr = JNI(GetLongField, builder, _builder_ptr);
+    ddwaf_builder builder = (ddwaf_builder)(intptr_t) JNI(GetLongField, builder_obj,
+                                            _builder_ptr);
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
-    return (ddwaf_builder) (intptr_t) builder_ptr;
+    if (!builder) {
+        JNI(ThrowNew, jcls_rte, "The Builder has already been cleared");
+    }
+
+    return builder;
 }
 
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addOrUpdateConfig(JNIEnv *env, jobject builder,
@@ -1017,7 +1021,7 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addOrUpdateConfig(JNI
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
-    ddwaf_builder ddwaf_builder = get_pwaf_builder_checked(env, builder);
+    ddwaf_builder ddwaf_builder = _get_builder_checked(env, builder);
     const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
     if (JNI(ExceptionCheck)) {
         return NULL;
@@ -1057,8 +1061,20 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Builder_initBuilder(JNIEnv *env,
 }
 
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_buildInstance(JNIEnv *env, jobject builder_java) {
-    ddwaf_builder builder = (ddwaf_builder) (intptr_t) JNI(GetLongField, builder_java, _builder_ptr);
-    ddwaf_handle handle =  ddwaf_builder_build_instance(builder);
+    ddwaf_builder builder = _get_builder_checked(env, builder_java);
+    if(JNI(ExceptionCheck) || !builder ) {
+        JAVA_LOG(DDWAF_LOG_DEBUG,
+                             "build instance did not succeed");
+        return NULL;
+    }
+    ddwaf_handle handle = ddwaf_builder_build_instance(builder);
+        if (!handle) {
+            JAVA_LOG(DDWAF_LOG_WARN,
+                     "call to ddwaf_builder_build_instance failed");
+            return NULL;
+        } else {
+            JAVA_LOG(DDWAF_LOG_DEBUG, "Successfully created ddwaf_handle");
+        }
     return java_meth_call(env, &_pwaf_handle_init, NULL,
                                      (jlong) (intptr_t) handle);
 }

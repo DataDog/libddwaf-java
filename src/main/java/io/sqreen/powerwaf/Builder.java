@@ -14,15 +14,12 @@ public final class Builder{
      *  The ptr field holds the pointer to PWAddContext and managed by PowerWAF
      */
     private long ptr;     // KEEP THIS FIELD!
-    PowerwafConfig config;
 
-    public Builder() {
-        this.config = PowerwafConfig.DEFAULT_CONFIG;
-        this.ptr = initBuilder(config);
+    public Builder() {;
+        this.ptr = initBuilder(PowerwafConfig.DEFAULT_CONFIG);
     }
 
     public Builder(PowerwafConfig config) {
-        this.config = config;
         this.ptr = initBuilder(config);
     }
 
