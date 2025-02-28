@@ -1014,8 +1014,14 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addOrUpdateConfig(JNI
     ddwaf_object *ddwaf_diagnostics = NULL;
     ddwaf_object ddwaf_configuration =_convert_checked(env, configuration, NULL, 0);
     uint32_t path_length = JNI(GetStringLength, path);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
     ddwaf_builder ddwaf_builder = get_pwaf_builder_checked(env, builder);
     const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
     ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration, ddwaf_diagnostics);
     ddwaf_object_free(&ddwaf_configuration);
     if (ddwaf_diagnostics && memcmp(ddwaf_diagnostics, &(ddwaf_object){0},
@@ -1037,7 +1043,9 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addOrUpdateConfig(JNI
     return diagnostics;
 
     error:
-        ddwaf_object_free(ddwaf_diagnostics);
+        if(ddwaf_diagnostics) {
+            ddwaf_object_free(ddwaf_diagnostics);
+        }
         return NULL;
 }
 
@@ -1049,20 +1057,17 @@ JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Builder_initBuilder(JNIEnv *env,
 }
 
 JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_buildInstance(JNIEnv *env, jobject builder_java) {
-    _fetch_builder_fields(env);
-    ddwaf_builder builder = (ddwaf_builder) (intptr_t) _builder_ptr;
-    ddwaf_handle ddwaf_handle =  ddwaf_builder_build_instance(builder);
+    ddwaf_builder builder = (ddwaf_builder) (intptr_t) JNI(GetLongField, builder_java, _builder_ptr);
+    ddwaf_handle handle =  ddwaf_builder_build_instance(builder);
     return java_meth_call(env, &_pwaf_handle_init, NULL,
-                                     (jlong) (intptr_t) ddwaf_handle);
+                                     (jlong) (intptr_t) handle);
 }
 
 JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyInstance(JNIEnv *env, jlong waf_handle) {
-    ddwaf_handle handle = (ddwaf_handle) (intptr_t) waf_handle;
-    ddwaf_destroy(handle);
+    ddwaf_destroy((ddwaf_handle) (intptr_t) waf_handle);
 }
 JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyBuilder(JNIEnv *env, jlong builder_ptr) {
-    ddwaf_builder builder = (ddwaf_builder) (intptr_t) builder_ptr;
-    ddwaf_builder_destroy(builder);
+    ddwaf_builder_destroy((ddwaf_builder) (intptr_t) builder_ptr);
 }
 
 
