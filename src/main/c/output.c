@@ -28,7 +28,7 @@
 
 static struct j_method _rsi_init;
 static struct j_method _sect_info_err_init;
-static struct j_method _sect_info_normal_init;
+static struct j_method _sect_info_full_init;
 static struct j_method _array_list_init;
 static struct j_method _array_list_add;
 static struct j_method _linked_hm_init;
@@ -55,12 +55,15 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
 {
     jstring rulesetVersion =
             _map_get_string_checked(env, obj, LSTR("ruleset_version"));
+    jstring error =
+                _map_get_string_checked(env, obj, LSTR("error"));
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
     jobject rules = NULL, custom_rules = NULL, rules_data = NULL,
-            rules_override = NULL, exclusions = NULL, ret = NULL, exclusion_data = NULL;
+            rules_override = NULL, exclusions = NULL, ret = NULL, actions = NULL,
+            processors = NULL, scanners = NULL;
 
     rules = _convert_section_checked(env, obj, LSTR("rules"));
     if (JNI(ExceptionCheck)) {
@@ -82,17 +85,28 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
     if (JNI(ExceptionCheck)) {
         goto err;
     }
-    exclusion_data = _convert_section_checked(env, obj, LSTR("exclusion_data"));
+    actions = _convert_section_checked(env, obj, LSTR("actions"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+    processors = _convert_section_checked(env, obj, LSTR("processors"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+    scanners = _convert_section_checked(env, obj, LSTR("scanners"));
     if (JNI(ExceptionCheck)) {
         goto err;
     }
 
-    ret = java_meth_call(env, &_rsi_init, NULL, rulesetVersion, rules,
-                         custom_rules, rules_data, rules_override, exclusions, exclusion_data);
+    ret = java_meth_call(env, &_rsi_init, NULL, error, rulesetVersion, rules,
+                         custom_rules, rules_data, rules_override, exclusions, actions, processors, scanners);
 
 err:
     if (rulesetVersion) {
         JNI(DeleteLocalRef, rulesetVersion);
+    }
+    if (error) {
+        JNI(DeleteLocalRef, error);
     }
     if (rules) {
         JNI(DeleteLocalRef, rules);
@@ -109,8 +123,14 @@ err:
     if (exclusions) {
         JNI(DeleteLocalRef, exclusions);
     }
-    if (exclusion_data) {
-        JNI(DeleteLocalRef, exclusion_data);
+    if (actions) {
+        JNI(DeleteLocalRef, actions);
+    }
+    if (processors) {
+        JNI(DeleteLocalRef, processors);
+    }
+    if (scanners) {
+        JNI(DeleteLocalRef, scanners);
     }
     return ret;
 }
@@ -119,13 +139,16 @@ void output_init_checked(JNIEnv *env)
 {
     if (!java_meth_init_checked(env, &_rsi_init,
                                 "io/sqreen/powerwaf/RuleSetInfo", "<init>",
-                                "(Ljava/lang/String;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;)V",
+                                "(Ljava/lang/String;"
+                                "Ljava/lang/String;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;"
+                                "Lio/sqreen/powerwaf/RuleSetInfo$SectionInfo;)V",
                                 JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
@@ -136,9 +159,9 @@ void output_init_checked(JNIEnv *env)
         goto err;
     }
     if (!java_meth_init_checked(
-                env, &_sect_info_normal_init,
+                env, &_sect_info_full_init,
                 "io/sqreen/powerwaf/RuleSetInfo$SectionInfo", "<init>",
-                "(Ljava/util/List;Ljava/util/List;Ljava/util/Map;)V",
+                "(Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/Map;)V",
                 JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
@@ -172,7 +195,7 @@ void output_shutdown(JNIEnv *env)
 {
     java_meth_destroy(env, &_rsi_init);
     java_meth_destroy(env, &_sect_info_err_init);
-    java_meth_destroy(env, &_sect_info_normal_init);
+    java_meth_destroy(env, &_sect_info_full_init);
     java_meth_destroy(env, &_array_list_init);
     java_meth_destroy(env, &_array_list_add);
     java_meth_destroy(env, &_linked_hm_init);
@@ -361,9 +384,13 @@ static jobject _convert_section_checked(JNIEnv *env, const ddwaf_object *root,
         }
     }
 
-    jobject loaded = NULL, failed = NULL, errors = NULL, ret = NULL;
+    jobject loaded = NULL, skipped = NULL, failed = NULL, errors = NULL, warnings = NULL, ret = NULL;
 
     loaded = _map_get_object_strarr_checked(env, section, LSTR("loaded"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+    skipped = _map_get_object_strarr_checked(env, section, LSTR("skipped"));
     if (JNI(ExceptionCheck)) {
         goto err;
     }
@@ -371,20 +398,31 @@ static jobject _convert_section_checked(JNIEnv *env, const ddwaf_object *root,
     if (JNI(ExceptionCheck)) {
         goto err;
     }
+    warnings = _map_get_object_errmap_checked(env, section, LSTR("warnings"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+
     errors = _map_get_object_errmap_checked(env, section, LSTR("errors"));
     if (JNI(ExceptionCheck)) {
         goto err;
     }
 
-    ret = java_meth_call(env, &_sect_info_normal_init, NULL, loaded, failed,
-                         errors);
+    ret = java_meth_call(env, &_sect_info_full_init, NULL, skipped, loaded, failed,
+                         warnings, errors);
 
 err:
+    if (skipped) {
+        JNI(DeleteLocalRef, skipped);
+    }
     if (loaded) {
         JNI(DeleteLocalRef, loaded);
     }
     if (failed) {
         JNI(DeleteLocalRef, failed);
+    }
+    if (warnings) {
+        JNI(DeleteLocalRef, warnings);
     }
     if (errors) {
         JNI(DeleteLocalRef, errors);
