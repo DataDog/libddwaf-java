@@ -519,72 +519,6 @@ JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_runRules
     return _run_rule_common(env, clazz, handle_obj, main_byte_buffer, limits_obj, metrics_obj);
 }
 
-ddwaf_builder get_pwaf_builder_checked(JNIEnv *env, jobject builder) {
-    if (!_check_init(env)) {
-        return NULL;
-    }
-
-    jlong builder_ptr = JNI(GetLongField, builder, _builder_ptr);
-    if (JNI(ExceptionCheck)) {
-        return NULL;
-    }
-
-    return (ddwaf_builder) (intptr_t) builder_ptr;
-}
-
-JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addOrUpdateConfig(JNIEnv *env, jobject builder,
-                                                            jstring path, jobject configuration, jobject diagnostics) {
-    ddwaf_object *ddwaf_diagnostics = NULL;
-    ddwaf_object ddwaf_configuration =_convert_checked(env, configuration, NULL, 0);
-    uint32_t path_length = JNI(GetStringLength, path);
-    ddwaf_builder ddwaf_builder = get_pwaf_builder_checked(env, builder);
-    const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
-    ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration, ddwaf_diagnostics);
-    ddwaf_object_free(&ddwaf_configuration);
-    if (ddwaf_diagnostics && memcmp(ddwaf_diagnostics, &(ddwaf_object){0},
-                                    sizeof(*ddwaf_diagnostics)) != 0) {
-            jobject jrsi = output_convert_diagnostics_checked(env, ddwaf_diagnostics);
-
-            if (JNI(ExceptionCheck)) {
-                java_wrap_exc("Error converting rule info structure");
-                goto error;
-            }
-            JNI(SetObjectArrayElement, diagnostics, 0, jrsi);
-            JNI(DeleteLocalRef, jrsi);
-            if (JNI(ExceptionCheck)) {
-                java_wrap_exc("Error setting reference for RuleSetInfo");
-                goto error;
-            }
-        }
-    ddwaf_object_free(ddwaf_diagnostics);
-    return diagnostics;
-
-    error:
-        ddwaf_object_free(ddwaf_diagnostics);
-        return NULL;
-}
-
-JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Builder_initBuilder(JNIEnv *env, jobject config) {
-    ddwaf_config ddwaf_configuration;
-    _convert_ddwaf_config_checked(env, config, &ddwaf_configuration);
-    ddwaf_builder builder = ddwaf_builder_init(&ddwaf_configuration);
-    return (jlong) (intptr_t) builder;
-}
-JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Powerwaf_buildInstance(JNIEnv *env, jlong builder_ptr) {
-    ddwaf_builder builder = (ddwaf_builder) (intptr_t) builder_ptr;
-    ddwaf_handle ddwaf_handle =  ddwaf_builder_build_instance(builder);
-    return (jlong) (intptr_t) ddwaf_handle;
-}
-
-JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyInstance(JNIEnv *env, jlong waf_handle) {
-    ddwaf_handle handle = (ddwaf_handle) (intptr_t) waf_handle;
-    ddwaf_destroy(handle);
-}
-JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyBuilder(JNIEnv *env, jlong builder_ptr) {
-    ddwaf_builder builder = (ddwaf_builder) (intptr_t) builder_ptr;
-    ddwaf_builder_destroy(builder);
-}
-
 /*
  * Class:     io.sqreen.powerwaf.Powerwaf
  * Method:    getVersion
@@ -898,6 +832,26 @@ static bool _fetch_additive_fields(JNIEnv *env)
     return ret;
 }
 
+static bool _fetch_builder_fields(JNIEnv *env)
+{
+    bool ret = false;
+
+    jclass builder_jclass = JNI(FindClass, "io/sqreen/powerwaf/Builder");
+    if (!builder_jclass) {
+        goto error;
+    }
+
+    _builder_ptr = JNI(GetFieldID, builder_jclass, "ptr", "J");
+    if (!_builder_ptr) {
+        goto error;
+    }
+
+    ret = true;
+    error:
+    JNI(DeleteLocalRef, builder_jclass);
+    return ret;
+}
+
 static bool _fetch_limit_fields(JNIEnv *env)
 {
     bool ret = false;
@@ -1040,6 +994,77 @@ static bool _cache_single_class_weak(JNIEnv *env,
 
     return true;
 }
+
+
+ddwaf_builder get_pwaf_builder_checked(JNIEnv *env, jobject builder) {
+    if (!_check_init(env)) {
+        return NULL;
+    }
+
+    jlong builder_ptr = JNI(GetLongField, builder, _builder_ptr);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+
+    return (ddwaf_builder) (intptr_t) builder_ptr;
+}
+
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_addOrUpdateConfig(JNIEnv *env, jobject builder,
+                                                            jstring path, jobject configuration, jobject diagnostics) {
+    ddwaf_object *ddwaf_diagnostics = NULL;
+    ddwaf_object ddwaf_configuration =_convert_checked(env, configuration, NULL, 0);
+    uint32_t path_length = JNI(GetStringLength, path);
+    ddwaf_builder ddwaf_builder = get_pwaf_builder_checked(env, builder);
+    const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
+    ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration, ddwaf_diagnostics);
+    ddwaf_object_free(&ddwaf_configuration);
+    if (ddwaf_diagnostics && memcmp(ddwaf_diagnostics, &(ddwaf_object){0},
+                                    sizeof(*ddwaf_diagnostics)) != 0) {
+            jobject jrsi = output_convert_diagnostics_checked(env, ddwaf_diagnostics);
+
+            if (JNI(ExceptionCheck)) {
+                java_wrap_exc("Error converting rule info structure");
+                goto error;
+            }
+            JNI(SetObjectArrayElement, diagnostics, 0, jrsi);
+            JNI(DeleteLocalRef, jrsi);
+            if (JNI(ExceptionCheck)) {
+                java_wrap_exc("Error setting reference for RuleSetInfo");
+                goto error;
+            }
+        }
+    ddwaf_object_free(ddwaf_diagnostics);
+    return diagnostics;
+
+    error:
+        ddwaf_object_free(ddwaf_diagnostics);
+        return NULL;
+}
+
+JNIEXPORT jlong JNICALL Java_io_sqreen_powerwaf_Builder_initBuilder(JNIEnv *env, jobject config) {
+    ddwaf_config ddwaf_configuration;
+    _convert_ddwaf_config_checked(env, config, &ddwaf_configuration);
+    ddwaf_builder builder = ddwaf_builder_init(&ddwaf_configuration);
+    return (jlong) (intptr_t) builder;
+}
+
+JNIEXPORT jobject JNICALL Java_io_sqreen_powerwaf_Powerwaf_buildInstance(JNIEnv *env, jobject builder_java) {
+    _fetch_builder_fields(env);
+    ddwaf_builder builder = (ddwaf_builder) (intptr_t) _builder_ptr;
+    ddwaf_handle ddwaf_handle =  ddwaf_builder_build_instance(builder);
+    return java_meth_call(env, &_pwaf_handle_init, NULL,
+                                     (jlong) (intptr_t) ddwaf_handle);
+}
+
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyInstance(JNIEnv *env, jlong waf_handle) {
+    ddwaf_handle handle = (ddwaf_handle) (intptr_t) waf_handle;
+    ddwaf_destroy(handle);
+}
+JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_Powerwaf_destroyBuilder(JNIEnv *env, jlong builder_ptr) {
+    ddwaf_builder builder = (ddwaf_builder) (intptr_t) builder_ptr;
+    ddwaf_builder_destroy(builder);
+}
+
 
 static bool _cache_classes(JNIEnv *env)
 {
@@ -1300,6 +1325,10 @@ static bool _cache_references(JNIEnv *env)
     }
 
     if (!_fetch_additive_fields(env)) {
+        goto error;
+    }
+
+    if (!_fetch_builder_fields(env)) {
         goto error;
     }
 

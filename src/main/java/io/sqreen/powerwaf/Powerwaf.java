@@ -87,7 +87,7 @@ public final class Powerwaf {
         return new PowerwafContext(uniqueId, config, ruleDefinitions);
     }
 
-    public static native long buildInstance(Builder builder);
+    public static native PowerwafHandle buildInstance(Builder builder);
 
     static native void destroyInstance(PowerwafHandle handle);
     static native void destroyBuilder(Builder builder);
