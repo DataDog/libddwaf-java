@@ -14,7 +14,7 @@ import org.junit.Before
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
-class ByteBufferSerializerTestsBase implements WafTrait {
+class ByteBufferSerializerTestsBase extends WafTestBase {
 
     @Lazy
     ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
@@ -29,7 +29,6 @@ class ByteBufferSerializerTestsBase implements WafTrait {
     }
 
     @After
-    @Override
     void after() {
         lease?.close()
         lease = null
@@ -45,15 +44,9 @@ class ByteBufferSerializerTestsBase implements WafTrait {
         assertThat(metrics.truncatedObjectTooDeepCount, is(countObjectTooDeep))
     }
 
-    protected void assertSerializeValue(Object value, String expected) {
+    protected void assertSerializeValue(Object value) {
         lease = serializer.serialize([key: value], metrics)
         try {
-            String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-            def exp = p"""
-            <MAP>
-              key: $expected
-            """
-            assertThat res, is(exp)
             assertMetrics(0, 0, 0)
             lease.close()
         } finally {

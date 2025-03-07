@@ -12,4 +12,7 @@ public class InternalWafException extends AbstractWafException {
     public InternalWafException(int errorCode) {
         super("Internal error", errorCode);
     }
+    public InternalWafException(String message) {
+        super(message, -3);
+    }
 }

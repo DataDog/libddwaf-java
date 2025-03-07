@@ -13,6 +13,11 @@ import com.datadog.ddwaf.RuleSetInfo;
 public class InvalidRuleSetException extends UnclassifiedWafException {
     public final RuleSetInfo ruleSetInfo;
 
+    public InvalidRuleSetException(RuleSetInfo ruleSetInfo, String message) {
+        super(message);
+        this.ruleSetInfo = ruleSetInfo;
+    }
+
     public InvalidRuleSetException(RuleSetInfo ruleSetInfo, Throwable orig) {
         super(orig);
         this.ruleSetInfo = ruleSetInfo;
