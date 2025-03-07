@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public final class Waf {
-    public static final String LIB_VERSION = "1.22.0";
+    public static final String LIB_VERSION = "1.23.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Waf.class);
     static final boolean EXIT_ON_LEAK;
@@ -86,20 +86,10 @@ public final class Waf {
         return new WafHandle(uniqueId, config, ruleDefinitions);
     }
 
-    /**
-     * Creates a rule given its definition.
-     *
-     * See also pw_initH.
-     *
-     * @param definition map with keys version and events
-     * @param config configuration for the obfuscator. Non-null.
-     * @param rulesetInfoOut either a null or a 1-byte element holding an out
-     *                       reference for a {@link RuleSetInfo}.
-     * @return a non-null native handle
-     * @throws IllegalArgumentException
-     */
-    static native NativeWafHandle addRules(
-            Map<String, Object> definition, WafConfig config, RuleSetInfo[] rulesetInfoOut);
+    public static native NativeWafHandle buildInstance(Builder builder);
+
+    static native void destroyInstance(NativeWafHandle handle);
+    static native void destroyBuilder(Builder builder);
 
     /* pw_clearRuleH */
     static native void clearRules(NativeWafHandle handle);
@@ -130,10 +120,6 @@ public final class Waf {
 
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
-    static native NativeWafHandle update(NativeWafHandle handle,
-                                         Map<String, Object> specification,
-                                         RuleSetInfo[] ruleSetInfoRef);
-
     public static native String getVersion();
 
     /**
@@ -149,6 +135,10 @@ public final class Waf {
     // called from JNI
     private static AbstractWafException createException(int retCode) {
         return AbstractWafException.createFromErrorCode(retCode);
+    }
+
+    public static boolean update(Builder builder, Map<String, Object> configuration, RuleSetInfo[] infoRef) {
+        return builder.addOrUpdateConfig(configuration, infoRef);
     }
 
     public enum Result {

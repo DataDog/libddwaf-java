@@ -121,7 +121,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     @Test
     void 'error converting update spec'() {
         ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        def exc = shouldFail(UnclassifiedWafException) {
+        def exc = shouldFail(IllegalStateException) {
             ctx.update('test2', new BadMap(delegate: [arachni_rule: false]))
         }
         assertThat exc.message, containsString('Exception encoding init/update rule specification')

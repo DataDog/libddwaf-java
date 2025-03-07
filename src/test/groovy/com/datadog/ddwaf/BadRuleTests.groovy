@@ -47,7 +47,7 @@ class BadRuleTests implements WafTrait {
 
         def rsi = exc.ruleSetInfo
         assert rsi.numRulesOK == 0
-        assert rsi.numRulesError == 0
+        assert rsi.numRulesError == 1
         assert rsi.rules.error == "bad cast, expected 'array', obtained 'map'"
     }
 

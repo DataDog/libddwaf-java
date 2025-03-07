@@ -29,48 +29,42 @@ public class WafHandle implements Closeable {
     private final String uniqueName;
 
     // must be accessed with locking
-    final NativeWafHandle handle;
+    NativeWafHandle handle;
     private boolean online;
 
     private final Lock writeLock;
     private final Lock readLock;
 
-    private final RuleSetInfo ruleSetInfo;
+    private RuleSetInfo ruleSetInfo;
     private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
-    WafHandle(String uniqueName, WafConfig config, Map<String, Object> definition) throws AbstractWafException {
+    private final Builder builder;
+    private WafConfig config;
+
+    WafHandle(String uniqueName, WafConfig config, Map<String, Object> ruleConfiguration) throws AbstractWafException {
         LOGGER.debug("Creating Waf context {}", uniqueName);
         ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
         this.readLock = rwLock.readLock();
         this.writeLock = rwLock.writeLock();
-
+        this.config = config;
         this.uniqueName = uniqueName;
 
-        if (!definition.containsKey("version")) {
+        if (!ruleConfiguration.containsKey("version")) {
             throw new UnclassifiedWafException(
-                    "Invalid definition. Expected key 'version' to exist");
+                    "Invalid rule configuration. Expected key 'version' to exist");
         }
 
-        if (!definition.containsKey("events") &&
-                !definition.containsKey("rules")) {
+        if (!ruleConfiguration.containsKey("events") &&
+                !ruleConfiguration.containsKey("rules")) {
             throw new UnclassifiedWafException(
                     "Invalid definition. Expected keys 'events' or 'rules' to exist");
         }
-        if (config == null) {
-            config = WafConfig.DEFAULT_CONFIG;
-        }
 
-        RuleSetInfo[] infoRef = new RuleSetInfo[1];
-        try {
-            this.handle = Waf.addRules(definition, config, infoRef);
-        } catch (IllegalArgumentException iae) {
-            if (infoRef[0] != null) {
-                throw new InvalidRuleSetException(infoRef[0], iae);
-            }
-            throw iae;
-        }
-        this.ruleSetInfo = infoRef[0];
+        builder = new Builder(config);
 
+        addRuleConfiguration(ruleConfiguration);
+
+        handle = Waf.buildInstance(builder);
         // online set to true must be after call to Waf.addRules
         // finalizer still runs even if the constructor threw
         online = true;
@@ -82,20 +76,49 @@ public class WafHandle implements Closeable {
         LOGGER.debug("Successfully create Waf context {}", uniqueName);
     }
 
-    private WafHandle(String uniqueName, NativeWafHandle handle, RuleSetInfo ruleSetInfo) {
+    public WafHandle(WafHandle oldHandle, String uniqueName) {
         this.uniqueName = uniqueName;
-        this.handle = handle;
-        this.ruleSetInfo = ruleSetInfo;
+        this.config = oldHandle.config;
+        this.ruleSetInfo = oldHandle.ruleSetInfo;
         ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
         this.readLock = rwLock.readLock();
         this.writeLock = rwLock.writeLock();
         this.online = true;
+        this.builder = oldHandle.builder;
+        this.config = oldHandle.config;
         if (Waf.EXIT_ON_LEAK) {
             this.selfRef = LeakDetection.registerCloseable(this);
         } else {
             this.selfRef = null;
         }
-        LOGGER.debug("Successfully create Waf context {} (update)", uniqueName);
+
+        handle = Waf.buildInstance(builder);
+
+    }
+
+    private void addRuleConfiguration(Map<String, Object> ruleConfiguration) throws UnclassifiedWafException {
+        RuleSetInfo[] infoRef = new RuleSetInfo[1];
+
+        try {
+            if (!Waf.update(builder, ruleConfiguration, infoRef)) {
+                throw new InvalidRuleSetException(infoRef[0], "Call to ddwaf_update failed");
+            }
+        } catch (IllegalArgumentException iae) {
+            if (infoRef[0] != null) {
+                throw new InvalidRuleSetException(infoRef[0], iae);
+            }
+            throw iae;
+        } catch (Exception e) {
+            if (infoRef[0] == null) {
+                throw new IllegalStateException("Exception encoding init/update rule specification", e);
+            }
+            throw e;
+        } finally {
+            if(infoRef[0] != null && !infoRef[0].isWellStructured()) {
+                throw new UnclassifiedWafException("Call to ddwaf_update failed");
+            }
+            this.ruleSetInfo = infoRef[0]; //even in error, normally the ruleset info is set
+        }
     }
 
     public String[] getUsedAddresses() {
@@ -118,6 +141,15 @@ public class WafHandle implements Closeable {
         }
     }
 
+    /**
+     * Once batch file additions are done, run the rules of the context with the given parameters
+     *
+     * @param parameters the parameters to run the rules with
+     * @param limits the limits to run the rules with
+     * @param metrics the metrics to run the rules with
+     * @return the result of the rules
+     * @throws AbstractWafException if the rules could not be run
+     */
     public Waf.ResultWithData runRules(Map<String, Object> parameters,
                                             Waf.Limits limits,
                                             WafMetrics metrics) throws AbstractWafException {
@@ -146,6 +178,10 @@ public class WafHandle implements Closeable {
                                     "not running rule of context {}",
                             this);
                     throw new TimeoutWafException();
+                }
+
+                if (handle == null) {
+                    throw new UnclassifiedWafException("Failed to build NativeWafHandle instance");
                 }
                 res = Waf.runRules(
                         this.handle, lease.getFirstPWArgsByteBuffer(), newLimits, metrics);
@@ -179,23 +215,15 @@ public class WafHandle implements Closeable {
         }
     }
 
-    public WafHandle update(String uniqueId,
-                            Map<String, Object> specification) throws AbstractWafException {
+    public WafHandle update(String uniqueName,
+                            Map<String, Object> ruleConfiguration) throws AbstractWafException {
         // lock to ensure visibility of state of Waf handle in this thread
         this.readLock.lock();
         try {
-            // all updates need to be serialized, because Waf handles may share state
-            RuleSetInfo[] ruleSetInfoRef = new RuleSetInfo[1];
+            // all updates need to be serialized, because powerwaf handles may share state
             synchronized (WafHandle.class) {
-                try {
-                    NativeWafHandle newHandle = Waf.update(this.handle, specification, ruleSetInfoRef);
-                    return new WafHandle(uniqueId, newHandle, ruleSetInfoRef[0]);
-                } catch (RuntimeException rte) {
-                    if (ruleSetInfoRef[0] == null) {
-                        throw new UnclassifiedWafException(rte);
-                    }
-                    throw new InvalidRuleSetException(ruleSetInfoRef[0], rte);
-                }
+                addRuleConfiguration(ruleConfiguration);
+                return new WafHandle(this, uniqueName);
             }
         } finally {
             this.readLock.unlock();
@@ -212,7 +240,9 @@ public class WafHandle implements Closeable {
         try {
             checkIfOnline();
             this.online = false;
-            Waf.clearRules(this.handle);
+            if(this.handle != null) {
+                Waf.clearRules(this.handle);
+            }
             LOGGER.debug("Deleted WAF context {}", this);
             if (this.selfRef != null) {
                 LeakDetection.notifyClose(this.selfRef);

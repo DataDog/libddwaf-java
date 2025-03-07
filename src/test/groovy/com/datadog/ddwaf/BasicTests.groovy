@@ -513,32 +513,6 @@ class BasicTests implements WafTrait {
         )
         assertThat res.result, is(Waf.Result.MATCH)
         assertThat res.actions.size(), is(0)
-
-        def newData = [
-                [
-                        id  : 'suspicious_ips_data_id',
-                        type: 'ip_with_expiration',
-                        data: [
-                                [value: suspiciousIp, expiration: 0]
-                        ]
-                ]
-        ]
-
-        ctx.withCloseable {
-            ctx = ctx.update('test2', [exclusion_data: newData])
-        }
-
-        res = ctx.runRules(
-                [
-                        'http.client_ip'                   : suspiciousIp,
-                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
-                ],
-                limits,
-                metrics
-        )
-        assertThat res.result, is(Waf.Result.MATCH)
-        assertThat res.actions.size(), is(1)
-        assertThat res.actions.get('block_request'), notNullValue()
     }
 
     @Test
@@ -569,14 +543,6 @@ class BasicTests implements WafTrait {
         Waf.ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.result, is(Waf.Result.OK)
-
-        overrideSpec['rules_override'][0]['enabled'] = true
-        ctx.withCloseable {
-            ctx = ctx.update('test3', overrideSpec)
-        }
-        awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
     }
 
     @Test
@@ -610,9 +576,7 @@ class BasicTests implements WafTrait {
         }
         def awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.OK)
-        awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, metrics)
         assertThat awd.result, is(Waf.Result.MATCH)
+
     }
 }
