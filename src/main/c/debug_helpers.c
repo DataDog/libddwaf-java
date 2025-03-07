@@ -25,18 +25,18 @@ typedef struct {
 
 #define INITIAL_CAPACITY ((size_t)16)
 
-JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
+JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(
         JNIEnv *, jclass, jobject);
 
 static void _hstring_write_pwargs(hstring *str, size_t depth,
                                   const ddwaf_object *pwargs);
 
 /*
- * Class:     io.sqreen.powerwaf.Powerwaf
+ * Class:     com.datadog.ddwaf.Waf
  * Method:    pwArgsBufferToString
  * Signature: (Ljava/nio/ByteBuffer;)Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_io_sqreen_powerwaf_Powerwaf_pwArgsBufferToString(
+JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(
         JNIEnv *env, jclass clazz, jobject byte_buffer)
 {
     (void) clazz;

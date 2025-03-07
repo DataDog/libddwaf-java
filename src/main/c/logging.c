@@ -25,7 +25,7 @@
 # define DIR_SEP '/'
 #endif
 
-#define LOGGER_NAME "powerwaf_native"
+#define LOGGER_NAME "ddwaf_native"
 #define LOGGING_PATTERN "%s (%s on %s:%s)"
 static jobject _trace, _debug, _info, _warn, _error;
 static jobject _logger;
@@ -38,10 +38,10 @@ static JavaVM *_vm;
 static int file_strip_idx;
 
 static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level);
-static void _powerwaf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
+static void _waf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
                                 const char *file, unsigned line,
                                 const char *message, uint64_t message_len);
-static void _powerwaf_logging_c_throwable(
+static void _waf_logging_c_throwable(
         DDWAF_LOG_LEVEL level, const char *function, const char *file, int line,
         const char *message, uint64_t message_len, jthrowable throwable);
 static const char *_remove_path(const char *path);
@@ -135,7 +135,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     }
 
     if (!java_meth_init_checked(env, &wrapper_log_init,
-                                "io/sqreen/powerwaf/logging/InfoToDebugLogger",
+                                "com/datadog/ddwaf/logging/InfoToDebugLogger",
                                 "<init>", slf4j_active->info_to_dbg_descr,
                                 JMETHOD_CONSTRUCTOR)) {
         goto error;
@@ -156,7 +156,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     }
 
     /* This will prevent garbage collection of the classloader without
-     * calling Powerwaf.deinitialize(). This is because the InfoToDebugLogger
+     * calling Waf.deinitialize(). This is because the InfoToDebugLogger
      * class will likely have been loaded by the same classloader that is
      * loading this JNI library */
     _logger = JNI(NewGlobalRef, wrapper_local);
@@ -174,13 +174,13 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     }
 
     if (!java_meth_init_checked(
-                env, &_log_meth, "io/sqreen/powerwaf/logging/InfoToDebugLogger",
+                env, &_log_meth, "com/datadog/ddwaf/logging/InfoToDebugLogger",
                 "log", slf4j_active->log_descr, JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
     if (!java_meth_init_checked(
-                env, &_is_loggable, "io/sqreen/powerwaf/logging/InfoToDebugLogger",
+                env, &_is_loggable, "com/datadog/ddwaf/logging/InfoToDebugLogger",
                 "isLoggable", slf4j_active->is_loggable_descr,
                 JMETHOD_NON_VIRTUAL)) {
         goto error;
@@ -191,7 +191,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-    ddwaf_set_log_cb(_powerwaf_logging_c, min_level);
+    ddwaf_set_log_cb(_waf_logging_c, min_level);
 
     retval = true;
 
@@ -271,7 +271,7 @@ void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
     if (!message) {
         return;
     }
-    _powerwaf_logging_c_throwable(level, function, file + file_strip_idx, line,
+    _waf_logging_c_throwable(level, function, file + file_strip_idx, line,
                                   message, (uint64_t)message_len, throwable);
     free(message);
 }
@@ -312,14 +312,14 @@ static jobject _lvl_api_to_java(DDWAF_LOG_LEVEL api_lvl)
     // should not be reached
     return _debug;
 }
-static void _powerwaf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
+static void _waf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
                                 const char *file, unsigned line,
                                 const char *message, uint64_t message_len)
 {
-    _powerwaf_logging_c_throwable(level, function, file, (int) line, message,
+    _waf_logging_c_throwable(level, function, file, (int) line, message,
                                   message_len, NULL);
 }
-static void _powerwaf_logging_c_throwable(
+static void _waf_logging_c_throwable(
         DDWAF_LOG_LEVEL level, const char *function, const char *file, int line,
         const char *message, uint64_t message_len, jthrowable throwable)
 {

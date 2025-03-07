@@ -11,7 +11,7 @@
 #include "common.h"
 #include "logging.h"
 #include "cs_wrapper.h"
-#include "jni/io_sqreen_powerwaf_CharSequenceWrapper.h"
+#include "jni/com_datadog_ddwaf_CharSequenceWrapper.h"
 
 static bool _active;
 static jfieldID _scb_str;
@@ -85,7 +85,7 @@ error:
     }
 }
 
-JNIEXPORT void JNICALL Java_io_sqreen_powerwaf_CharSequenceWrapper_resetState(
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_CharSequenceWrapper_resetState(
         JNIEnv *env, jclass clazz, jobject scb, jobject cs)
 {
     UNUSED(clazz);

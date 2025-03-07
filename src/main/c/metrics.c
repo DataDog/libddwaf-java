@@ -19,7 +19,7 @@ static jmethodID _add_and_get;
 bool metrics_init(JNIEnv *env)
 {
     jclass pwaf_metrics_cls =
-            JNI(FindClass, "io/sqreen/powerwaf/PowerwafMetrics");
+            JNI(FindClass, "com/datadog/ddwaf/WafMetrics");
     if (!pwaf_metrics_cls) {
         return false;
     }
