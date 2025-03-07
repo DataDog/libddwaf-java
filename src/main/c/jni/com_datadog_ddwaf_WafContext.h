@@ -10,7 +10,7 @@ extern "C" {
 /*
  * Class:     com_datadog_ddwaf_WafContext
  * Method:    initWafContext
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)J
+ * Signature: (Lcom/datadog/ddwaf/WafHandle;)J
  */
 JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafContext_initWafContext
   (JNIEnv *, jclass, jobject);
@@ -18,7 +18,7 @@ JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafContext_initWafContext
 /*
  * Class:     com_datadog_ddwaf_WafContext
  * Method:    runWafContext
- * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Lcom/datadog/ddwaf/Waf$Limits;Lcom/datadog/ddwaf/WafMetrics;)Lcom/datadog/ddwaf/Waf$ResultWithData;
+ * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Lcom/datadog/ddwaf/Waf/Limits;Lcom/datadog/ddwaf/WafMetrics;)Lcom/datadog/ddwaf/Waf/ResultWithData;
  */
 JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafContext_runWafContext
   (JNIEnv *, jobject, jobject, jobject, jobject, jobject);
