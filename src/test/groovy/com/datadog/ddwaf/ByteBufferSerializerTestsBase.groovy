@@ -14,7 +14,7 @@ import org.junit.Before
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
-class ByteBufferSerializerTestsBase implements WafTrait {
+class ByteBufferSerializerTestsBase extends WafTestBase {
 
     @Lazy
     ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
@@ -29,7 +29,6 @@ class ByteBufferSerializerTestsBase implements WafTrait {
     }
 
     @After
-    @Override
     void after() {
         lease?.close()
         lease = null

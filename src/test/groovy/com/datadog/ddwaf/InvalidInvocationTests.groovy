@@ -8,22 +8,16 @@
 
 package com.datadog.ddwaf
 
-import groovy.transform.CompileStatic
-import com.datadog.ddwaf.exception.InvalidObjectWafException
 import com.datadog.ddwaf.exception.InvalidRuleSetException
 import com.datadog.ddwaf.exception.UnclassifiedWafException
+import groovy.transform.CompileStatic
 import org.junit.Test
-
-import java.nio.ByteBuffer
 
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
-import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.containsString
-import static org.hamcrest.Matchers.equalTo
-import static org.hamcrest.Matchers.hasEntry
 
-class InvalidInvocationTests implements ReactiveTrait {
+class InvalidInvocationTests extends WafTestBase {
     @CompileStatic
     static class BadMap<K, V> implements Map<K, V> {
         @Delegate
@@ -37,19 +31,18 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'force exception during conversion of rule definitions'() {
-        def exc = shouldFail(RuntimeException) {
-            ctx = Waf.createHandle('test', new BadMap(delegate: [version: '1.0', events: []]))
+        def exc = shouldFail(IllegalStateException) {
+            builder.addOrUpdateRuleConfig('enya', new BadMap(delegate: [version: '1.0', events: []]), ruleSetInfo)
         }
-        assert exc.message =~ 'Exception encoding init/update rule specification'
-        assert exc.cause instanceof IllegalStateException
-        assert exc.cause.message == 'error here'
+        assert exc.message =~ 'error here'
     }
 
     @Test
     void 'runRule with conversion throwing exception'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+        builder.addOrUpdateRuleConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         def exc = shouldFail(UnclassifiedWafException) {
-            ctx.runRules(new BadMap(delegate: [:]), limits, metrics)
+            Waf.runRules(new BadMap(delegate: [:]), limits, wafMetrics, nativeWafHandle)
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
         assert exc.cause.cause instanceof IllegalStateException
@@ -57,97 +50,40 @@ class InvalidInvocationTests implements ReactiveTrait {
     }
 
     @Test
-    void 'runRule with conversion throwing exception wafContext variant'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        wafContext = ctx.openContext()
+    void 'rule is run on destroyed builder'() {
+        builder.addOrUpdateRuleConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        builder.destroy()
         def exc = shouldFail(UnclassifiedWafException) {
-            wafContext.run(new BadMap(delegate: [:]), limits, metrics)
+            nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         }
-        assert exc.cause.message =~ 'Exception encoding parameters'
-        assert exc.cause.cause instanceof IllegalStateException
-        assert exc.cause.cause.message == 'error here'
-    }
-
-    @Test
-    void 'rule is run on closed context'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        ctx.close()
-        def exc = shouldFail(UnclassifiedWafException) {
-            ctx.runRules([:], limits, metrics)
-        }
-        assertThat exc.message, containsString('This context is already offline')
-        ctx = null
-    }
-
-    @Test
-    void 'addresses are fetched on closed context'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        ctx.close()
-        def exc = shouldFail(IllegalStateException) {
-            ctx.usedAddresses
-        }
-        assertThat exc.message, containsString('This context is already offline')
-        ctx = null
-    }
-
-    @Test
-    void 'bytebuffer passed does not represent a map'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        wafContext = ctx.openContext()
-
-        ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
-        serializer.serialize([a: 'b'], metrics).withCloseable { lease ->
-            ByteBuffer buffer = lease.firstPWArgsByteBuffer
-            def slice = buffer.slice()
-            slice.position(ByteBufferSerializer.SIZEOF_PWARGS)
-            shouldFail(InvalidObjectWafException) {
-                wafContext.runWafContext(slice, null, limits, metrics)
-            }
-        }
-    }
-
-    @Test
-    void 'bytebuffer passed is not direct buffer'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        wafContext = ctx.openContext()
-
-        shouldFail(Exception) {
-            wafContext.runWafContext(
-                    ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS), null,
-                    limits, metrics)
-        }
+        assertThat exc.message, containsString('WafBuilder is offline')
+        builder = new WafBuilder()
     }
 
     @Test
     void 'error converting update spec'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+        builder.addOrUpdateRuleConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         def exc = shouldFail(UnclassifiedWafException) {
-            ctx.update('test2', new BadMap(delegate: [arachni_rule: false]))
+            Waf.runRules(new BadMap(delegate: [arachni_rule: false]), limits, wafMetrics, nativeWafHandle)
         }
-        assertThat exc.message, containsString('Exception encoding init/update rule specification')
+        assert exc.cause.message =~ 'Exception encoding parameters'
     }
 
     @Test
     void 'empty update call'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        def exc = shouldFail(UnclassifiedWafException) {
-            ctx.update('test2', [foo: 'bar'])
-        }
-        assertThat exc.message, containsString('Call to ddwaf_update failed')
+        builder.addOrUpdateRuleConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
+        def result = builder.addOrUpdateRuleConfig('enya', [foo: 'bar'], ruleSetInfo)
+        assert result // no rules to update is a passing call
     }
 
     @Test
     void 'invalid update call'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
-            ctx.update('test2', [rules: [[id: 'foobar']]])
+        builder.addOrUpdateRuleConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
+        shouldFail(InvalidRuleSetException) {
+            builder.addOrUpdateRuleConfig('enya', [rules: [[id: 'foobar']]], ruleSetInfo)
         }
-        assertThat exc.ruleSetInfo.numRulesError, equalTo(1)
-        assertThat exc.ruleSetInfo.numRulesOK, equalTo(0)
-        assertThat exc.ruleSetInfo.errors, hasEntry(
-                equalTo('missing key \'conditions\''),
-                contains(equalTo('foobar'))
-        )
-        assertThat exc.message, containsString('Call to ddwaf_update failed')
     }
 }
