@@ -8,7 +8,7 @@ import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.is
 import static org.hamcrest.Matchers.matchesPattern
 
-class FingerprintTests implements WafTrait {
+class FingerprintTests extends WafTestBase {
 
     @Test
     void 'test fingerprints'() {
@@ -82,9 +82,9 @@ class FingerprintTests implements WafTrait {
 }
 ''')
 
-        ctx = Waf.createHandle('test', ruleSet)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
-        Waf.ResultWithData res = ctx.runRules(
+        Waf.ResultWithData res = Waf.runContext(
                 [
                         'waf.context.processor'            : ['fingerprint': true],
                         'server.request.method'            : 'GET',
@@ -94,7 +94,8 @@ class FingerprintTests implements WafTrait {
                         'server.request.headers.no_cookies': ['user-agent': [userAgent]]
                 ],
                 limits,
-                metrics
+                wafMetrics,
+                builder.buildWafHandleInstance(null)
         )
         assertThat res.result, is(Waf.Result.MATCH)
         assertThat res.derivatives.keySet(), contains('_dd.appsec.fp.http.endpoint')
