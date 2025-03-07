@@ -56,13 +56,15 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
 {
     jstring rulesetVersion =
             _map_get_string_checked(env, obj, LSTR("ruleset_version"));
+    jstring error = _map_get_string_checked(env, obj, LSTR("error"));
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
     jobject rules = NULL, custom_rules = NULL, rules_data = NULL,
             rules_override = NULL, exclusions = NULL, ret = NULL,
-            exclusion_data = NULL;
+            exclusion_data = NULL, actions = NULL, processors = NULL,
+            scanners = NULL;
 
     rules = _convert_section_checked(env, obj, LSTR("rules"));
     if (JNI(ExceptionCheck)) {
@@ -88,14 +90,29 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
     if (JNI(ExceptionCheck)) {
         goto err;
     }
+    actions = _convert_section_checked(env, obj, LSTR("actions"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+    processors = _convert_section_checked(env, obj, LSTR("processors"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+    scanners = _convert_section_checked(env, obj, LSTR("scanners"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
 
-    ret = java_meth_call(env, &_rsi_init, NULL, rulesetVersion, rules,
+    ret = java_meth_call(env, &_rsi_init, NULL, error, rulesetVersion, rules,
                          custom_rules, rules_data, rules_override, exclusions,
-                         exclusion_data);
+                         exclusion_data, actions, processors, scanners);
 
 err:
     if (rulesetVersion) {
         JNI(DeleteLocalRef, rulesetVersion);
+    }
+    if (error) {
+        JNI(DeleteLocalRef, error);
     }
     if (rules) {
         JNI(DeleteLocalRef, rules);
@@ -115,34 +132,48 @@ err:
     if (exclusion_data) {
         JNI(DeleteLocalRef, exclusion_data);
     }
+    if (actions) {
+        JNI(DeleteLocalRef, actions);
+    }
+    if (processors) {
+        JNI(DeleteLocalRef, processors);
+    }
+    if (scanners) {
+        JNI(DeleteLocalRef, scanners);
+    }
     return ret;
 }
 
 void output_init_checked(JNIEnv *env)
 {
-    if (!java_meth_init_checked(env, &_rsi_init,
-                                "com/datadog/ddwaf/RuleSetInfo", "<init>",
-                                "(Ljava/lang/String;Lcom/datadog/ddwaf/"
-                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
-                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
-                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
-                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
-                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
-                                "RuleSetInfo$SectionInfo;)V",
-                                JMETHOD_CONSTRUCTOR)) {
+    if (!java_meth_init_checked(
+                env, &_rsi_init, "com/datadog/ddwaf/WafDiagnostics", "<init>",
+                "(Ljava/lang/String;"
+                "Ljava/lang/String;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;"
+                "Lcom/datadog/ddwaf/WafDiagnostics$SectionInfo;)V",
+                JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
     if (!java_meth_init_checked(env, &_sect_info_err_init,
-                                "com/datadog/ddwaf/RuleSetInfo$SectionInfo",
+                                "com/datadog/ddwaf/WafDiagnostics$SectionInfo",
                                 "<init>", "(Ljava/lang/String;)V",
                                 JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
-    if (!java_meth_init_checked(
-                env, &_sect_info_normal_init,
-                "com/datadog/ddwaf/RuleSetInfo$SectionInfo", "<init>",
-                "(Ljava/util/List;Ljava/util/List;Ljava/util/Map;)V",
-                JMETHOD_CONSTRUCTOR)) {
+    if (!java_meth_init_checked(env, &_sect_info_normal_init,
+                                "com/datadog/ddwaf/WafDiagnostics$SectionInfo",
+                                "<init>",
+                                "(Ljava/util/List;Ljava/util/List;Ljava/util/"
+                                "List;Ljava/util/Map;Ljava/util/Map;)V",
+                                JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
     if (!java_meth_init_checked(env, &_array_list_init, "java/util/ArrayList",
@@ -364,9 +395,14 @@ static jobject _convert_section_checked(JNIEnv *env, const ddwaf_object *root,
         }
     }
 
-    jobject loaded = NULL, failed = NULL, errors = NULL, ret = NULL;
+    jobject loaded = NULL, skipped = NULL, failed = NULL, errors = NULL,
+            warnings = NULL, ret = NULL;
 
     loaded = _map_get_object_strarr_checked(env, section, LSTR("loaded"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+    skipped = _map_get_object_strarr_checked(env, section, LSTR("skipped"));
     if (JNI(ExceptionCheck)) {
         goto err;
     }
@@ -374,20 +410,31 @@ static jobject _convert_section_checked(JNIEnv *env, const ddwaf_object *root,
     if (JNI(ExceptionCheck)) {
         goto err;
     }
+    warnings = _map_get_object_errmap_checked(env, section, LSTR("warnings"));
+    if (JNI(ExceptionCheck)) {
+        goto err;
+    }
+
     errors = _map_get_object_errmap_checked(env, section, LSTR("errors"));
     if (JNI(ExceptionCheck)) {
         goto err;
     }
 
-    ret = java_meth_call(env, &_sect_info_normal_init, NULL, loaded, failed,
-                         errors);
+    ret = java_meth_call(env, &_sect_info_normal_init, NULL, skipped, loaded,
+                         failed, warnings, errors);
 
 err:
+    if (skipped) {
+        JNI(DeleteLocalRef, skipped);
+    }
     if (loaded) {
         JNI(DeleteLocalRef, loaded);
     }
     if (failed) {
         JNI(DeleteLocalRef, failed);
+    }
+    if (warnings) {
+        JNI(DeleteLocalRef, warnings);
     }
     if (errors) {
         JNI(DeleteLocalRef, errors);

@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 public class WafContext implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger(WafContext.class);
 
-  private final WafHandle ctx;
   private final ByteBufferSerializer.ArenaLease lease;
   private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
@@ -37,11 +36,12 @@ public class WafContext implements Closeable {
   private long ptr; // KEEP THIS FIELD!
 
   private boolean online;
+  private final WafHandle wafHandle;
 
-  WafContext(WafHandle ctx) {
-    LOGGER.debug("Creating Waf WafContext for {}", ctx);
-    this.ctx = ctx;
-    this.ptr = initWafContext(ctx.handle);
+  public WafContext(WafHandle wafHandle) {
+    this.wafHandle = wafHandle;
+    LOGGER.debug("Creating WafContext for {}", wafHandle);
+    this.ptr = initWafContext(wafHandle);
     this.lease = ByteBufferSerializer.getBlankLease();
     this.online = true;
     if (Waf.EXIT_ON_LEAK) {
@@ -51,7 +51,7 @@ public class WafContext implements Closeable {
     }
   }
 
-  private static native long initWafContext(NativeWafHandle handle);
+  private static native long initWafContext(WafHandle handle);
 
   private native Waf.ResultWithData runWafContext(
       ByteBuffer persistentBuffer,
@@ -78,7 +78,7 @@ public class WafContext implements Closeable {
    * @return execution results
    * @throws AbstractWafException rethrow from native code, timeout or param serialization failure
    */
-  public Waf.ResultWithData run(
+  private Waf.ResultWithData run(
       Map<String, Object> persistentData,
       Map<String, Object> ephemeralData,
       Waf.Limits limits,
@@ -133,7 +133,7 @@ public class WafContext implements Closeable {
       }
     } catch (RuntimeException rte) {
       throw new UnclassifiedWafException(
-          "Error running Waf's WafContext for rule context " + ctx + ": " + rte.getMessage(), rte);
+          "Error running Waf's WafContext for handle " + wafHandle + ": " + rte.getMessage(), rte);
     }
   }
 
@@ -158,7 +158,7 @@ public class WafContext implements Closeable {
 
       try {
         clearWafContext();
-        LOGGER.debug("Closed WafContext for rule context {}", this.ctx);
+        LOGGER.debug("Closed WafContext for handler {}", this.wafHandle);
       } catch (Throwable t) {
         exc = t;
       }
@@ -190,5 +190,9 @@ public class WafContext implements Closeable {
     if (!online) {
       throw new IllegalStateException("This WafContext is no longer online");
     }
+  }
+
+  public boolean isOnline() {
+    return online;
   }
 }

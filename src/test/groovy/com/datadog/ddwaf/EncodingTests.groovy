@@ -8,18 +8,12 @@
 
 package com.datadog.ddwaf
 
-import org.junit.Before
 import org.junit.Test
 
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.containsString
 
 class EncodingTests implements WafTrait {
-
-  @Before
-  void assignContext() {
-    ctx = Waf.createHandle('test', ARACHNI_ATOM_V1_0)
-  }
 
   @Test
   void 'user input has an unpaired leading surrogate'() {
@@ -59,3 +53,4 @@ class EncodingTests implements WafTrait {
     assertThat awd.data, containsString('\\u0000Arachni\\u0000')
   }
 }
+

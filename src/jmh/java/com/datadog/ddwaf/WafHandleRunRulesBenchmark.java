@@ -29,7 +29,9 @@ public class WafHandleRunRulesBenchmark {
 
   private static final int OP_COUNT = 1024;
 
-  private WafHandle ctx;
+  private WafBuilder builder;
+  private WafHandle handle;
+  private WafContext context;
   private Waf.Limits limits;
   private Map<String, Object> simplePayload;
 
@@ -50,8 +52,10 @@ public class WafHandleRunRulesBenchmark {
     rules.put("events", Collections.singleton(rule));
 
     WafConfig cfg = new WafConfig();
-    ctx = new WafHandle("test", cfg, rules);
-
+    builder = new WafBuilder(cfg);
+    builder.addOrUpdateConfig("test-rules", rules);
+    handle = builder.buildWafHandleInstance();
+    context = new WafContext(handle);
     limits = new Waf.Limits(5, 20, 100, 200000, 0);
 
     simplePayload =
@@ -61,14 +65,16 @@ public class WafHandleRunRulesBenchmark {
 
   @TearDown(Level.Iteration)
   public void teardown() {
-    ctx.close();
+    context.close();
+    handle.close();
+    builder.close();
   }
 
   @Benchmark
   @OperationsPerInvocation(OP_COUNT)
   public void empty(final Blackhole bh) throws Exception {
     for (int i = 0; i < OP_COUNT; i++) {
-      bh.consume(ctx.runRules(Collections.emptyMap(), limits, null));
+      bh.consume(context.run(Collections.emptyMap(), limits, null));
     }
   }
 
@@ -76,7 +82,7 @@ public class WafHandleRunRulesBenchmark {
   @OperationsPerInvocation(OP_COUNT)
   public void small(final Blackhole bh) throws Exception {
     for (int i = 0; i < OP_COUNT; i++) {
-      bh.consume(ctx.runRules(simplePayload, limits, null));
+      bh.consume(context.run(simplePayload, limits, null));
     }
   }
 }

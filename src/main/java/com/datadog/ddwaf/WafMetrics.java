@@ -18,7 +18,7 @@ public class WafMetrics {
   AtomicLong truncatedListMapTooLargeCount = new AtomicLong();
   AtomicLong truncatedObjectTooDeepCount = new AtomicLong();
 
-  WafMetrics() {}
+  public WafMetrics() {}
 
   public long getTotalRunTimeNs() {
     return totalRunTimeNs.get();
