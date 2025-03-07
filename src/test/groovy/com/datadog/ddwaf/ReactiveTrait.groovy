@@ -10,7 +10,7 @@ package com.datadog.ddwaf
 
 import org.junit.After
 
-trait ReactiveTrait extends WafTrait {
+trait ReactiveTrait {
 
     WafContext wafContext
 

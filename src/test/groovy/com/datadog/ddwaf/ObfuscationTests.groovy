@@ -8,23 +8,26 @@
 
 package com.datadog.ddwaf
 
+import groovy.json.JsonSlurper
 import org.junit.Test
 
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
-class ObfuscationTests implements WafTrait {
+class ObfuscationTests extends WafTestBase {
 
     @Test
     void 'obfuscation by key with default settings'() {
         def ruleSet = ARACHNI_ATOM_V2_1
 
-        ctx = Waf.createHandle('test', ruleSet)
-        Waf.ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, metrics)
+        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+
+        Waf.ResultWithData awd = Waf.runContext(
+                ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics,
+                builder)
         assertThat awd.result, is(Waf.Result.MATCH)
 
-        def json = slurper.parseText(awd.data)
+        def json = new JsonSlurper().parseText(awd.data)
 
         assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent', 'password']
         assert json[0].rule_matches[0]['parameters'][0].value == '<Redacted>'
@@ -35,12 +38,13 @@ class ObfuscationTests implements WafTrait {
     void 'obfuscation by value with default settings'() {
         def ruleSet = ARACHNI_ATOM_V2_1
         def val = 'Arachni/v1 password=s3krit'
-        ctx = Waf.createHandle('test', ruleSet)
-        Waf.ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, metrics)
+
+        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        Waf.ResultWithData awd = Waf.runContext(
+                ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, wafMetrics, builder)
         assertThat awd.result, is(Waf.Result.MATCH)
 
-        def json = slurper.parseText(awd.data)
+        def json = new JsonSlurper().parseText(awd.data)
 
         assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent', '0']
         assert json[0].rule_matches[0]['parameters'][0].value == '<Redacted>'
@@ -51,12 +55,15 @@ class ObfuscationTests implements WafTrait {
     void 'no obfuscation if key regex is set to empty string'() {
         def ruleSet = ARACHNI_ATOM_V2_1
 
-        ctx = Waf.createHandle('test', new WafConfig(obfuscatorKeyRegex: ''), ruleSet)
-        Waf.ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, metrics)
+        def thisBuilder = new WafBuilder(new WafConfig(obfuscatorKeyRegex: ''))
+        thisBuilder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+
+        Waf.ResultWithData awd = Waf.runContext(
+                ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics,
+                thisBuilder)
         assertThat awd.result, is(Waf.Result.MATCH)
 
-        def json = slurper.parseText(awd.data)
+        def json = new JsonSlurper().parseText(awd.data)
 
         assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
@@ -66,12 +73,14 @@ class ObfuscationTests implements WafTrait {
     void 'value obfuscation'() {
         def ruleSet = ARACHNI_ATOM_V2_1
 
-        ctx = Waf.createHandle('test', new WafConfig(obfuscatorValueRegex: 'rachni'), ruleSet)
-        Waf.ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        def thisBuilder = new WafBuilder(new WafConfig(obfuscatorValueRegex: 'rachni'))
+        thisBuilder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        Waf.ResultWithData awd = Waf.runContext(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
+                thisBuilder)
         assertThat awd.result, is(Waf.Result.MATCH)
 
-        def json = slurper.parseText(awd.data)
+        def json = new JsonSlurper().parseText(awd.data)
 
         assert json[0].rule_matches[0]['parameters'][0].value == '<Redacted>'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['<Redacted>']
