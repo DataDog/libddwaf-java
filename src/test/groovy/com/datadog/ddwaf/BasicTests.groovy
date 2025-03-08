@@ -32,7 +32,7 @@ class BasicTests implements WafTrait {
     void 'test running basic rule v1_0'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, metrics)
@@ -62,7 +62,7 @@ class BasicTests implements WafTrait {
     void 'test running basic rule v2_1'() {
         def ruleSet = ARACHNI_ATOM_V2_1
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
         metrics = ctx.createMetrics()
 
         ResultWithData awd = ctx.runRules(
@@ -96,7 +96,7 @@ class BasicTests implements WafTrait {
     void 'test blocking action'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
@@ -113,7 +113,7 @@ class BasicTests implements WafTrait {
         def ruleSet = ARACHNI_ATOM_V2_1
         ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extract_schema']
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
@@ -159,7 +159,7 @@ class BasicTests implements WafTrait {
         ])
         ruleSet['rules'][0]['on_match'] = ['aaaa', 'block', 'bbbb']
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
@@ -185,7 +185,7 @@ class BasicTests implements WafTrait {
         ])
         ruleSet['rules'][0]['on_match'] = ['block']
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
@@ -203,7 +203,7 @@ class BasicTests implements WafTrait {
     void 'test with array of string lists'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         def data = [
             attack: ['o:1:"ee":1:{}'],
@@ -218,7 +218,7 @@ class BasicTests implements WafTrait {
     void 'test with array'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         def data = ['foo', 'Arachni'] as String[]
         ResultWithData awd = ctx.runRules(
@@ -230,7 +230,7 @@ class BasicTests implements WafTrait {
     void 'test null argument'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         def data = [null, 'Arachni']
         ResultWithData awd = ctx.runRules(
@@ -242,7 +242,7 @@ class BasicTests implements WafTrait {
     void 'test boolean arguments'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         def data = [true, false, 'Arachni']
         ResultWithData awd = ctx.runRules(
@@ -257,7 +257,7 @@ class BasicTests implements WafTrait {
     void 'test unencodable arguments'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         def data = [new MyClass(), 'Arachni']
         ResultWithData awd = ctx.runRules(
@@ -267,13 +267,13 @@ class BasicTests implements WafTrait {
 
     @Test
     void 'can retrieve used addresses'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         assertThat ctx.usedAddresses as List, contains('server.request.headers.no_cookies')
     }
 
     @Test
     void 'can retrieve used actions'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_BLOCK)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_BLOCK)
         assertThat ctx.usedActions as List, containsInAnyOrder('block_request', 'generate_stack', 'redirect_request')
     }
 
@@ -302,7 +302,7 @@ class BasicTests implements WafTrait {
                 }
               ]
             }'''
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
         assertThat ctx.usedAddresses as List, is(empty())
     }
 
@@ -357,7 +357,7 @@ class BasicTests implements WafTrait {
            "version" : "2.1"
       }'''
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
         assertThat res.result, is(Waf.Result.OK)
@@ -466,7 +466,7 @@ class BasicTests implements WafTrait {
            ]
          }'''
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData res = ctx.runRules(['server.request.query': [excluded_key: 'true']], limits, metrics)
         assertThat res.result, is(Waf.Result.MATCH)
@@ -501,7 +501,7 @@ class BasicTests implements WafTrait {
                 ]
         ])
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         ResultWithData res = ctx.runRules(
                 [
@@ -545,7 +545,7 @@ class BasicTests implements WafTrait {
     void 'rule toggling'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         Map<String, Object> overrideSpec = [
                 metadata: [
@@ -583,7 +583,7 @@ class BasicTests implements WafTrait {
     void 'custom rules'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         Map<String, Object> customRules = [
             rules: [],

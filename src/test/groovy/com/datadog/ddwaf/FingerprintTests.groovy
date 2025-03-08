@@ -82,7 +82,7 @@ class FingerprintTests implements WafTrait {
 }
 ''')
 
-        ctx = Waf.createBuilder('test', ruleSet)
+        ctx = Waf.createHandle('test', ruleSet)
 
         Waf.ResultWithData res = ctx.runRules(
                 [

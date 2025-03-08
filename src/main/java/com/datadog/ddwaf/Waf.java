@@ -67,7 +67,7 @@ public final class Waf {
      * @param ruleDefinitions a map rule name to rule definition
      * @return the new context
      */
-    public static WafHandle createBuilder(
+    public static WafHandle createHandle(
             String uniqueId, Map<String, Object> ruleDefinitions)
             throws AbstractWafException {
         return new WafHandle(uniqueId, null, ruleDefinitions);
@@ -80,7 +80,7 @@ public final class Waf {
      * @param config configuration settings or null for the default
      * @return the new builder
      */
-    public static WafHandle createBuilder(
+    public static WafHandle createHandle(
             String uniqueId, WafConfig config, Map<String, Object> ruleDefinitions)
             throws AbstractWafException {
         return new WafHandle(uniqueId, config, ruleDefinitions);

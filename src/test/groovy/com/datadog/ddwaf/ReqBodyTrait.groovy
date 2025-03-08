@@ -46,7 +46,7 @@ trait ReqBodyTrait extends WafTrait {
                 'server.request.body.raw': data
         ]
 
-        ctx = ctx ?: Waf.createBuilder('test', rule)
+        ctx = ctx ?: Waf.createHandle('test', rule)
         ctx.runRules(params, limits, metrics)
     }
 }

@@ -18,7 +18,7 @@ class EncodingTests implements WafTrait {
 
     @Before
     void assignContext() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V1_0)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V1_0)
     }
 
     @Test

@@ -38,7 +38,7 @@ class InvalidInvocationTests implements ReactiveTrait {
     @Test
     void 'force exception during conversion of rule definitions'() {
         def exc = shouldFail(RuntimeException) {
-            ctx = Waf.createBuilder('test', new BadMap(delegate: [version: '1.0', events: []]))
+            ctx = Waf.createHandle('test', new BadMap(delegate: [version: '1.0', events: []]))
         }
         assert exc.message =~ 'Exception encoding init/update rule specification'
         assert exc.cause instanceof IllegalStateException
@@ -47,7 +47,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'runRule with conversion throwing exception'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
             ctx.runRules(new BadMap(delegate: [:]), limits, metrics)
         }
@@ -58,7 +58,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'runRule with conversion throwing exception wafContext variant'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         wafContext = ctx.openContext()
         def exc = shouldFail(UnclassifiedWafException) {
             wafContext.run(new BadMap(delegate: [:]), limits, metrics)
@@ -70,7 +70,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'rule is run on closed context'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         ctx.close()
         def exc = shouldFail(UnclassifiedWafException) {
             ctx.runRules([:], limits, metrics)
@@ -81,7 +81,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'addresses are fetched on closed context'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         ctx.close()
         def exc = shouldFail(IllegalStateException) {
             ctx.usedAddresses
@@ -92,7 +92,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'bytebuffer passed does not represent a map'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         wafContext = ctx.openContext()
 
         ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
@@ -108,7 +108,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'bytebuffer passed is not direct buffer'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         wafContext = ctx.openContext()
 
         shouldFail(Exception) {
@@ -120,7 +120,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'error converting update spec'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
             ctx.update('test2', new BadMap(delegate: [arachni_rule: false]))
         }
@@ -129,7 +129,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'empty update call'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
             ctx.update('test2', [foo: 'bar'])
         }
@@ -138,7 +138,7 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'invalid update call'() {
-        ctx = Waf.createBuilder('test', ARACHNI_ATOM_V2_1)
+        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
         InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
             ctx.update('test2', [rules: [[id: 'foobar']]])
         }

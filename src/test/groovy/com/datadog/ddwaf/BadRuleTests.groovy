@@ -20,7 +20,7 @@ class BadRuleTests implements WafTrait {
 
     @Test(expected = AbstractWafException)
     void 'no events'() {
-        ctx = Waf.createBuilder('test', [version: '0.0', events: []])
+        ctx = Waf.createHandle('test', [version: '0.0', events: []])
     }
 
     @Test
@@ -28,7 +28,7 @@ class BadRuleTests implements WafTrait {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'][0].remove('id')
         InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
-            ctx = Waf.createBuilder('test', rules)
+            ctx = Waf.createHandle('test', rules)
         }
 
         def rsi = exc.ruleSetInfo
@@ -42,7 +42,7 @@ class BadRuleTests implements WafTrait {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'] = [:]
         InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
-            ctx = Waf.createBuilder('test', rules)
+            ctx = Waf.createHandle('test', rules)
         }
 
         def rsi = exc.ruleSetInfo
@@ -55,7 +55,7 @@ class BadRuleTests implements WafTrait {
     void 'duplicated rule'() {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'] << rules['rules'][0]
-        ctx = Waf.createBuilder('test', rules)
+        ctx = Waf.createHandle('test', rules)
 
         def rsi = ctx.ruleSetInfo
         assert rsi.numRulesOK == 1

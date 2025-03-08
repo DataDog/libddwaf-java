@@ -125,7 +125,7 @@ class SchemaTests implements WafTrait {
         maxElements = 30
         timeoutInUs = 20000000
         runBudget = 20000000
-        ctx = Waf.createBuilder('test', EXTRACT_SCHEMA)
+        ctx = Waf.createHandle('test', EXTRACT_SCHEMA)
 
         def data = [
                 'waf.context.settings': [

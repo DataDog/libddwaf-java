@@ -23,7 +23,7 @@ class LimitsTests implements WafTrait {
 
     @Lazy
     WafHandle ctxWithArachniAtom =
-            Waf.createBuilder('test', ARACHNI_ATOM_V1_0)
+            Waf.createHandle('test', ARACHNI_ATOM_V1_0)
 
     @Test
     void 'maxDepth is respected'() {
@@ -181,7 +181,7 @@ class LimitsTests implements WafTrait {
             ]
           }''')
 
-        ctx = Waf.createBuilder('test', atom)
+        ctx = Waf.createHandle('test', atom)
 
         timeoutInUs = 10000000 // 10 sec
         runBudget = 10 // 10 microseconds
