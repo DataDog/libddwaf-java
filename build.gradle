@@ -20,6 +20,7 @@ plugins {
     id 'groovy'
     id 'jacoco'
     id 'ivy-publish'
+    id 'maven-publish'
     id 'codenarc'
     id 'me.champeau.jmh' version '0.7.2'
     id 'info.solidsoft.pitest' version '1.15.0'
@@ -328,6 +329,12 @@ publishing {
                 text = description
             }
         }
+
+        // only publish to maven local for now
+        maven(MavenPublication) {
+            version = "${project.version}-SNAPSHOT"
+            from components.java
+        }
     }
 }
 
@@ -502,6 +509,10 @@ pitest {
 
 tasks.named("pitest").configure {
     dependsOn buildNativeLibDebug
+}
+
+project.afterEvaluate {
+    tasks.withType(PublishToMavenRepository).each { it.enabled = false }
 }
 
 // vim: set et ts=4 sw=4 list:
