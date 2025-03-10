@@ -118,26 +118,26 @@ err:
 void output_init_checked(JNIEnv *env)
 {
     if (!java_meth_init_checked(env, &_rsi_init,
-                                "io/sqreen/powerwaf/RuleSetInfo", "<init>",
-                                "(Ljava/lang/String;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
-                                "RuleSetInfo$SectionInfo;Lio/sqreen/powerwaf/"
+                                "com/datadog/ddwaf/RuleSetInfo", "<init>",
+                                "(Ljava/lang/String;Lcom/datadog/ddwaf/"
+                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
+                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
+                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
+                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
+                                "RuleSetInfo$SectionInfo;Lcom/datadog/ddwaf/"
                                 "RuleSetInfo$SectionInfo;)V",
                                 JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
     if (!java_meth_init_checked(env, &_sect_info_err_init,
-                                "io/sqreen/powerwaf/RuleSetInfo$SectionInfo",
+                                "com/datadog/ddwaf/RuleSetInfo$SectionInfo",
                                 "<init>", "(Ljava/lang/String;)V",
                                 JMETHOD_CONSTRUCTOR)) {
         goto err;
     }
     if (!java_meth_init_checked(
                 env, &_sect_info_normal_init,
-                "io/sqreen/powerwaf/RuleSetInfo$SectionInfo", "<init>",
+                "com/datadog/ddwaf/RuleSetInfo$SectionInfo", "<init>",
                 "(Ljava/util/List;Ljava/util/List;Ljava/util/Map;)V",
                 JMETHOD_CONSTRUCTOR)) {
         goto err;
