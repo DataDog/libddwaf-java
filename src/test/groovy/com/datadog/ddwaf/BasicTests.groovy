@@ -577,6 +577,6 @@ class BasicTests implements WafTrait {
         def awd = ctx.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
         assertThat awd.result, is(Waf.Result.MATCH)
-
     }
+
 }
