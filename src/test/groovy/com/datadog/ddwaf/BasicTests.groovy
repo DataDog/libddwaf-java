@@ -287,59 +287,6 @@ class BasicTests extends WafTestBase {
     }
 
     @Test
-    void 'can retrieve used addresses'() {
-        def ruleSet = ARACHNI_ATOM_V1_0
-        builder.removeRuleConfig()
-        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
-        assertThat Waf.getKnownAddresses(nativeWafHandle) as List, contains('server.request.headers.no_cookies')
-    }
-
-    @Test
-    void 'can retrieve used actions'() {
-        def ruleSet = ARACHNI_ATOM_BLOCK
-        builder.removeRuleConfig()
-        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
-
-        def data = [new MyClass(), 'Arachni']
-        waf.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, nativeWafHandle)
-        assertThat Waf.getKnownActions(nativeWafHandle) as List, containsInAnyOrder('block_request', 'generate_stack', 'redirect_request')
-    }
-
-    @Test
-    void 'handles ruleset without addresses'() {
-        def ruleSet = new JsonSlurper().parseText '''
-            {
-              "version": "1.0",
-              "events": [
-                {
-                  "id": "arachni_rule",
-                  "name": "Arachni",
-                  "conditions": [
-                    {
-                      "operation": "match_regex",
-                      "parameters": {
-                        "inputs": [],
-                        "regex": "Arachni"
-                      }
-                    }
-                  ],
-                  "tags": {
-                    "type": "arachni_detection"
-                  },
-                  "action": "record"
-                }
-              ]
-            }'''
-        builder.removeRuleConfig()
-        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
-        assertThat Waf.getKnownAddresses(nativeWafHandle) as List, is(empty())
-    }
-
-    @Test
     void 'update rule data'() {
         def ruleSet = new JsonSlurper().parseText '''{
            "data" : "usr_data",

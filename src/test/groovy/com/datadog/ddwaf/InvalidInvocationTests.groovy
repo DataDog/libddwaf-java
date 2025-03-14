@@ -69,19 +69,6 @@ class InvalidInvocationTests extends WafTestBase {
     }
 
     @Test
-    void 'addresses are fetched on closed context'() {
-        builder.removeRuleConfig()
-        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
-        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
-        nativeWafHandle.destroy()
-        def exc = shouldFail(IllegalStateException) {
-            Waf.getKnownAddresses(nativeWafHandle)
-        }
-        assertThat exc.message, containsString('This context is already offline')
-        ctx = null
-    }
-
-    @Test
     void 'bytebuffer passed does not represent a map'() {
                 builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)

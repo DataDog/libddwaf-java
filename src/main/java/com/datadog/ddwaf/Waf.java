@@ -63,21 +63,6 @@ public final class Waf {
     }
 
     /**
-     * Returns known addresses associated with the handle
-     *
-     * @param handle
-     */
-    static native String[] getKnownAddresses(NativeWafHandle handle);
-
-
-    /**
-     * Returns known actions associated with the handle
-     *
-     * @param handle
-     */
-    static native String[] getKnownActions(NativeWafHandle handle);
-
-    /**
      * Runs a rule with the parameters pre-serialized into direct
      * ByteBuffers. The initial PWArgs must be the object at offset 0
      * of <code>firstPWArgsBuffer</code>. This object will have pointers
