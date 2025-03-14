@@ -9,7 +9,7 @@ import java.util.zip.GZIPInputStream
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.isA
 
-class SchemaTests implements WafTrait {
+class SchemaTests {
     static final Map EXTRACT_SCHEMA = (Map) new JsonSlurper().parseText('''
         {
           "version": "2.2",

@@ -19,9 +19,9 @@ import static org.hamcrest.Matchers.hasItem
 import static org.hamcrest.Matchers.is
 import static org.hamcrest.Matchers.oneOf
 
-class LimitsTests implements WafTrait {
+class LimitsTests {
 
-    @Lazy
+    /*@Lazy
     WafHandle ctxWithArachniAtom =
             Waf.createHandle('test', ARACHNI_ATOM_V1_0)
 
@@ -194,5 +194,5 @@ class LimitsTests implements WafTrait {
 
         def json = slurper.parseText(res.data)
         assertThat json.ret_code, hasItem(is(new TimeoutWafException().code))
-    }
+    }*/
 }

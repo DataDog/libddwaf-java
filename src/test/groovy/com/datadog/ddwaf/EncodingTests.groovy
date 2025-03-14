@@ -14,7 +14,7 @@ import org.junit.Test
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.containsString
 
-class EncodingTests implements WafTrait {
+class EncodingTests{
 
     @Before
     void assignContext() {

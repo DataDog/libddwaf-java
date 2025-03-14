@@ -67,16 +67,16 @@ JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_deinitialize
 /*
  * Class:     com_datadog_ddwaf_Builder
  * Method:    addOrUpdateConfig
- * Signature: (Lcom/datadog/ddwaf/Builder;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;)Z
+ * Signature: (Lcom/datadog/ddwaf/WafBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;)Z
  */
-JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_Builder_addOrUpdateConfig(JNIEnv *, jclass, jobject,
-                                                            jstring, jobject, jobject);
+JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_addOrUpdateRuleConfig(JNIEnv *, jclass, jobject,
+                                                            jstring, jstring, jobject, jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Builder
  * Method:    initBuilder
  */
-JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_Builder_initBuilder(JNIEnv *, jclass, jobject);
+JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafBuilder_initBuilder(JNIEnv *, jclass, jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Builder
@@ -88,7 +88,7 @@ JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Builder_build(JNIEnv *, jclass,
  * Class:     com_datadog_ddwaf_Waf
  * Method:    buildInstance
  */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_buildInstance(JNIEnv *, jclass, jobject);
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_buildInstance(JNIEnv *, jclass, jobject, jobject);
 
 #ifdef __cplusplus
 }

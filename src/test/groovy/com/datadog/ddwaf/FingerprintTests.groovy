@@ -8,7 +8,7 @@ import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.is
 import static org.hamcrest.Matchers.matchesPattern
 
-class FingerprintTests implements WafTrait {
+class FingerprintTests {
 
     @Test
     void 'test fingerprints'() {

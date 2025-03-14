@@ -13,7 +13,7 @@ import org.junit.Test
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
-class ObfuscationTests implements WafTrait {
+class ObfuscationTests {
 
     @Test
     void 'obfuscation by key with default settings'() {

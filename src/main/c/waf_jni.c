@@ -290,7 +290,6 @@ JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_clearRules(
     if (!(nat_handle = get_pwaf_handle_checked(env, handle_obj))) {
         return;
     }
-
     ddwaf_destroy(nat_handle);
 }
 
@@ -836,7 +835,7 @@ static bool _fetch_builder_fields(JNIEnv *env)
 {
     bool ret = false;
 
-    jclass builder_jclass = JNI(FindClass, "com/datadog/ddwaf/Builder");
+    jclass builder_jclass = JNI(FindClass, "com/datadog/ddwaf/WafBuilder");
     if (!builder_jclass) {
         goto error;
     }
@@ -1019,8 +1018,9 @@ static ddwaf_builder _get_builder_checked(JNIEnv *env, jclass clazz,
     return builder;
 }
 
-JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_Builder_addOrUpdateConfig(JNIEnv *env, jclass clazz, jobject builder,
-                                                            jstring path, jobject configuration, jobject diagnostics) {
+JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_addOrUpdateRuleConfig(JNIEnv *env, jclass clazz, jobject builder,
+                                                            jstring old_path, jstring path, jobject configuration,
+                                                            jobject diagnostics) {
     ddwaf_object ddwaf_diagnostics;
     ddwaf_object_invalid(&ddwaf_diagnostics);
         struct _limits limits = {
@@ -1041,7 +1041,14 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_Builder_addOrUpdateConfig(JNIE
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
     }
-    ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration, &ddwaf_diagnostics);
+    if(ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
+                                                                                        &ddwaf_diagnostics)){
+        // old config must be removed once new config is added successfully
+        ddwaf_builder_remove_config(ddwaf_builder, JNI(GetStringUTFChars, old_path, NULL),
+                                                                        JNI(GetStringLength, old_path));
+    }
+
+
 
     ddwaf_object_free(&ddwaf_configuration);
     if (memcmp(&ddwaf_diagnostics, &(ddwaf_object) {0},
@@ -1067,7 +1074,7 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_Builder_addOrUpdateConfig(JNIE
         return JNI_FALSE;
 }
 
-JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_Builder_initBuilder(JNIEnv *env, jclass clazz, jobject config) {
+JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafBuilder_initBuilder(JNIEnv *env, jclass clazz, jobject config) {
     UNUSED(clazz);
     ddwaf_config ddwaf_configuration;
     _convert_ddwaf_config_checked(env, config, &ddwaf_configuration);
@@ -1075,13 +1082,14 @@ JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_Builder_initBuilder(JNIEnv *env, 
     return (jlong) (intptr_t) builder;
 }
 
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_buildInstance(JNIEnv *env, jclass clazz, jobject builder_java) {
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_buildInstance(JNIEnv *env, jclass clazz, jobject builder_java, jobject old_handle_java) {
     ddwaf_builder builder = _get_builder_checked(env, clazz, builder_java);
     if(JNI(ExceptionCheck) || !builder ) {
         JAVA_LOG(DDWAF_LOG_DEBUG, "build instance did not succeed");
         return NULL;
     }
     JAVA_LOG(DDWAF_LOG_DEBUG, "Successfully created builder");
+
     ddwaf_handle handle = ddwaf_builder_build_instance(builder);
     if (!handle) {
         JAVA_LOG(DDWAF_LOG_WARN,
@@ -1089,6 +1097,11 @@ JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_buildInstance(JNIEnv *env, 
         return NULL;
     }
     JAVA_LOG(DDWAF_LOG_DEBUG, "Successfully created ddwaf_handle");
+
+    if(old_handle_java != NULL) {
+        ddwaf_handle old_handle = get_pwaf_handle_checked(env, old_handle_java);
+        ddwaf_destroy(old_handle);
+    }
 
     jobject java_handle = java_meth_call(env, &_pwaf_handle_init, NULL,
                                      (jlong) (intptr_t) handle);

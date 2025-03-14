@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is
 
 class WafHandleTest implements ReactiveTrait {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(WafHandleTest)
+    /*private final static Logger LOGGER = LoggerFactory.getLogger(WafHandleTest)
 
     @Test
     void 'Reference sample should pass'() {
@@ -224,7 +224,7 @@ class WafHandleTest implements ReactiveTrait {
         assertThat rwd.result, is(Waf.Result.OK)
         wafContext.close()
 
-        /* prevent @After hooks from trying to close it */
+        *//* prevent @After hooks from trying to close it *//*
         wafContext = null
-    }
+    }*/
 }

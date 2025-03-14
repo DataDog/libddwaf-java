@@ -16,7 +16,7 @@ import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail
 
-class BadRuleTests implements WafTrait {
+class BadRuleTests {
 
     @Test(expected = AbstractWafException)
     void 'no events'() {

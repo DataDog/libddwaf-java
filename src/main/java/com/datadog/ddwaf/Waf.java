@@ -9,6 +9,7 @@
 package com.datadog.ddwaf;
 
 import com.datadog.ddwaf.exception.AbstractWafException;
+import com.datadog.ddwaf.exception.TimeoutWafException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
 import com.datadog.ddwaf.exception.UnsupportedVMException;
 import java.util.Arrays;
@@ -62,40 +63,27 @@ public final class Waf {
     }
 
     /**
-     * Creates a new collection of rules with the default configuration.
-     * @param uniqueId a unique id identifying the context. It better be unique!
-     * @param ruleDefinitions a map rule name to rule definition
-     * @return the new context
+     * Builds a new instance of ddwaf_handle and deletes the old handle if provided
+     *
+     * @param wafBuilder
+     * @param oldHandle can be null if nothing is to be deleted
+     * @return the new handle
      */
-    public static WafHandle createHandle(
-            String uniqueId, Map<String, Object> ruleDefinitions)
-            throws AbstractWafException {
-        return new WafHandle(uniqueId, null, ruleDefinitions);
-    }
+    public static native NativeWafHandle buildInstance(WafBuilder wafBuilder, NativeWafHandle oldHandle);
 
     /**
-     * Creates a new collection of rules.
-     * @param uniqueId a unique id identifying the builder. It better be unique!
-     * @param ruleDefinitions a map rule name to rule definition
-     * @param config configuration settings or null for the default
-     * @return the new builder
+     * Returns known addresses associated with the handle
+     *
+     * @param handle
      */
-    public static WafHandle createHandle(
-            String uniqueId, WafConfig config, Map<String, Object> ruleDefinitions)
-            throws AbstractWafException {
-        return new WafHandle(uniqueId, config, ruleDefinitions);
-    }
-
-    public static native NativeWafHandle buildInstance(Builder builder);
-
-    static native void destroyInstance(NativeWafHandle handle);
-    static native void destroyBuilder(Builder builder);
-
-    /* pw_clearRuleH */
-    static native void clearRules(NativeWafHandle handle);
-
     static native String[] getKnownAddresses(NativeWafHandle handle);
 
+
+    /**
+     * Returns known actions associated with the handle
+     *
+     * @param handle
+     */
     static native String[] getKnownActions(NativeWafHandle handle);
 
     /**
@@ -113,12 +101,12 @@ public final class Waf {
      * @param metrics the metrics collector, or null
      * @return the resulting action (OK or MATCH) and associated details
      */
-    static native ResultWithData runRules(NativeWafHandle handle,
+    private static native ResultWithData runRules(NativeWafHandle handle,
                                           ByteBuffer firstPWArgsBuffer,
                                           Limits limits,
                                           WafMetrics metrics) throws AbstractWafException;
 
-    static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
+    private static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
     public static native String getVersion();
 
@@ -137,8 +125,63 @@ public final class Waf {
         return AbstractWafException.createFromErrorCode(retCode);
     }
 
-    public static boolean update(Builder builder, Map<String, Object> configuration, RuleSetInfo[] infoRef) {
-        return builder.addOrUpdateConfig(configuration, infoRef);
+    /**
+     * Once batch file additions are done, run the rules of the context with the given parameters
+     *
+     * @param parameters      the parameters to run the rules with
+     * @param limits          the limits to run the rules with
+     * @param metrics         the metrics to run the rules with
+     * @param nativeWafHandle
+     * @return the result of the rules
+     * @throws AbstractWafException if the rules could not be run
+     */
+    public ResultWithData runRules(Map<String, Object> parameters,
+                                       Limits limits,
+                                       WafMetrics metrics, NativeWafHandle nativeWafHandle) throws AbstractWafException {
+        try {
+            LOGGER.debug("Running rule for context {} with limits {}",
+                    this, limits);
+
+            ResultWithData res;
+            // serialization could be extracted out of the lock
+            ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
+            long before = System.nanoTime();
+            ByteBufferSerializer.ArenaLease lease;
+            try {
+                lease = serializer.serialize(parameters, metrics);
+            } catch (Exception e) {
+                throw new RuntimeException("Exception encoding parameters", e);
+            }
+            try {
+                long elapsedNs = System.nanoTime() - before;
+                Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
+                if (newLimits.generalBudgetInUs == 0L) {
+                    LOGGER.debug(
+                            "Budget exhausted after serialization; " +
+                                    "not running rule of context {}",
+                            this);
+                    throw new TimeoutWafException();
+                }
+
+                res = runRules(
+                        nativeWafHandle, lease.getFirstPWArgsByteBuffer(), newLimits, metrics);
+            } finally {
+                lease.close();
+                if (metrics != null) {
+                    long after = System.nanoTime();
+                    long totalTimeNs = after - before;
+                    metrics.addTotalRunTimeNs(totalTimeNs);
+                }
+            }
+
+            LOGGER.debug("Rule of context {} ran successfully with return {}", this, res);
+
+            return res;
+        } catch (RuntimeException rte) {
+            throw new UnclassifiedWafException(
+                    "Error calling Waf's runRule for rule in context " + this +
+                            ": " + rte.getMessage(), rte);
+        }
     }
 
     public enum Result {

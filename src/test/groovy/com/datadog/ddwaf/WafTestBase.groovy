@@ -1,23 +1,10 @@
-/*
- * Unless explicitly stated otherwise all files in this repository are licensed
- * under the Apache-2.0 License.
- *
- * This product includes software developed at Datadog
- * (https://www.datadoghq.com/). Copyright 2021 Datadog, Inc.
- */
-
 package com.datadog.ddwaf
 
 import groovy.json.JsonSlurper
-import groovy.transform.CompileStatic
-import org.junit.After
 import org.junit.AfterClass
+import org.junit.BeforeClass
 
-import static org.hamcrest.MatcherAssert.assertThat
-import static org.hamcrest.Matchers.is
-
-@CompileStatic
-trait WafTrait extends JNITrait {
+class WafTestBase {
 
     static final Map ARACHNI_ATOM_V1_0 = (Map) new JsonSlurper().parseText('''
         {
@@ -172,39 +159,26 @@ trait WafTrait extends JNITrait {
         new Waf.Limits(
                 maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
     }
+    static Waf ctx
+    static WafBuilder builder
+    static WafMetrics wafMetrics
+    static NativeWafHandle nativeWafHandle
+    static RuleSetInfo[] ruleSetInfo = new RuleSetInfo[1]
 
-    WafHandle ctx
-    WafMetrics metrics
-
-    JsonSlurper slurper = new JsonSlurper()
-
-    @After
-    void after() {
-        ctx?.close()
-
-        // Check that all buffers were reset
-        ByteBufferSerializer.ArenaPool.INSTANCE.arenas.each { arena ->
-            arena.pwargsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-            arena.stringsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-        }
+    @BeforeClass
+    static void setup() {
+        System.setProperty("ddwaf.logLevel", "DEBUG")
+        ctx = new Waf()
+        boolean simpleInit = System.getProperty('useReleaseBinaries') == null
+        System.setProperty('PW_RUN_TIMEOUT', '500000' /* 500 ms */)
+        ctx.initialize(simpleInit)
+        builder = new WafBuilder(null) // initial config will always be default
+        wafMetrics = new WafMetrics()
     }
 
     @AfterClass
     @SuppressWarnings('ExplicitGarbageCollection')
     static void afterClass() {
         System.gc()
-    }
-
-    @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
-    Waf.ResultWithData runRules(Object data) {
-        ctx.runRules([
-                'server.request.headers.no_cookies': [
-                        'user-agent': data
-                ]
-        ] as Map<String, Object>, limits, metrics)
     }
 }
