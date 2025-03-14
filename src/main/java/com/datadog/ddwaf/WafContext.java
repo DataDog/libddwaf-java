@@ -22,7 +22,6 @@ import java.util.Map;
 public final class WafContext implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(WafContext.class);
 
-    private final WafHandle ctx;
     private final ByteBufferSerializer.ArenaLease lease;
     private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
@@ -31,11 +30,12 @@ public final class WafContext implements Closeable {
      */
     private long ptr;     // KEEP THIS FIELD!
     private boolean online;
+    private NativeWafHandle nativeWafHandle;
 
-    WafContext(WafHandle ctx) {
-        LOGGER.debug("Creating Waf WafContext for {}", ctx);
-        this.ctx = ctx;
-        this.ptr = initWafContext(ctx.handle);
+    WafContext(NativeWafHandle nativeWafHandle) {
+        LOGGER.debug("Creating Waf WafContext for {}", nativeWafHandle);
+        this.nativeWafHandle = nativeWafHandle;
+        this.ptr = initWafContext(nativeWafHandle);
         this.lease = ByteBufferSerializer.getBlankLease();
         this.online = true;
         if (Waf.EXIT_ON_LEAK) {
@@ -120,7 +120,7 @@ public final class WafContext implements Closeable {
             }
         } catch (RuntimeException rte) {
             throw new UnclassifiedWafException(
-                    "Error running Waf's WafContext for rule context " + ctx +
+                    "Error running Waf's WafContext for handle " + nativeWafHandle +
                             ": " + rte.getMessage(), rte);
         }
     }
@@ -146,7 +146,7 @@ public final class WafContext implements Closeable {
 
             try {
                 clearWafContext();
-                LOGGER.debug("Closed WafContext for rule context {}", this.ctx);
+                LOGGER.debug("Closed WafContext for handler {}", this.nativeWafHandle);
             } catch (Throwable t) {
                 exc = t;
             }

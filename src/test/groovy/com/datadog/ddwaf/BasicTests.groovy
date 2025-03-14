@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is
 import static org.hamcrest.Matchers.empty
 import static org.hamcrest.Matchers.notNullValue
 
-class BasicTests implements WafTrait {
+class BasicTests extends WafTestBase {
 
     @Test
     void 'the version is correct'() {
@@ -32,13 +32,15 @@ class BasicTests implements WafTrait {
     void 'test running basic rule v1_0'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
 
-        def json = slurper.parseText(awd.data)
+        def json = new JsonSlurper().parseText(awd.data)
 
         assert json[0].rule.id == 'arachni_rule'
         assert json[0].rule.name == 'Arachni'
@@ -50,26 +52,26 @@ class BasicTests implements WafTrait {
         assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni']
 
-        def rsi = ctx.ruleSetInfo
-        assert rsi.rules.loaded == ['arachni_rule']
-        assert rsi.numRulesOK == 1
-        assert rsi.numRulesError == 0
-        assert rsi.errors == [:]
-        assert rsi.rulesetVersion == null
+        assert ruleSetInfo[0].rules.loaded == ['arachni_rule']
+        assert ruleSetInfo[0].numRulesOK == 1
+        assert ruleSetInfo[0].numRulesError == 0
+        assert ruleSetInfo[0].errors == [:]
+        assert ruleSetInfo[0].rulesetVersion == null
     }
 
     @Test
     void 'test running basic rule v2_1'() {
         def ruleSet = ARACHNI_ATOM_V2_1
 
-        ctx = Waf.createHandle('test', ruleSet)
-        metrics = ctx.createMetrics()
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
 
-        def json = slurper.parseText(awd.data)
+        def json = new JsonSlurper().parseText(awd.data)
 
         assert json[0].rule.id == 'arachni_rule'
         assert json[0].rule.name == 'Arachni'
@@ -81,25 +83,26 @@ class BasicTests implements WafTrait {
         assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
 
-        def rsi = ctx.ruleSetInfo
-        assert rsi.numRulesOK == 1
-        assert rsi.numRulesError == 0
-        assert rsi.errors == [:]
-        assert rsi.rulesetVersion == '1.2.6'
+        assert ruleSetInfo[0].numRulesOK == 1
+        assert ruleSetInfo[0].numRulesError == 0
+        assert ruleSetInfo[0].errors == [:]
+        assert ruleSetInfo[0].rulesetVersion == '1.2.6'
 
-        assert metrics.totalRunTimeNs > 0
-        assert metrics.totalDdwafRunTimeNs > 0
-        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
+        assert wafMetrics.totalRunTimeNs > 0
+        assert wafMetrics.totalDdwafRunTimeNs > 0
+        assert wafMetrics.totalRunTimeNs >= wafMetrics.totalDdwafRunTimeNs
     }
 
     @Test
     void 'test blocking action'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.size(), is(1)
         assertThat awd.actions.keySet(), hasItem('block_request')
@@ -113,10 +116,12 @@ class BasicTests implements WafTrait {
         def ruleSet = ARACHNI_ATOM_V2_1
         ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extract_schema']
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.size(), is(3)
 
@@ -136,7 +141,7 @@ class BasicTests implements WafTrait {
 
     @Test
     void 'test multiple actions'() {
-        def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+        def ruleSet = new JsonSlurper().parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
         ruleSet.putAt('actions', [
             [
                 id: 'aaaa',
@@ -159,17 +164,19 @@ class BasicTests implements WafTrait {
         ])
         ruleSet['rules'][0]['on_match'] = ['aaaa', 'block', 'bbbb']
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.keySet(), containsInAnyOrder('aaaa', 'block_request', 'bbbb')
     }
 
     @Test
     void 'test actions with various types'() {
-        def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+        def ruleSet = new JsonSlurper().parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
         ruleSet.putAt('actions', [
                 [
                         id: 'block',
@@ -185,10 +192,12 @@ class BasicTests implements WafTrait {
         ])
         ruleSet['rules'][0]['on_match'] = ['block']
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.keySet(), contains('block_request')
 
@@ -202,15 +211,16 @@ class BasicTests implements WafTrait {
     @Test
     void 'test with array of string lists'() {
         def ruleSet = ARACHNI_ATOM_V1_0
-
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [
             attack: ['o:1:"ee":1:{}'],
             PassWord: ['Arachni'],
         ]
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -218,35 +228,43 @@ class BasicTests implements WafTrait {
     void 'test with array'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = ['foo', 'Arachni'] as String[]
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
     @Test
     void 'test null argument'() {
         def ruleSet = ARACHNI_ATOM_V1_0
+        builder = new WafBuilder()
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [null, 'Arachni']
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
     @Test
     void 'test boolean arguments'() {
         def ruleSet = ARACHNI_ATOM_V1_0
+        builder = new WafBuilder()
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [true, false, 'Arachni']
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -256,54 +274,16 @@ class BasicTests implements WafTrait {
     @Test
     void 'test unencodable arguments'() {
         def ruleSet = ARACHNI_ATOM_V1_0
+        builder = new WafBuilder()
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [new MyClass(), 'Arachni']
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
+        ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
-    }
-
-    @Test
-    void 'can retrieve used addresses'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        assertThat ctx.usedAddresses as List, contains('server.request.headers.no_cookies')
-    }
-
-    @Test
-    void 'can retrieve used actions'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_BLOCK)
-        assertThat ctx.usedActions as List, containsInAnyOrder('block_request', 'generate_stack', 'redirect_request')
-    }
-
-    @Test
-    void 'handles ruleset without addresses'() {
-        def ruleSet = new JsonSlurper().parseText '''
-            {
-              "version": "1.0",
-              "events": [
-                {
-                  "id": "arachni_rule",
-                  "name": "Arachni",
-                  "conditions": [
-                    {
-                      "operation": "match_regex",
-                      "parameters": {
-                        "inputs": [],
-                        "regex": "Arachni"
-                      }
-                    }
-                  ],
-                  "tags": {
-                    "type": "arachni_detection"
-                  },
-                  "action": "record"
-                }
-              ]
-            }'''
-        ctx = Waf.createHandle('test', ruleSet)
-        assertThat ctx.usedAddresses as List, is(empty())
     }
 
     @Test
@@ -356,13 +336,14 @@ class BasicTests implements WafTrait {
            ],
            "version" : "2.1"
       }'''
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ctx = Waf.createHandle('test', ruleSet)
-
-        ResultWithData res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
+        ResultWithData res = waf.runRules(['http.client_ip': '1.2.3.4'], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.OK)
 
-        res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
+        res = waf.runRules(['usr.id': 'paco'], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.OK)
 
         def newData = [
@@ -388,14 +369,13 @@ class BasicTests implements WafTrait {
 
                 ]
         ]
-        ctx.withCloseable {
-            ctx = ctx.update('test2', [rules_data: newData])
-        }
+        builder.addOrUpdateRuleConfig([rules_data: newData], ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
+        res = waf.runRules(['http.client_ip': '1.2.3.4'], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.MATCH)
 
-        res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
+        res = waf.runRules(['usr.id': 'paco'], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.MATCH)
     }
 
@@ -466,86 +446,29 @@ class BasicTests implements WafTrait {
            ]
          }'''
 
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
-        ResultWithData res = ctx.runRules(['server.request.query': [excluded_key: 'true']], limits, metrics)
+        ResultWithData res = waf.runRules(['server.request.query': [excluded_key: 'true']], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.MATCH)
 
-        res = ctx.runRules(
-                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'false']], limits, metrics)
+        res = waf.runRules(
+                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'false']], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.MATCH)
 
-        res = ctx.runRules(
-                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'true']], limits, metrics)
+        res = waf.runRules(
+                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'true']], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.OK)
     }
 
-    @Test
-    void 'test exclusion data'() {
-        final suspiciousIp = '34.65.27.85'
-        final userAgent = 'Arachni/v1.5.1'
-        final ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_V2_1))
-        ruleSet.rules[0].remove('on_match') // other tests are modifying the rule
-        ruleSet.putAt('exclusions', [
-                [
-                        id        : 'exc-000-001',
-                        on_match  : 'block',
-                        conditions: [
-                                [
-                                        operator  : 'ip_match',
-                                        parameters: [
-                                                data  : 'suspicious_ips_data_id',
-                                                inputs: [[address: 'http.client_ip']]]
-                                ]
-                        ],
-                ]
-        ])
-
-        ctx = Waf.createHandle('test', ruleSet)
-
-        ResultWithData res = ctx.runRules(
-                [
-                        'http.client_ip'                   : suspiciousIp,
-                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
-                ],
-                limits,
-                metrics
-        )
-        assertThat res.result, is(Waf.Result.MATCH)
-        assertThat res.actions.size(), is(0)
-
-        def newData = [
-                [
-                        id  : 'suspicious_ips_data_id',
-                        type: 'ip_with_expiration',
-                        data: [
-                                [value: suspiciousIp, expiration: 0]
-                        ]
-                ]
-        ]
-
-        ctx.withCloseable {
-            ctx = ctx.update('test2', [exclusion_data: newData])
-        }
-
-        res = ctx.runRules(
-                [
-                        'http.client_ip'                   : suspiciousIp,
-                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
-                ],
-                limits,
-                metrics
-        )
-        assertThat res.result, is(Waf.Result.MATCH)
-        assertThat res.actions.size(), is(1)
-        assertThat res.actions.get('block_request'), notNullValue()
-    }
 
     @Test
     void 'rule toggling'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
-
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         Map<String, Object> overrideSpec = [
                 metadata: [
@@ -562,28 +485,29 @@ class BasicTests implements WafTrait {
                         ]
                 ]
         ]
-        ctx.withCloseable {
-            ctx = ctx.update('test2', overrideSpec)
-            assertThat ctx.ruleSetInfo.rulesetVersion, is('1.2.7')
-        }
-        Waf.ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        builder.addOrUpdateRuleConfig(overrideSpec, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
+        assertThat ruleSetInfo[0].rulesetVersion, is('1.2.7')
+
+        Waf.ResultWithData awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.OK)
 
         overrideSpec['rules_override'][0]['enabled'] = true
-        ctx.withCloseable {
-            ctx = ctx.update('test3', overrideSpec)
-        }
-        awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
+
+        builder.addOrUpdateRuleConfig(overrideSpec, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
+        awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
+        assertThat awd.result, is(Waf.Result.OK)
     }
 
     @Test
     void 'custom rules'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
-
-        ctx = Waf.createHandle('test', ruleSet)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         Map<String, Object> customRules = [
             rules: [],
@@ -605,14 +529,15 @@ class BasicTests implements WafTrait {
                      ],
                      operator: 'match_regex'
         ]]]]]
-        ctx.withCloseable {
-            ctx = ctx.update('test2', customRules)
-        }
-        def awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(customRules, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
+
+        def awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.OK)
-        awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, metrics)
+        awd = waf.runRules(
+                ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 }

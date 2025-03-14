@@ -9,6 +9,7 @@
 package com.datadog.ddwaf;
 
 import com.datadog.ddwaf.exception.AbstractWafException;
+import com.datadog.ddwaf.exception.TimeoutWafException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
 import com.datadog.ddwaf.exception.UnsupportedVMException;
 import java.util.Arrays;
@@ -21,7 +22,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public final class Waf {
-    public static final String LIB_VERSION = "1.22.0";
+    public static final String LIB_VERSION = "1.23.0";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Waf.class);
     static final boolean EXIT_ON_LEAK;
@@ -62,53 +63,6 @@ public final class Waf {
     }
 
     /**
-     * Creates a new collection of rules with the default configuration.
-     * @param uniqueId a unique id identifying the context. It better be unique!
-     * @param ruleDefinitions a map rule name to rule definition
-     * @return the new context
-     */
-    public static WafHandle createHandle(
-            String uniqueId, Map<String, Object> ruleDefinitions)
-            throws AbstractWafException {
-        return new WafHandle(uniqueId, null, ruleDefinitions);
-    }
-
-    /**
-     * Creates a new collection of rules.
-     * @param uniqueId a unique id identifying the builder. It better be unique!
-     * @param ruleDefinitions a map rule name to rule definition
-     * @param config configuration settings or null for the default
-     * @return the new builder
-     */
-    public static WafHandle createHandle(
-            String uniqueId, WafConfig config, Map<String, Object> ruleDefinitions)
-            throws AbstractWafException {
-        return new WafHandle(uniqueId, config, ruleDefinitions);
-    }
-
-    /**
-     * Creates a rule given its definition.
-     *
-     * See also pw_initH.
-     *
-     * @param definition map with keys version and events
-     * @param config configuration for the obfuscator. Non-null.
-     * @param rulesetInfoOut either a null or a 1-byte element holding an out
-     *                       reference for a {@link RuleSetInfo}.
-     * @return a non-null native handle
-     * @throws IllegalArgumentException
-     */
-    static native NativeWafHandle addRules(
-            Map<String, Object> definition, WafConfig config, RuleSetInfo[] rulesetInfoOut);
-
-    /* pw_clearRuleH */
-    static native void clearRules(NativeWafHandle handle);
-
-    static native String[] getKnownAddresses(NativeWafHandle handle);
-
-    static native String[] getKnownActions(NativeWafHandle handle);
-
-    /**
      * Runs a rule with the parameters pre-serialized into direct
      * ByteBuffers. The initial PWArgs must be the object at offset 0
      * of <code>firstPWArgsBuffer</code>. This object will have pointers
@@ -123,16 +77,12 @@ public final class Waf {
      * @param metrics the metrics collector, or null
      * @return the resulting action (OK or MATCH) and associated details
      */
-    static native ResultWithData runRules(NativeWafHandle handle,
+    private static native ResultWithData runRules(NativeWafHandle handle,
                                           ByteBuffer firstPWArgsBuffer,
                                           Limits limits,
                                           WafMetrics metrics) throws AbstractWafException;
 
-    static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
-
-    static native NativeWafHandle update(NativeWafHandle handle,
-                                         Map<String, Object> specification,
-                                         RuleSetInfo[] ruleSetInfoRef);
+    private static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
     public static native String getVersion();
 
@@ -149,6 +99,65 @@ public final class Waf {
     // called from JNI
     private static AbstractWafException createException(int retCode) {
         return AbstractWafException.createFromErrorCode(retCode);
+    }
+
+    /**
+     * Once batch file additions are done, run the rules of the context with the given parameters
+     *
+     * @param parameters      the parameters to run the rules with
+     * @param limits          the limits to run the rules with
+     * @param metrics         the metrics to run the rules with
+     * @param nativeWafHandle
+     * @return the result of the rules
+     * @throws AbstractWafException if the rules could not be run
+     */
+    public ResultWithData runRules(Map<String, Object> parameters,
+                                       Limits limits,
+                                       WafMetrics metrics, NativeWafHandle nativeWafHandle) throws AbstractWafException {
+        try {
+            LOGGER.debug("Running rule for context {} with limits {}",
+                    this, limits);
+
+            ResultWithData res;
+            // serialization could be extracted out of the lock
+            ByteBufferSerializer serializer = new ByteBufferSerializer(limits);
+            long before = System.nanoTime();
+            ByteBufferSerializer.ArenaLease lease;
+            try {
+                lease = serializer.serialize(parameters, metrics);
+            } catch (Exception e) {
+                throw new RuntimeException("Exception encoding parameters", e);
+            }
+            try {
+                long elapsedNs = System.nanoTime() - before;
+                Limits newLimits = limits.reduceBudget(elapsedNs / 1000);
+                if (newLimits.generalBudgetInUs == 0L) {
+                    LOGGER.debug(
+                            "Budget exhausted after serialization; " +
+                                    "not running rule of context {}",
+                            this);
+                    throw new TimeoutWafException();
+                }
+
+                res = runRules(
+                        nativeWafHandle, lease.getFirstPWArgsByteBuffer(), newLimits, metrics);
+            } finally {
+                lease.close();
+                if (metrics != null) {
+                    long after = System.nanoTime();
+                    long totalTimeNs = after - before;
+                    metrics.addTotalRunTimeNs(totalTimeNs);
+                }
+            }
+
+            LOGGER.debug("Rule of context {} ran successfully with return {}", this, res);
+
+            return res;
+        } catch (RuntimeException rte) {
+            throw new UnclassifiedWafException(
+                    "Error calling Waf's runRule for rule in context " + this +
+                            ": " + rte.getMessage(), rte);
+        }
     }
 
     public enum Result {

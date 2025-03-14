@@ -12,7 +12,7 @@ import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
 
 @CompileStatic
-trait ReqBodyTrait extends WafTrait {
+trait ReqBodyTrait {
 
     static final Map REQ_BODY_ATOM = (Map) new JsonSlurper().parseText('''
         {
@@ -39,7 +39,7 @@ trait ReqBodyTrait extends WafTrait {
         }
         ''')
 
-    Waf.ResultWithData testWithData(Object data) {
+    /*Waf.ResultWithData testWithData(Object data) {
         def rule = REQ_BODY_ATOM
 
         def params = [
@@ -48,5 +48,5 @@ trait ReqBodyTrait extends WafTrait {
 
         ctx = ctx ?: Waf.createHandle('test', rule)
         ctx.runRules(params, limits, metrics)
-    }
+    }*/
 }
