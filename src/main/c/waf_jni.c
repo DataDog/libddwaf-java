@@ -1024,7 +1024,7 @@ JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_removeRuleConfig(JNIEnv
     UNUSED(clazz);
     UNUSED(env);
     if(builder && old_path) {
-        ddwaf_builder_remove_config(_get_builder_checked(env, clazz, builder), JNI(GetStringUTFChars, old_path, NULL), (uint32_t) JNI(GetStringLength, old_path));
+        ddwaf_builder_remove_config(_get_builder_checked(env, clazz, builder), JNI(GetStringUTFChars, old_path, NULL), JNI(GetStringLength, old_path));
     }
 }
 

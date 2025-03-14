@@ -22,8 +22,11 @@ public final class WafBuilder {
     private String path;
 
     public WafBuilder(WafConfig config) {
-        this.ptr = initBuilder(config == null ? WafConfig.DEFAULT_CONFIG : config);
-        if (ptr == 0) { // in case the provided config does not work, we try with a default config again
+
+        config = (config == null ? WafConfig.DEFAULT_CONFIG : config);
+        this.ptr = initBuilder(config);
+        if (ptr == 0 && config != WafConfig.DEFAULT_CONFIG) {
+            // in case the provided config does not work, we try with a default config again
             this.ptr = initBuilder(WafConfig.DEFAULT_CONFIG);
         }
     }
@@ -50,5 +53,5 @@ public final class WafBuilder {
     private static native long initBuilder(WafConfig config);
     private static native boolean addOrUpdateRuleConfig(WafBuilder wafBuilder, String oldPath, String path, Map<String, Object> definition, RuleSetInfo[] infoRef);
     private static native void removeRuleConfig(WafBuilder wafBuilder, String oldPath);
-
+    private static native void changeConfig(WafBuilder wafBuilder, WafConfig config);
 }

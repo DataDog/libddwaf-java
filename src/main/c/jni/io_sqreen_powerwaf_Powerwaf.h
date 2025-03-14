@@ -84,7 +84,7 @@ JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafBuilder_initBuilder(JNIEnv *, 
  * Class:     com_datadog_ddwaf_Builder
  * Method:    build
  */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Builder_build(JNIEnv *, jclass, jlong);
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafBuilder_build(JNIEnv *, jclass, jlong);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
