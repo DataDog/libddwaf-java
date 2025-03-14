@@ -70,10 +70,12 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'addresses are fetched on closed context'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        ctx.close()
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
+        nativeWafHandle.destroy()
         def exc = shouldFail(IllegalStateException) {
-            ctx.usedAddresses
+            Waf.getKnownAddresses(nativeWafHandle)
         }
         assertThat exc.message, containsString('This context is already offline')
         ctx = null
@@ -81,7 +83,9 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'bytebuffer passed does not represent a map'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+                builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         wafContext = ctx.openContext()
 
         ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
@@ -97,7 +101,9 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'bytebuffer passed is not direct buffer'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+                builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         wafContext = ctx.openContext()
 
         shouldFail(Exception) {
@@ -109,7 +115,9 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'error converting update spec'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+                builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         def exc = shouldFail(IllegalStateException) {
             ctx.update('test2', new BadMap(delegate: [arachni_rule: false]))
         }
@@ -118,7 +126,9 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'empty update call'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+                builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         def exc = shouldFail(UnclassifiedWafException) {
             ctx.update('test2', [foo: 'bar'])
         }
@@ -127,7 +137,9 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'invalid update call'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+                builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
             ctx.update('test2', [rules: [[id: 'foobar']]])
         }
