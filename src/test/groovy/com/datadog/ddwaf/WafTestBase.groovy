@@ -159,7 +159,7 @@ class WafTestBase {
         new Waf.Limits(
                 maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
     }
-    static Waf ctx
+    static Waf waf
     static WafBuilder builder
     static WafMetrics wafMetrics
     static NativeWafHandle nativeWafHandle
@@ -168,10 +168,10 @@ class WafTestBase {
     @BeforeClass
     static void setup() {
         System.setProperty("ddwaf.logLevel", "DEBUG")
-        ctx = new Waf()
+        waf = new Waf()
         boolean simpleInit = System.getProperty('useReleaseBinaries') == null
         System.setProperty('PW_RUN_TIMEOUT', '500000' /* 500 ms */)
-        ctx.initialize(simpleInit)
+        waf.initialize(simpleInit)
         builder = new WafBuilder(null) // initial config will always be default
         wafMetrics = new WafMetrics()
     }
