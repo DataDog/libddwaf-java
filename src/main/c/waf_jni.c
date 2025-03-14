@@ -1018,6 +1018,16 @@ static ddwaf_builder _get_builder_checked(JNIEnv *env, jclass clazz,
     return builder;
 }
 
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_removeRuleConfig(JNIEnv *env, jclass clazz,
+                                                                        jobject builder, jstring old_path) {
+
+    UNUSED(clazz);
+    UNUSED(env);
+    if(builder && old_path) {
+        ddwaf_builder_remove_config(_get_builder_checked(env, clazz, builder), JNI(GetStringUTFChars, old_path, NULL), (uint32_t) JNI(GetStringLength, old_path));
+    }
+}
+
 JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_addOrUpdateRuleConfig(JNIEnv *env, jclass clazz, jobject builder,
                                                             jstring old_path, jstring path, jobject configuration,
                                                             jobject diagnostics) {
@@ -1041,14 +1051,8 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_addOrUpdateRuleConf
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
     }
-    if(ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
-                                                                                        &ddwaf_diagnostics)){
-        // old config must be removed once new config is added successfully
-        ddwaf_builder_remove_config(ddwaf_builder, JNI(GetStringUTFChars, old_path, NULL),
-                                                                        JNI(GetStringLength, old_path));
-    }
-
-
+    ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
+                                                                                        &ddwaf_diagnostics);
 
     ddwaf_object_free(&ddwaf_configuration);
     if (memcmp(&ddwaf_diagnostics, &(ddwaf_object) {0},

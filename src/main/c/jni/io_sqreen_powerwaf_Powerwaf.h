@@ -72,6 +72,8 @@ JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_deinitialize
 JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_addOrUpdateRuleConfig(JNIEnv *, jclass, jobject,
                                                             jstring, jstring, jobject, jobject);
 
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_removeRuleConfig(JNIEnv *, jclass, ddwaf_builder, jstring);
+
 /*
  * Class:     com_datadog_ddwaf_Builder
  * Method:    initBuilder

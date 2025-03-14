@@ -32,6 +32,7 @@ class BasicTests extends WafTestBase {
     void 'test running basic rule v1_0'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -61,7 +62,8 @@ class BasicTests extends WafTestBase {
     @Test
     void 'test running basic rule v2_1'() {
         def ruleSet = ARACHNI_ATOM_V2_1
-        
+
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -95,6 +97,7 @@ class BasicTests extends WafTestBase {
     void 'test blocking action'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -113,6 +116,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V2_1
         ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extract_schema']
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -160,6 +164,7 @@ class BasicTests extends WafTestBase {
         ])
         ruleSet['rules'][0]['on_match'] = ['aaaa', 'block', 'bbbb']
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -187,6 +192,7 @@ class BasicTests extends WafTestBase {
         ])
         ruleSet['rules'][0]['on_match'] = ['block']
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -205,7 +211,7 @@ class BasicTests extends WafTestBase {
     @Test
     void 'test with array of string lists'() {
         def ruleSet = ARACHNI_ATOM_V1_0
-
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -222,6 +228,7 @@ class BasicTests extends WafTestBase {
     void 'test with array'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -235,6 +242,7 @@ class BasicTests extends WafTestBase {
     void 'test null argument'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -248,6 +256,7 @@ class BasicTests extends WafTestBase {
     void 'test boolean arguments'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -264,6 +273,7 @@ class BasicTests extends WafTestBase {
     void 'test unencodable arguments'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -310,6 +320,7 @@ class BasicTests extends WafTestBase {
                 }
               ]
             }'''
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
         assertThat Waf.getKnownAddresses(nativeWafHandle) as List, is(empty())
@@ -365,6 +376,7 @@ class BasicTests extends WafTestBase {
            ],
            "version" : "2.1"
       }'''
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -397,6 +409,7 @@ class BasicTests extends WafTestBase {
 
                 ]
         ]
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(newData, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -474,6 +487,7 @@ class BasicTests extends WafTestBase {
            ]
          }'''
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -493,6 +507,7 @@ class BasicTests extends WafTestBase {
     @Test
     void 'rule toggling'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -511,7 +526,7 @@ class BasicTests extends WafTestBase {
                         ]
                 ]
         ]
-
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
         assertThat ruleSetInfo.rulesetVersion, is('1.2.7')
@@ -522,6 +537,7 @@ class BasicTests extends WafTestBase {
 
         overrideSpec['rules_override'][0]['enabled'] = true
 
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(overrideSpec, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -533,6 +549,7 @@ class BasicTests extends WafTestBase {
     @Test
     void 'custom rules'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 
@@ -556,6 +573,7 @@ class BasicTests extends WafTestBase {
                      ],
                      operator: 'match_regex'
         ]]]]]
+        builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
         nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
 

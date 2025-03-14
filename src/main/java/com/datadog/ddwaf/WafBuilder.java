@@ -38,12 +38,17 @@ public final class WafBuilder {
     }
 
     private String createPath(Map<String, Object> definition) {
-        path =  CONFIGURATION_RULES + definition.hashCode();
+        path = CONFIGURATION_RULES + definition.hashCode();
         return path;
+    }
+    public void removeRuleConfig() {
+        if(path != null) {
+            removeRuleConfig(this, path);
+        }
     }
 
     private static native long initBuilder(WafConfig config);
     private static native boolean addOrUpdateRuleConfig(WafBuilder wafBuilder, String oldPath, String path, Map<String, Object> definition, RuleSetInfo[] infoRef);
-
+    private static native void removeRuleConfig(WafBuilder wafBuilder, String oldPath);
 
 }
