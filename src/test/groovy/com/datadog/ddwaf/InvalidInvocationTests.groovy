@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.containsString
 import static org.hamcrest.Matchers.equalTo
 import static org.hamcrest.Matchers.hasEntry
 
-class InvalidInvocationTests implements ReactiveTrait {
+class InvalidInvocationTests extends WafTestBase {
     @CompileStatic
     static class BadMap<K, V> implements Map<K, V> {
         @Delegate
@@ -37,19 +37,20 @@ class InvalidInvocationTests implements ReactiveTrait {
 
     @Test
     void 'force exception during conversion of rule definitions'() {
-        def exc = shouldFail(RuntimeException) {
-            ctx = Waf.createHandle('test', new BadMap(delegate: [version: '1.0', events: []]))
+        builder.removeRuleConfig()
+        def exc = shouldFail(IllegalStateException) {
+            builder.addOrUpdateRuleConfig(new BadMap(delegate: [version: '1.0', events: []]), ruleSetInfo)
         }
-        assert exc.message =~ 'Exception encoding init/update rule specification'
-        assert exc.cause instanceof IllegalStateException
-        assert exc.cause.message == 'error here'
+        assert exc.message =~ 'error here'
     }
 
     @Test
     void 'runRule with conversion throwing exception'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         def exc = shouldFail(UnclassifiedWafException) {
-            ctx.runRules(new BadMap(delegate: [:]), limits, metrics)
+            waf.runRules(new BadMap(delegate: [:]), limits, wafMetrics, nativeWafHandle)
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
         assert exc.cause.cause instanceof IllegalStateException
@@ -57,26 +58,14 @@ class InvalidInvocationTests implements ReactiveTrait {
     }
 
     @Test
-    void 'runRule with conversion throwing exception wafContext variant'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        wafContext = ctx.openContext()
+    void 'rule is run on destroyed builder'() {
+        builder.removeRuleConfig()
+        builder.addOrUpdateRuleConfig(ARACHNI_ATOM_V2_1, ruleSetInfo)
+        builder.destroy()
         def exc = shouldFail(UnclassifiedWafException) {
-            wafContext.run(new BadMap(delegate: [:]), limits, metrics)
-        }
-        assert exc.cause.message =~ 'Exception encoding parameters'
-        assert exc.cause.cause instanceof IllegalStateException
-        assert exc.cause.cause.message == 'error here'
-    }
-
-    @Test
-    void 'rule is run on closed context'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        ctx.close()
-        def exc = shouldFail(UnclassifiedWafException) {
-            ctx.runRules([:], limits, metrics)
+            nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         }
         assertThat exc.message, containsString('This context is already offline')
-        ctx = null
     }
 
     @Test
@@ -96,12 +85,12 @@ class InvalidInvocationTests implements ReactiveTrait {
         wafContext = ctx.openContext()
 
         ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
-        serializer.serialize([a: 'b'], metrics).withCloseable { lease ->
+        serializer.serialize([a: 'b'], wafMetrics, nativeWafHandle).withCloseable { lease ->
             ByteBuffer buffer = lease.firstPWArgsByteBuffer
             def slice = buffer.slice()
             slice.position(ByteBufferSerializer.SIZEOF_PWARGS)
             shouldFail(InvalidObjectWafException) {
-                wafContext.runWafContext(slice, null, limits, metrics)
+                wafContext.runWafContext(slice, null, limits, wafMetrics, nativeWafHandle)
             }
         }
     }
@@ -114,7 +103,7 @@ class InvalidInvocationTests implements ReactiveTrait {
         shouldFail(Exception) {
             wafContext.runWafContext(
                     ByteBuffer.allocate(ByteBufferSerializer.SIZEOF_PWARGS), null,
-                    limits, metrics)
+                    limits, wafMetrics, nativeWafHandle)
         }
     }
 

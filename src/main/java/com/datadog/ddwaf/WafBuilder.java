@@ -10,6 +10,8 @@ package com.datadog.ddwaf;
 
 
 
+import com.datadog.ddwaf.exception.UnclassifiedWafException;
+
 import java.util.Map;
 
 public final class WafBuilder {
@@ -20,9 +22,10 @@ public final class WafBuilder {
      */
     private long ptr;     // KEEP THIS FIELD!
     private String path;
+    private boolean online;
 
     public WafBuilder(WafConfig config) {
-
+        online = true;
         config = (config == null ? WafConfig.DEFAULT_CONFIG : config);
         this.ptr = initBuilder(config);
         if (ptr == 0 && config != WafConfig.DEFAULT_CONFIG) {
@@ -50,8 +53,34 @@ public final class WafBuilder {
         }
     }
 
+    public NativeWafHandle buildNativeWafHandleInstance(NativeWafHandle oldHandle) throws UnclassifiedWafException {
+        if(online) {
+            return buildInstance(this, oldHandle);
+        }
+        throw new UnclassifiedWafException("WafBuilder is offline");
+    }
+
+    public void destroy() {
+        destroyBuilder(ptr);
+        online = false;
+    }
+
+    /**
+     * Builds a new instance of ddwaf_handle and deletes the old handle if provided
+     *
+     * @param wafBuilder
+     * @param oldHandle can be null if nothing is to be deleted
+     * @return the new handle
+     */
+    private static native NativeWafHandle buildInstance(WafBuilder wafBuilder, NativeWafHandle oldHandle);
+
+
     private static native long initBuilder(WafConfig config);
     private static native boolean addOrUpdateRuleConfig(WafBuilder wafBuilder, String oldPath, String path, Map<String, Object> definition, RuleSetInfo[] infoRef);
     private static native void removeRuleConfig(WafBuilder wafBuilder, String oldPath);
-    private static native void changeConfig(WafBuilder wafBuilder, WafConfig config);
+    private static native void destroyBuilder(long builderPtr);
+
+    public boolean isOnline() {
+        return online;
+    }
 }

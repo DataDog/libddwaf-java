@@ -63,15 +63,6 @@ public final class Waf {
     }
 
     /**
-     * Builds a new instance of ddwaf_handle and deletes the old handle if provided
-     *
-     * @param wafBuilder
-     * @param oldHandle can be null if nothing is to be deleted
-     * @return the new handle
-     */
-    public static native NativeWafHandle buildInstance(WafBuilder wafBuilder, NativeWafHandle oldHandle);
-
-    /**
      * Returns known addresses associated with the handle
      *
      * @param handle

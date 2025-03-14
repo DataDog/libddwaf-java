@@ -34,7 +34,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, wafMetrics, nativeWafHandle)
@@ -65,7 +65,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
@@ -99,7 +99,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
@@ -118,7 +118,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
@@ -166,7 +166,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
@@ -194,7 +194,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
@@ -213,7 +213,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V1_0
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [
             attack: ['o:1:"ee":1:{}'],
@@ -230,7 +230,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = ['foo', 'Arachni'] as String[]
         ResultWithData awd = waf.runRules(
@@ -245,7 +245,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [null, 'Arachni']
         ResultWithData awd = waf.runRules(
@@ -260,7 +260,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [true, false, 'Arachni']
         ResultWithData awd = waf.runRules(
@@ -278,7 +278,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [new MyClass(), 'Arachni']
         ResultWithData awd = waf.runRules(
@@ -291,7 +291,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V1_0
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         assertThat Waf.getKnownAddresses(nativeWafHandle) as List, contains('server.request.headers.no_cookies')
     }
 
@@ -300,7 +300,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_BLOCK
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [new MyClass(), 'Arachni']
         waf.runRules(
@@ -335,7 +335,7 @@ class BasicTests extends WafTestBase {
             }'''
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         assertThat Waf.getKnownAddresses(nativeWafHandle) as List, is(empty())
     }
 
@@ -391,7 +391,7 @@ class BasicTests extends WafTestBase {
       }'''
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData res = waf.runRules(['http.client_ip': '1.2.3.4'], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.OK)
@@ -423,7 +423,7 @@ class BasicTests extends WafTestBase {
                 ]
         ]
         builder.addOrUpdateRuleConfig([rules_data: newData], ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         res = waf.runRules(['http.client_ip': '1.2.3.4'], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.MATCH)
@@ -501,7 +501,7 @@ class BasicTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         ResultWithData res = waf.runRules(['server.request.query': [excluded_key: 'true']], limits, wafMetrics, nativeWafHandle)
         assertThat res.result, is(Waf.Result.MATCH)
@@ -521,7 +521,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_BLOCK
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         Map<String, Object> overrideSpec = [
                 metadata: [
@@ -539,7 +539,7 @@ class BasicTests extends WafTestBase {
                 ]
         ]
         builder.addOrUpdateRuleConfig(overrideSpec, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         assertThat ruleSetInfo[0].rulesetVersion, is('1.2.7')
 
         Waf.ResultWithData awd = waf.runRules(
@@ -549,7 +549,7 @@ class BasicTests extends WafTestBase {
         overrideSpec['rules_override'][0]['enabled'] = true
 
         builder.addOrUpdateRuleConfig(overrideSpec, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.OK)
@@ -560,7 +560,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_BLOCK
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         Map<String, Object> customRules = [
             rules: [],
@@ -584,7 +584,7 @@ class BasicTests extends WafTestBase {
         ]]]]]
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(customRules, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, nativeWafHandle)

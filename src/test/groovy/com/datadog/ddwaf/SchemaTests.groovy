@@ -127,7 +127,7 @@ class SchemaTests extends WafTestBase {
         runBudget = 20000000
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(EXTRACT_SCHEMA, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [
                 'waf.context.settings': [

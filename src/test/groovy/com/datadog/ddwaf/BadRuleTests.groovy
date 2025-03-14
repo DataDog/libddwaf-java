@@ -10,11 +10,7 @@ package com.datadog.ddwaf
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
-import com.datadog.ddwaf.exception.AbstractWafException
-import com.datadog.ddwaf.exception.InvalidRuleSetException
 import org.junit.Test
-
-import static groovy.test.GroovyAssert.shouldFail
 
 class BadRuleTests extends WafTestBase {
 
@@ -60,7 +56,7 @@ class BadRuleTests extends WafTestBase {
         rules['rules'] << rules['rules'][0]
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(rules, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         assert ruleSetInfo[0].numRulesOK == 1
         assert ruleSetInfo[0].numRulesError == 1

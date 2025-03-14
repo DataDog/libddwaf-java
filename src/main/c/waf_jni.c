@@ -1086,7 +1086,7 @@ JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafBuilder_initBuilder(JNIEnv *en
     return (jlong) (intptr_t) builder;
 }
 
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_buildInstance(JNIEnv *env, jclass clazz, jobject builder_java, jobject old_handle_java) {
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafBuilder_buildInstance(JNIEnv *env, jclass clazz, jobject builder_java, jobject old_handle_java) {
     ddwaf_builder builder = _get_builder_checked(env, clazz, builder_java);
     if(JNI(ExceptionCheck) || !builder ) {
         JAVA_LOG(DDWAF_LOG_DEBUG, "build instance did not succeed");
@@ -1118,11 +1118,11 @@ JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_buildInstance(JNIEnv *env, 
     return java_handle;
 }
 
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_destroyInstance(JNIEnv *env,jclass clazz, jlong waf_handle) {
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_destroyInstance(JNIEnv *env,jclass clazz, jlong waf_handle) {
     UNUSED(clazz);
     ddwaf_destroy((ddwaf_handle) (intptr_t) waf_handle);
 }
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_destroyBuilder(JNIEnv *env, jclass clazz, jlong builder_ptr) {
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_destroyBuilder(JNIEnv *env, jclass clazz, jlong builder_ptr) {
     UNUSED(clazz);
     ddwaf_builder_destroy((ddwaf_builder) (intptr_t) builder_ptr);
 }

@@ -22,7 +22,7 @@ class ObfuscationTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         
         Waf.ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics, nativeWafHandle)
@@ -42,7 +42,7 @@ class ObfuscationTests extends WafTestBase {
 
         builder.removeRuleConfig()
         builder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        nativeWafHandle = Waf.buildInstance(builder, nativeWafHandle)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
         Waf.ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, wafMetrics, nativeWafHandle)
         assertThat awd.result, is(Waf.Result.MATCH)
@@ -60,7 +60,7 @@ class ObfuscationTests extends WafTestBase {
 
         def thisBuilder = new WafBuilder(new WafConfig(obfuscatorKeyRegex: ''))
         thisBuilder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        def thisNativeWafHandle = Waf.buildInstance(thisBuilder, null)
+        def thisNativeWafHandle = Waf.buildNativeWafHandleInstance(thisBuilder, null)
 
         Waf.ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics, thisNativeWafHandle)
@@ -78,7 +78,7 @@ class ObfuscationTests extends WafTestBase {
 
         def thisBuilder = new WafBuilder(new WafConfig(obfuscatorValueRegex: 'rachni'))
         thisBuilder.addOrUpdateRuleConfig(ruleSet, ruleSetInfo)
-        def thisNativeWafHandle = Waf.buildInstance(thisBuilder, null)
+        def thisNativeWafHandle = Waf.buildNativeWafHandleInstance(thisBuilder, null)
 
         Waf.ResultWithData awd = waf.runRules(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics, thisNativeWafHandle)
