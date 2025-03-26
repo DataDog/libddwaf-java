@@ -19,7 +19,15 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-public final class WafContext implements Closeable {
+/**
+ * Originally intended to be a {@code final} class to enforce immutability and usage constraints.
+ * The {@code final} modifier was intentionally removed to improve testability—specifically to allow mocking
+ * in unit tests
+ *
+ * This class should still be treated as final in spirit: it is not designed for extension ,
+ * and should only be subclassed or mocked in test environments.
+ */
+public class WafContext implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(WafContext.class);
 
     private final WafHandle ctx;
