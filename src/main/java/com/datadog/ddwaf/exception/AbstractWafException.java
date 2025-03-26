@@ -24,11 +24,11 @@ public abstract class AbstractWafException extends Exception {
     public static AbstractWafException createFromErrorCode(int errorCode) {
         switch (errorCode) {
             case -1:
-                return new InvalidArgumentWafException();
+                return new InvalidArgumentWafException(errorCode);
             case -2:
-                return new InvalidObjectWafException();
+                return new InvalidObjectWafException(errorCode);
             case -3:
-                return new InternalWafException();
+                return new InternalWafException(errorCode);
             default:
                 return new UnclassifiedWafException(errorCode);
         }
