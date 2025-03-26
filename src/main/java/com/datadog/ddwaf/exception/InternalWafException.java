@@ -10,6 +10,6 @@ package com.datadog.ddwaf.exception;
 
 public class InternalWafException extends AbstractWafException {
     public InternalWafException() {
-        super("Internal error", -4);
+        super("Internal error", -3);
     }
 }

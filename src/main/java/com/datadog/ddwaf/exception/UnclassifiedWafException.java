@@ -9,16 +9,19 @@
 package com.datadog.ddwaf.exception;
 
 public class UnclassifiedWafException extends AbstractWafException {
+
+    private static final int code = -127;
+
     public UnclassifiedWafException(int errorCode) {
-        super("Unclassified Waf exception with error code " + errorCode, errorCode);
+        super("Unclassified Waf exception with error code " + errorCode, code);
     }
 
     public UnclassifiedWafException(String message) {
-        super(message, Integer.MIN_VALUE);
+        super(message, code);
     }
 
     public UnclassifiedWafException(String message, Throwable cause) {
-        super(message, Integer.MIN_VALUE, cause);
+        super(message, code, cause);
     }
 
     public UnclassifiedWafException(Throwable e) {
