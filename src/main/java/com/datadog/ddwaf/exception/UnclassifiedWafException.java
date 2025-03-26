@@ -13,7 +13,7 @@ public class UnclassifiedWafException extends AbstractWafException {
     private static final int code = -127;
 
     public UnclassifiedWafException(int errorCode) {
-        super("Unclassified Waf exception with error code " + errorCode, code);
+        super("Unclassified Waf exception with error code " + errorCode, errorCode);
     }
 
     public UnclassifiedWafException(String message) {
