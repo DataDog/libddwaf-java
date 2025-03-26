@@ -20,8 +20,10 @@ plugins {
     id 'groovy'
     id 'jacoco'
     id 'ivy-publish'
+    id 'maven-publish'
     id 'codenarc'
     id 'me.champeau.jmh' version '0.7.2'
+    id 'info.solidsoft.pitest' version '1.15.0'
 }
 
 repositories {
@@ -33,7 +35,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '11.3.0'
+version '13.0.0'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -327,6 +329,12 @@ publishing {
                 text = description
             }
         }
+
+        // only publish to maven local for now
+        maven(MavenPublication) {
+            version = "${project.version}-SNAPSHOT"
+            from components.java
+        }
     }
 }
 
@@ -430,6 +438,9 @@ tasks.withType(Test).configureEach {
         it.dependsOn buildNativeLibDebug
     }
 
+    // ByteBufferSerializerTest will fail in some locales because of float formatting (that's just for test code).
+    it.environment.put('LC_ALL', 'C')
+
     if (project.hasProperty("withASAN")) {
         it.environment ASAN_OPTIONS: 'verbosity=1 handle_segv=0 fast_unwind_on_malloc=0 detect_leaks=0', LD_PRELOAD: '/usr/lib/x86_64-linux-gnu/libasan.so.8'
     }
@@ -467,6 +478,41 @@ codenarcTest {
 jmh {
     jmhVersion = '1.37'
     duplicateClassesStrategy = DuplicatesStrategy.EXCLUDE
+    failOnError = true
+    if (project.hasProperty('useReleaseBinaries')) {
+        jvmArgsAppend = ['-DuseReleaseBinaries=true']
+    } else {
+        def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
+        jvmArgsAppend = ["-Djava.library.path=$javaLibPath"] as List<String>
+    }
+}
+
+tasks.named("jmh").configure {
+    if (project.hasProperty('useReleaseBinaries')) {
+        dependsOn copyNativeLibs
+    } else {
+        dependsOn buildNativeLibDebug
+    }
+}
+
+pitest {
+    pitestVersion = '1.18.1'
+    junit5PluginVersion = '1.2.1'
+    targetClasses = ['io.sqreen.*']
+    def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
+    jvmArgs = ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true', "-Djava.library.path=$javaLibPath"]
+    threads = 8
+    outputFormats = ['HTML']
+    mutators = ['STRONGER']
+    timeoutFactor = 2.0
+}
+
+tasks.named("pitest").configure {
+    dependsOn buildNativeLibDebug
+}
+
+project.afterEvaluate {
+    tasks.withType(PublishToMavenRepository).each { it.enabled = false }
 }
 
 // vim: set et ts=4 sw=4 list:

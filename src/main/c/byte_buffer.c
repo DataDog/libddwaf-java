@@ -10,10 +10,10 @@
 #include <stdint.h>
 #include <string.h>
 #include "common.h"
-#include "jni/io_sqreen_powerwaf_ByteBufferSerializer.h"
+#include "jni/com_datadog_ddwaf_ByteBufferSerializer.h"
 
 JNIEXPORT jlong JNICALL
-Java_io_sqreen_powerwaf_ByteBufferSerializer_getByteBufferAddress(JNIEnv *env,
+Java_com_datadog_ddwaf_ByteBufferSerializer_getByteBufferAddress(JNIEnv *env,
                                                                   jclass clazz,
                                                                   jobject bb)
 {
