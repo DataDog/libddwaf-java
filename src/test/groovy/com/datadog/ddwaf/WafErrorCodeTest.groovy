@@ -1,7 +1,6 @@
 package com.datadog.ddwaf
 
 import org.junit.Test
-import static org.junit.Assert.assertNull
 
 class WafErrorCodeTest {
 
@@ -19,13 +18,12 @@ class WafErrorCodeTest {
         assert WafErrorCode.fromCode(-2) == WafErrorCode.INVALID_OBJECT
         assert WafErrorCode.fromCode(-3) == WafErrorCode.INTERNAL_ERROR
         assert WafErrorCode.fromCode(-127) == WafErrorCode.BINDING_ERROR
-        assertNull(WafErrorCode.fromCode(999)) // Unknown code should return null
+        assert WafErrorCode.fromCode(999) == null // Unknown code should return null
     }
 
     @Test
     void testDefinedCodesMap() {
-        def codes = WafErrorCode.getDefinedCodes()
-
+        Map<Integer, WafErrorCode> codes = WafErrorCode.definedCodes
         assert codes.size() == 4
         assert codes[-1] == WafErrorCode.INVALID_ARGUMENT
         assert codes[-2] == WafErrorCode.INVALID_OBJECT
@@ -33,4 +31,4 @@ class WafErrorCodeTest {
         assert codes[-127] == WafErrorCode.BINDING_ERROR
         assert codes instanceof java.util.Collections.UnmodifiableMap
     }
-} 
+}

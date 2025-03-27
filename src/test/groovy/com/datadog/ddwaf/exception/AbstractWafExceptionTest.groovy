@@ -24,18 +24,17 @@ class AbstractWafExceptionTest {
 
     @Test
     void testSetCorrectMessageInCreatedExceptions() {
-        assert AbstractWafException.createFromErrorCode(-1).message == "Invalid argument"
-        assert AbstractWafException.createFromErrorCode(-2).message == "Invalid object"
-        assert AbstractWafException.createFromErrorCode(-3).message == "Internal error"
-        assert AbstractWafException.createFromErrorCode(999).message == "Unknown error code: 999"
+        assert AbstractWafException.createFromErrorCode(-1).message == 'Invalid argument'
+        assert AbstractWafException.createFromErrorCode(-2).message == 'Invalid object'
+        assert AbstractWafException.createFromErrorCode(-3).message == 'Internal error'
+        assert AbstractWafException.createFromErrorCode(999).message == 'Unknown error code: 999'
     }
 
     @Test
     void testHandleCauseInExceptionConstructor() {
-        def cause = new RuntimeException("Test cause")
-        def exception = new InvalidArgumentWafException("Test message", -1, cause)
-
-        assert exception.message == "Test message"
+        RuntimeException cause = new RuntimeException('Test cause')
+        InvalidArgumentWafException exception = new InvalidArgumentWafException('Test message', -1, cause)
+        assert exception.message == 'Test message'
         assert exception.code == -1
         assert exception.cause == cause
     }
@@ -51,10 +50,10 @@ class AbstractWafExceptionTest {
          * with actual WAF error scenarios.
          */
         try {
-            AbstractWafException.createFromErrorCode(WafErrorCode.BINDING_ERROR.getCode())
-            fail("Expected IllegalStateException to be thrown")
+            AbstractWafException.createFromErrorCode(WafErrorCode.BINDING_ERROR.code)
+            fail('Expected IllegalStateException to be thrown')
         } catch (IllegalStateException e) {
-            assert e.message == "Unhandled WafErrorCode: BINDING_ERROR"
+            assert e.message == 'Unhandled WafErrorCode: BINDING_ERROR'
         }
     }
-} 
+}
