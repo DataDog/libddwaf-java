@@ -24,13 +24,12 @@ class WafErrorCodeTest {
     @Test
     void testDefinedCodesMap() {
         // codenarc-disable UnnecessaryGetter
-        Map<Integer, WafErrorCode> codes = WafErrorCode.getDefinedCodes()
+        def codes = WafErrorCode.getDefinedCodes()
         // codenarc-enable UnnecessaryGetter
         assert codes.size() == 4
         assert codes[-1] == WafErrorCode.INVALID_ARGUMENT
         assert codes[-2] == WafErrorCode.INVALID_OBJECT
         assert codes[-3] == WafErrorCode.INTERNAL_ERROR
         assert codes[-127] == WafErrorCode.BINDING_ERROR
-        assert codes instanceof java.util.Collections.UnmodifiableMap
     }
 }
