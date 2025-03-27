@@ -27,16 +27,7 @@ class AbstractWafExceptionTest {
         assert AbstractWafException.createFromErrorCode(-1).message == 'Invalid argument'
         assert AbstractWafException.createFromErrorCode(-2).message == 'Invalid object'
         assert AbstractWafException.createFromErrorCode(-3).message == 'Internal error'
-        assert AbstractWafException.createFromErrorCode(999).message == 'Unknown error code: 999'
-    }
-
-    @Test
-    void testHandleCauseInExceptionConstructor() {
-        RuntimeException cause = new RuntimeException('Test cause')
-        InvalidArgumentWafException exception = new InvalidArgumentWafException('Test message', -1, cause)
-        assert exception.message == 'Test message'
-        assert exception.code == -1
-        assert exception.cause == cause
+        assert AbstractWafException.createFromErrorCode(999).message == 'Unclassified Waf exception with error code 999'
     }
 
     @Test

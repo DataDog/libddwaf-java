@@ -23,7 +23,9 @@ class WafErrorCodeTest {
 
     @Test
     void testDefinedCodesMap() {
-        Map<Integer, WafErrorCode> codes = WafErrorCode.definedCodes
+        // codenarc-disable UnnecessaryGetter
+        Map<Integer, WafErrorCode> codes = WafErrorCode.getDefinedCodes()
+        // codenarc-enable UnnecessaryGetter
         assert codes.size() == 4
         assert codes[-1] == WafErrorCode.INVALID_ARGUMENT
         assert codes[-2] == WafErrorCode.INVALID_OBJECT
