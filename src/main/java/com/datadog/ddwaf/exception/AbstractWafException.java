@@ -8,6 +8,8 @@
 
 package com.datadog.ddwaf.exception;
 
+import com.datadog.ddwaf.WafErrorCode;
+
 public abstract class AbstractWafException extends Exception {
     public final int code;
 
@@ -22,15 +24,23 @@ public abstract class AbstractWafException extends Exception {
     }
 
     public static AbstractWafException createFromErrorCode(int errorCode) {
-        switch (errorCode) {
-            case -1:
-                return new InvalidArgumentWafException(errorCode);
-            case -2:
-                return new InvalidObjectWafException(errorCode);
-            case -3:
-                return new InternalWafException(errorCode);
-            default:
-                return new UnclassifiedWafException(errorCode);
+        WafErrorCode wafErrorCode = WafErrorCode.fromCode(errorCode);
+
+        // If the error code is not defined in the enum, return a generic exception
+        if (wafErrorCode == null) {
+            return new UnclassifiedWafException(errorCode);
         }
+
+        switch (wafErrorCode) {
+            case INVALID_ARGUMENT:
+                return new InvalidArgumentWafException(errorCode);
+            case INVALID_OBJECT:
+                return new InvalidObjectWafException(errorCode);
+            case INTERNAL_ERROR:
+                return new InternalWafException(errorCode);
+        }
+
+        // This point should never be reached unless a new enum value is added and not handled above
+        throw new IllegalStateException("Unhandled WafErrorCode: " + wafErrorCode);
     }
 }
