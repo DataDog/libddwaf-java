@@ -9,7 +9,7 @@ import java.util.zip.GZIPInputStream
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.isA
 
-class SchemaTests implements WafTrait {
+class SchemaTests extends WafTestBase {
     static final Map EXTRACT_SCHEMA = (Map) new JsonSlurper().parseText('''
         {
           "version": "2.2",
@@ -125,7 +125,8 @@ class SchemaTests implements WafTrait {
         maxElements = 30
         timeoutInUs = 20000000
         runBudget = 20000000
-        ctx = Waf.createHandle('test', EXTRACT_SCHEMA)
+        builder.addOrUpdateRuleConfig('enya', EXTRACT_SCHEMA, ruleSetInfo)
+        nativeWafHandle = builder.buildNativeWafHandleInstance(nativeWafHandle)
 
         def data = [
                 'waf.context.settings': [
@@ -146,7 +147,7 @@ class SchemaTests implements WafTrait {
                 ]
         ]
 
-        Waf.ResultWithData awd = ctx.runRules(data, limits, metrics)
+        Waf.ResultWithData awd = Waf.runRules(data, limits, wafMetrics, nativeWafHandle)
         assertThat awd.derivatives, isA(Map)
 
         def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.derivatives['_dd.appsec.s.req.body']))
