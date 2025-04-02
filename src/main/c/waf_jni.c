@@ -584,7 +584,7 @@ static jobject _run_rule_common(JNIEnv *env, jclass clazz,
 
     if (log_level_enabled(DDWAF_LOG_DEBUG)) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "ddwaf_run ran in %" PRId64 " microseconds. "
+                     "ddwaf_run ran in %" PRIu64 " microseconds. "
                      "Result code: %d",
                      ret.total_runtime, ret_code);
     }
