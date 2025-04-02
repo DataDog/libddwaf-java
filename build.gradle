@@ -47,6 +47,7 @@ java {
 
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
+def LINUX = org.gradle.internal.os.OperatingSystem.current().linux
 
 def libddwafDir = "$projectDir/libddwaf"
 def cmakeBuildSuffix = project.hasProperty('withASAN') ? "asan" : "debug"
@@ -352,7 +353,37 @@ tasks.register('fixS3Permissions') {
     publish.finalizedBy it
 }
 
-tasks.register('copyNativeLibs', Copy) {
+String getArch() {
+    final arch = System.getProperty('os.arch')
+    if (['x86_64', 'amd64'].contains(arch)) {
+        return 'x86_64'
+    } else if (['aarch64', 'arm64'].contains(arch)) {
+        return 'aarch64'
+    } else {
+        throw new GradleException("Unsupported architecture: $arch")
+    }
+}
+
+def getOs = () -> {
+    if (WINDOWS) {
+        return 'windows'
+    } else if (MACOS) {
+        return 'macos'
+    } else {
+        return 'linux'
+    }
+}
+
+def getLibc = () -> {
+    if (WINDOWS || MACOS) {
+        return ''
+    } else {
+        // XXX: We'll assume that developers are using glibc
+        return 'glibc'
+    }
+}
+
+tasks.register('copyNativeLibsRelease', Copy) {
     def existsLib = { filename ->
         def fileObj = file("$nativeLibsDir/${filename}")
         if (!fileObj.exists()) {
@@ -386,10 +417,45 @@ tasks.register('copyNativeLibs', Copy) {
     dependsOn checkForNativeLibs
 }
 
-tasks.withType(JavaCompile).configureEach {
-    mustRunAfter copyNativeLibs
+tasks.register('copyLibddwafDebug', Copy) {
+    dependsOn 'buildLibddwafDebug'
+    final String targetLibddwafDir = "${getOs()}/${getArch()}"
+    from "$libddwafInstallPrefix/lib", {
+        include 'libddwaf.so'
+        include 'libddwaf.dylib'
+        include 'libddwaf.dll'
+    }
+    into "${sourceSets.main.output.resourcesDir}/native_libs/${targetLibddwafDir}"
 }
-jar.dependsOn copyNativeLibs
+
+tasks.register('copyNativeLibDebug', Copy) {
+    dependsOn 'buildNativeLibDebug'
+    final String targetLibddwafDir = "${getOs()}/${getArch()}"
+    // XXX:For Linux, we'll assume developer environment uses glibc
+    final String targetNativeLibDir = LINUX? "$targetLibddwafDir/glibc" : targetLibddwafDir
+    from buildNativeLibDebug.outputs.files.singleFile
+    into "${sourceSets.main.output.resourcesDir}/native_libs/${targetNativeLibDir}"
+}
+
+tasks.register('copyNativeLibsDebug', Copy) {
+    dependsOn 'copyLibddwafDebug'
+    dependsOn 'copyNativeLibDebug'
+}
+
+tasks.register('copyNativeLibs') {
+    if (project.hasProperty('useReleaseBinaries')) {
+        dependsOn copyNativeLibsRelease
+    } else {
+        dependsOn copyNativeLibsDebug
+    }
+}
+
+tasks.named('processResources').configure {
+    dependsOn copyNativeLibs
+}
+tasks.named('jar').configure {
+    dependsOn copyNativeLibs
+}
 
 tasks.register('testgc', Test) {
     description = 'Tests that the library can be unloaded'
@@ -429,14 +495,8 @@ tasks.withType(Test).configureEach {
     }
 
     it.jvmArgs += ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true']
-    if (project.hasProperty('useReleaseBinaries')) {
-        it.jvmArgs += ['-DuseReleaseBinaries=true']
-        it.dependsOn copyNativeLibs
-    } else {
-        def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
-        it.jvmArgs += ["-Djava.library.path=$javaLibPath"]
-        it.dependsOn buildNativeLibDebug
-    }
+    it.jvmArgs += ['-DuseReleaseBinaries=true']
+    it.dependsOn copyNativeLibs
 
     // ByteBufferSerializerTest will fail in some locales because of float formatting (that's just for test code).
     it.environment.put('LC_ALL', 'C')
