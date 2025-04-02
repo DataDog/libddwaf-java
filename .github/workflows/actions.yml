@@ -307,6 +307,9 @@ jobs:
       with:
         java-version: 11
         distribution: temurin
+    - name: Setup recent Xcode
+      if: ${{ matrix.runs-on == 'macos-15' }}
+      run: xcodes select 16.2
     - name: Build and run tests
       run: ./gradlew check
 
