@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12.0)
 include(FetchContent)
 
-set(ZLIB_VERSION v1.3)
+set(ZLIB_VERSION v1.3.1)
 FetchContent_Declare(
   zlib
   GIT_REPOSITORY https://github.com/madler/zlib.git
