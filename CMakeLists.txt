@@ -72,7 +72,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-switch
         -Wno-gnu-statement-expression -Wno-reserved-id-macro
         -Wno-atomic-implicit-seq-cst -Wno-covered-switch-default
-        -Wno-switch-enum)
+        -Wno-switch-enum -Wno-pre-c11-compat -Wno-switch-default)
     if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "16.0")
         target_compile_options(sqreen_jni PRIVATE -Wno-unsafe-buffer-usage)
     endif()
