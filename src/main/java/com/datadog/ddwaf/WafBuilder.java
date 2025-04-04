@@ -38,7 +38,7 @@ public final class WafBuilder {
         }
     }
 
-    public boolean addOrUpdateConfig(String uniqueId, Map<String, Object> definition, RuleSetInfo[] infoRef) throws InvalidRuleSetException {
+    public synchronized boolean addOrUpdateConfig(String uniqueId, Map<String, Object> definition, RuleSetInfo[] infoRef) throws InvalidRuleSetException {
         if (infoRef == null || infoRef.length == 0) {
             throw new IllegalArgumentException("Provide a non-null, fillable infoRef");
         }
@@ -52,7 +52,7 @@ public final class WafBuilder {
         throw new InvalidRuleSetException(infoRef[0], "Invalid rule set");
     }
 
-    public void removeConfig(String uniqueId) {
+    public synchronized void removeConfig(String uniqueId) {
         if(uniqueId != null) {
             removeConfigNative(this, uniqueId);
         }
