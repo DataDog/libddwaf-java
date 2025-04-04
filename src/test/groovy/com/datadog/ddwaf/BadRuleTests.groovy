@@ -8,59 +8,59 @@
 
 package com.datadog.ddwaf
 
+import com.datadog.ddwaf.exception.InvalidRuleSetException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
-import com.datadog.ddwaf.exception.AbstractWafException
-import com.datadog.ddwaf.exception.InvalidRuleSetException
 import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail
 
-class BadRuleTests implements WafTrait {
+class BadRuleTests extends WafTestBase {
 
-    @Test(expected = AbstractWafException)
+    @Test
     void 'no events'() {
-        ctx = Waf.createHandle('test', [version: '0.0', events: []])
+        boolean pass = builder.addOrUpdateConfig('enya', [version: '0.0', events: []], ruleSetInfo)
+        assert pass
+
+        assert ruleSetInfo[0].numConfigOK == 0 // passes but no rules
     }
 
     @Test
     void 'rule without id'() {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'][0].remove('id')
-        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
-            ctx = Waf.createHandle('test', rules)
+        shouldFail(InvalidRuleSetException) {
+            builder.addOrUpdateConfig('enya', rules, ruleSetInfo)
         }
 
-        def rsi = exc.ruleSetInfo
-        assert rsi.numRulesOK == 0
-        assert rsi.numRulesError == 1
-        assert rsi.errors == ['missing key \'id\'':['index:0']]
+        assert ruleSetInfo[0].numConfigOK == 0
+        assert ruleSetInfo[0].numConfigError == 1
+        assert ruleSetInfo[0].allErrors == ['missing key \'id\'':['index:0']]
     }
 
     @Test
     void 'rules have the wrong form'() {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'] = [:]
-        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
-            ctx = Waf.createHandle('test', rules)
+
+        shouldFail(InvalidRuleSetException) {
+            builder.addOrUpdateConfig('enya', rules, ruleSetInfo)
         }
 
-        def rsi = exc.ruleSetInfo
-        assert rsi.numRulesOK == 0
-        assert rsi.numRulesError == 0
-        assert rsi.rules.error == "bad cast, expected 'array', obtained 'map'"
+        assert ruleSetInfo[0].numConfigOK == 0
+        assert ruleSetInfo[0].numConfigError == 1
+        assert ruleSetInfo[0].rules.error == "bad cast, expected 'array', obtained 'map'"
     }
 
     @Test
     void 'duplicated rule'() {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'] << rules['rules'][0]
-        ctx = Waf.createHandle('test', rules)
+        builder.addOrUpdateConfig('enya', rules, ruleSetInfo)
 
-        def rsi = ctx.ruleSetInfo
-        assert rsi.numRulesOK == 1
-        assert rsi.numRulesError == 1
-        assert rsi.errors == ['duplicate rule': ['arachni_rule'] as String[]]
+        assert ruleSetInfo[0].numConfigOK == 1
+        assert ruleSetInfo[0].numConfigError == 1
+        assert ruleSetInfo[0].allErrors == ['duplicate rule': ['arachni_rule'] as String[]]
     }
 
     private Map copyMap(Map map) {
