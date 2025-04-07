@@ -397,7 +397,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
     - name: Build final JAR and debug symbols package
-      run: ./gradlew assemble
+      run: ./gradlew assemble -Prelease -PuseReleaseBinaries
     - name: Copy artifacts to the packages directory
       run: |
         set -ex
@@ -601,7 +601,7 @@ jobs:
         name: native_libs
         path: native_libs
     - name: Publish artifacts to S3
-      run: ./gradlew publish
+      run: ./gradlew publish -Prelease -PuseReleaseBinaries
       env:
         AWS_ACCESS_KEY_ID: AKIA5VR734GFSK4FR2PD
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
