@@ -76,7 +76,7 @@ static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limit
 static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits);
 static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
-static void _update_metrics(JNIEnv *env, jobject metrics_obj, const ddwaf_result *ret, struct timespec start);
+static void _update_metrics(JNIEnv *env, jobject metrics_obj, const ddwaf_result *ret);
 static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig, ddwaf_config *out_config);
 static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code, const ddwaf_result *ret);
@@ -584,7 +584,7 @@ static jobject _run_rule_common(JNIEnv *env, jclass clazz,
 
     if (log_level_enabled(DDWAF_LOG_DEBUG)) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "ddwaf_run ran in %" PRId64 " microseconds. "
+                     "ddwaf_run ran in %" PRIu64 " microseconds. "
                      "Result code: %d",
                      ret.total_runtime, ret_code);
     }
@@ -616,7 +616,7 @@ static jobject _run_rule_common(JNIEnv *env, jclass clazz,
     }
 
 freeRet:
-    _update_metrics(env, metrics_obj, &ret, start);
+    _update_metrics(env, metrics_obj, &ret);
     ddwaf_result_free(&ret);
 end:
     if (ctx) {
@@ -811,7 +811,7 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
     }
 
 freeRet:
-    _update_metrics(env, metrics_obj, &ret, start);
+    _update_metrics(env, metrics_obj, &ret);
     ddwaf_result_free(&ret);
 
     return result;
@@ -2061,8 +2061,7 @@ static void _throw_pwaf_timeout_exception(JNIEnv *env)
 }
 
 static void _update_metrics(JNIEnv *env, jobject metrics_obj,
-                            const ddwaf_result *ret,
-                            struct timespec start)
+                            const ddwaf_result *ret)
 {
     // save exception if any
     jthrowable earlier_exc = JNI(ExceptionOccurred);

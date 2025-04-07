@@ -43,7 +43,7 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
                                           int depth,
                                           struct json_segment *cur_seg);
 
-bool _is_derivative(const ddwaf_object *entry, const char *prefix) {
+static bool _is_derivative(const ddwaf_object *entry, const char *prefix) {
     size_t prefix_size = strlen(prefix);
     if (entry->parameterNameLength < prefix_size) {
         return false;
