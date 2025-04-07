@@ -32,14 +32,14 @@ class InvalidInvocationTests extends WafTestBase {
     @Test
     void 'force exception during conversion of rule definitions'() {
         def exc = shouldFail(IllegalStateException) {
-            builder.addOrUpdateConfig('enya', new BadMap(delegate: [version: '1.0', events: []]), ruleSetInfo)
+            ruleSetInfo = builder.addOrUpdateConfig('enya', new BadMap(delegate: [version: '1.0', events: []]))
         }
         assert exc.message =~ 'error here'
     }
 
     @Test
     void 'runRule with conversion throwing exception'() {
-        builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
             Waf.runContext(new BadMap(delegate: [:]), limits, wafMetrics, builder)
         }
@@ -50,7 +50,7 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'rule is run on destroyed builder'() {
-        builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
         builder.destroy()
         def exc = shouldFail(UnclassifiedWafException) {
             Waf.runContext(['server.request.headers.no_cookies': ['user-agent': ['Arachni/v1']]], limits, wafMetrics,
@@ -62,7 +62,7 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'error converting update spec'() {
-        builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
             Waf.runContext(new BadMap(delegate: [arachni_rule: false]), limits, wafMetrics, builder)
         }
@@ -71,16 +71,19 @@ class InvalidInvocationTests extends WafTestBase {
 
     @Test
     void 'empty update call'() {
-        builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
-        def result = builder.addOrUpdateConfig('enya', [foo: 'bar'], ruleSetInfo)
-        assert result // no rules to update is a passing call
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', [foo: 'bar'])
+        assert ruleSetInfo.numConfigOK == 0
+        assert ruleSetInfo.numConfigError == 0 // nothing happened
     }
 
     @Test
     void 'invalid update call'() {
-        builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1, ruleSetInfo)
-        shouldFail(InvalidRuleSetException) {
-            builder.addOrUpdateConfig('enya', [rules: [[id: 'foobar']]], ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
+        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+            builder.addOrUpdateConfig('enya', [rules: [[id: 'foobar']]])
         }
+        assert exc.ruleSetInfo.allErrors.size() == 1
+        assert exc.ruleSetInfo.allErrors.keySet().contains('missing key \'conditions\'')
     }
 }

@@ -20,7 +20,7 @@ class ObfuscationTests extends WafTestBase {
     void 'obfuscation by key with default settings'() {
         def ruleSet = ARACHNI_ATOM_V2_1
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics,
@@ -39,7 +39,7 @@ class ObfuscationTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V2_1
         def val = 'Arachni/v1 password=s3krit'
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, wafMetrics, builder)
         assertThat awd.result, is(Waf.Result.MATCH)
@@ -56,7 +56,7 @@ class ObfuscationTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V2_1
 
         def thisBuilder = new WafBuilder(new WafConfig(obfuscatorKeyRegex: ''))
-        thisBuilder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = thisBuilder.addOrUpdateConfig('enya', ruleSet)
 
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics,
@@ -74,7 +74,7 @@ class ObfuscationTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V2_1
 
         def thisBuilder = new WafBuilder(new WafConfig(obfuscatorValueRegex: 'rachni'))
-        thisBuilder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = thisBuilder.addOrUpdateConfig('enya', ruleSet)
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
                 thisBuilder)

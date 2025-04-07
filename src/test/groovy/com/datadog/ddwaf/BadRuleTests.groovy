@@ -19,23 +19,23 @@ class BadRuleTests extends WafTestBase {
 
     @Test
     void 'no events'() {
-        boolean pass = builder.addOrUpdateConfig('enya', [version: '0.0', events: []], ruleSetInfo)
-        assert pass
+        RuleSetInfo ruleSetInfo = builder.addOrUpdateConfig('enya', [version: '0.0', events: []])
 
-        assert ruleSetInfo[0].numConfigOK == 0 // passes but no rules
+        assert ruleSetInfo.numConfigOK == 0 // passes but no rules
     }
 
     @Test
     void 'rule without id'() {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'][0].remove('id')
-        shouldFail(InvalidRuleSetException) {
-            builder.addOrUpdateConfig('enya', rules, ruleSetInfo)
+        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+            builder.addOrUpdateConfig('enya', rules)
         }
+        ruleSetInfo = exc.ruleSetInfo
 
-        assert ruleSetInfo[0].numConfigOK == 0
-        assert ruleSetInfo[0].numConfigError == 1
-        assert ruleSetInfo[0].allErrors == ['missing key \'id\'':['index:0']]
+        assert ruleSetInfo.numConfigOK == 0
+        assert ruleSetInfo.numConfigError == 1
+        assert ruleSetInfo.allErrors == ['missing key \'id\'':['index:0']]
     }
 
     @Test
@@ -43,24 +43,25 @@ class BadRuleTests extends WafTestBase {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'] = [:]
 
-        shouldFail(InvalidRuleSetException) {
-            builder.addOrUpdateConfig('enya', rules, ruleSetInfo)
+        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+            builder.addOrUpdateConfig('enya', rules)
         }
+        ruleSetInfo = exc.ruleSetInfo
 
-        assert ruleSetInfo[0].numConfigOK == 0
-        assert ruleSetInfo[0].numConfigError == 1
-        assert ruleSetInfo[0].rules.error == "bad cast, expected 'array', obtained 'map'"
+        assert ruleSetInfo.numConfigOK == 0
+        assert ruleSetInfo.numConfigError == 1
+        assert ruleSetInfo.rules.error == "bad cast, expected 'array', obtained 'map'"
     }
 
     @Test
     void 'duplicated rule'() {
         def rules = copyMap(ARACHNI_ATOM_V2_1)
         rules['rules'] << rules['rules'][0]
-        builder.addOrUpdateConfig('enya', rules, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', rules)
 
-        assert ruleSetInfo[0].numConfigOK == 1
-        assert ruleSetInfo[0].numConfigError == 1
-        assert ruleSetInfo[0].allErrors == ['duplicate rule': ['arachni_rule'] as String[]]
+        assert ruleSetInfo.numConfigOK == 1
+        assert ruleSetInfo.numConfigError == 1
+        assert ruleSetInfo.allErrors == ['duplicate rule': ['arachni_rule'] as String[]]
     }
 
     private Map copyMap(Map map) {

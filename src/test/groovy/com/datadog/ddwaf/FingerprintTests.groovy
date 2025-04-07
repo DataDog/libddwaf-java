@@ -82,7 +82,7 @@ class FingerprintTests extends WafTestBase {
 }
 ''')
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         Waf.ResultWithData res = Waf.runContext(
                 [

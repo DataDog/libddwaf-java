@@ -151,7 +151,7 @@ class WafTestBase {
 
     WafBuilder builder
     WafMetrics wafMetrics
-    RuleSetInfo[] ruleSetInfo = new RuleSetInfo[1]
+    RuleSetInfo ruleSetInfo
     Waf.Limits getLimits() {
         new Waf.Limits(
                 maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
@@ -188,7 +188,7 @@ class WafTestBase {
 
     @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
     Waf.ResultWithData runRules(Object data) {
-        builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V1_0, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V1_0)
         Waf.runContext([
                 'server.request.headers.no_cookies': [
                         'user-agent': data

@@ -31,7 +31,7 @@ class BasicTests extends WafTestBase {
     void 'test running basic rule v1_0'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, wafMetrics, builder)
@@ -49,18 +49,18 @@ class BasicTests extends WafTestBase {
         assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni']
 
-        assert ruleSetInfo[0].rules.loaded == ['arachni_rule']
-        assert ruleSetInfo[0].numConfigOK == 1
-        assert ruleSetInfo[0].numConfigError == 0
-        assert ruleSetInfo[0].allErrors == [:]
-        assert ruleSetInfo[0].rulesetVersion == null
+        assert ruleSetInfo.rules.loaded == ['arachni_rule']
+        assert ruleSetInfo.numConfigOK == 1
+        assert ruleSetInfo.numConfigError == 0
+        assert ruleSetInfo.allErrors == [:]
+        assert ruleSetInfo.rulesetVersion == null
     }
 
     @Test
     void 'test running basic rule v2_1'() {
         def ruleSet = ARACHNI_ATOM_V2_1
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
@@ -79,10 +79,10 @@ class BasicTests extends WafTestBase {
         assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
         assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
 
-        assert ruleSetInfo[0].numConfigOK == 1
-        assert ruleSetInfo[0].numConfigError == 0
-        assert ruleSetInfo[0].allErrors == [:]
-        assert ruleSetInfo[0].rulesetVersion == '1.2.6'
+        assert ruleSetInfo.numConfigOK == 1
+        assert ruleSetInfo.numConfigError == 0
+        assert ruleSetInfo.allErrors == [:]
+        assert ruleSetInfo.rulesetVersion == '1.2.6'
 
         assert wafMetrics.totalRunTimeNs > 0
         assert wafMetrics.totalDdwafRunTimeNs > 0
@@ -93,7 +93,7 @@ class BasicTests extends WafTestBase {
     void 'test blocking action'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
@@ -111,7 +111,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V2_1
         ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extract_schema']
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
@@ -158,7 +158,7 @@ class BasicTests extends WafTestBase {
         ])
         ruleSet['rules'][0]['on_match'] = ['aaaa', 'block', 'bbbb']
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
@@ -185,7 +185,7 @@ class BasicTests extends WafTestBase {
         ])
         ruleSet['rules'][0]['on_match'] = ['block']
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
@@ -203,7 +203,7 @@ class BasicTests extends WafTestBase {
     @Test
     void 'test with array of string lists'() {
         def ruleSet = ARACHNI_ATOM_V1_0
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         def data = [
             attack: ['o:1:"ee":1:{}'],
@@ -219,7 +219,7 @@ class BasicTests extends WafTestBase {
     void 'test with array'() {
         def ruleSet = ARACHNI_ATOM_V1_0
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         def data = ['foo', 'Arachni'] as String[]
         ResultWithData awd = Waf.runContext(
@@ -232,7 +232,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V1_0
         builder = new WafBuilder()
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         def data = [null, 'Arachni']
         ResultWithData awd = Waf.runContext(
@@ -245,7 +245,7 @@ class BasicTests extends WafTestBase {
         def ruleSet = ARACHNI_ATOM_V1_0
         builder = new WafBuilder()
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         def data = [true, false, 'Arachni']
         ResultWithData awd = Waf.runContext(
@@ -259,7 +259,7 @@ class BasicTests extends WafTestBase {
     @Test
     void 'test unencodable arguments'() {
         def ruleSet = ARACHNI_ATOM_V1_0
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         def data = [new MyClass(), 'Arachni']
         ResultWithData awd = Waf.runContext(
@@ -317,7 +317,7 @@ class BasicTests extends WafTestBase {
            ],
            "version" : "2.1"
       }'''
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData res = Waf.runContext(['http.client_ip': '1.2.3.4'], limits, wafMetrics, builder)
         assertThat res.result, is(Waf.Result.OK)
@@ -348,7 +348,7 @@ class BasicTests extends WafTestBase {
 
                 ]
         ]
-        builder.addOrUpdateConfig('enyaX', [rules_data: newData], ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enyaX', [rules_data: newData])
 
         res = Waf.runContext(['http.client_ip': '1.2.3.4'], limits, wafMetrics, builder)
         assertThat res.result, is(Waf.Result.MATCH)
@@ -425,7 +425,7 @@ class BasicTests extends WafTestBase {
            ]
          }'''
 
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData res = Waf.runContext(['server.request.query': [excluded_key: 'true']], limits, wafMetrics,
                 builder)
@@ -445,7 +445,7 @@ class BasicTests extends WafTestBase {
     @Test
     void 'rule toggling'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         Map<String, Object> overrideSpec = [
                 metadata: [
@@ -462,8 +462,8 @@ class BasicTests extends WafTestBase {
                         ]
                 ]
         ]
-        builder.addOrUpdateConfig('enyaD', overrideSpec, ruleSetInfo)
-        assertThat ruleSetInfo[0].rulesetVersion, is('1.2.7')
+        ruleSetInfo = builder.addOrUpdateConfig('enyaD', overrideSpec)
+        assertThat ruleSetInfo.rulesetVersion, is('1.2.7')
 
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
@@ -472,7 +472,7 @@ class BasicTests extends WafTestBase {
 
         overrideSpec['rules_override'][0]['enabled'] = true
 
-        builder.addOrUpdateConfig('enyaD', overrideSpec, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enyaD', overrideSpec)
         awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
                 builder)
@@ -482,7 +482,7 @@ class BasicTests extends WafTestBase {
     @Test
     void 'custom rules'() {
         def ruleSet = ARACHNI_ATOM_BLOCK
-        builder.addOrUpdateConfig('enya', ruleSet, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         Map<String, Object> customRules = [
             rules: [],
@@ -504,7 +504,7 @@ class BasicTests extends WafTestBase {
                      ],
                      operator: 'match_regex'
         ]]]]]
-        builder.addOrUpdateConfig('enya', customRules, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', customRules)
 
         def awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,

@@ -125,7 +125,7 @@ class SchemaTests extends WafTestBase {
         maxElements = 30
         timeoutInUs = 20000000
         runBudget = 20000000
-        builder.addOrUpdateConfig('enya', EXTRACT_SCHEMA, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', EXTRACT_SCHEMA)
 
         def data = [
                 'waf.context.settings': [

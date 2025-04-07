@@ -143,7 +143,7 @@ class CharSequenceSerializationTests extends WafTestBase {
         def params = [
                 'server.request.body.raw': data
         ]
-        builder.addOrUpdateConfig('enya', rule, ruleSetInfo)
+        ruleSetInfo = builder.addOrUpdateConfig('enya', rule)
         Waf.runContext(params, limits, wafMetrics, builder)
     }
 }
