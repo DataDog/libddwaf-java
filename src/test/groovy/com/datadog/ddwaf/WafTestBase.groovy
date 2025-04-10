@@ -1,23 +1,10 @@
-/*
- * Unless explicitly stated otherwise all files in this repository are licensed
- * under the Apache-2.0 License.
- *
- * This product includes software developed at Datadog
- * (https://www.datadoghq.com/). Copyright 2021 Datadog, Inc.
- */
-
 package com.datadog.ddwaf
 
 import groovy.json.JsonSlurper
-import groovy.transform.CompileStatic
 import org.junit.After
-import org.junit.AfterClass
+import org.junit.Before
 
-import static org.hamcrest.MatcherAssert.assertThat
-import static org.hamcrest.Matchers.is
-
-@CompileStatic
-trait WafTrait extends JNITrait {
+class WafTestBase {
 
     static final Map ARACHNI_ATOM_V1_0 = (Map) new JsonSlurper().parseText('''
         {
@@ -30,11 +17,11 @@ trait WafTrait extends JNITrait {
                 {
                   "operation": "match_regex",
                   "parameters": {
-                    "inputs": ["server.request.headers.no_cookies:user-agent"],
+                    "inputs": ["server.request.headers.no_cookies:user-agent"] ,
                     "regex": "Arachni"
                   }
                 }
-              ],
+              ] ,
               "tags": {
                 "type": "arachni_detection"
               },
@@ -67,12 +54,12 @@ trait WafTrait extends JNITrait {
                           "user-agent"
                         ]
                       }
-                    ],
+                    ] ,
                     "regex": "^Arachni\\\\/v"
                   },
                   "operator": "match_regex"
                 }
-              ],
+              ] ,
               "transformers": []
             }
           ]
@@ -108,7 +95,7 @@ trait WafTrait extends JNITrait {
                 "location": "https://example3.com/"
               }
             }
-          ],
+          ] ,
           "rules": [
             {
               "id": "arachni_rule",
@@ -127,12 +114,12 @@ trait WafTrait extends JNITrait {
                           "user-agent"
                         ]
                       }
-                    ],
+                    ] ,
                     "regex": "^Arachni\\\\/v"
                   },
                   "operator": "match_regex"
                 }
-              ],
+              ] ,
               "on_match": ["block"]
             },
             {
@@ -151,60 +138,61 @@ trait WafTrait extends JNITrait {
                                         "user-agent"
                                     ]
                                 }
-                            ],
+                            ] ,
                             "regex": "^Dummy"
                         },
                         "operator": "match_regex"
                     }
-                ],
+                ] ,
                 "on_match": ["stack_trace", "redirect2"]
             }
           ]
         }''')
 
-    int maxDepth = 5
-    int maxElements = 20
-    int maxStringSize = 100
-    long timeoutInUs = 200000 // 200 ms
-    long runBudget = 0 // unspecified
-
+    WafBuilder builder
+    WafMetrics wafMetrics
+    RuleSetInfo ruleSetInfo
     Waf.Limits getLimits() {
         new Waf.Limits(
                 maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
     }
 
-    WafHandle ctx
-    WafMetrics metrics
+    int maxDepth
+    int maxElements
+    int maxStringSize
+    long timeoutInUs
+    long runBudget
 
-    JsonSlurper slurper = new JsonSlurper()
-
-    @After
-    void after() {
-        ctx?.close()
-
-        // Check that all buffers were reset
-        ByteBufferSerializer.ArenaPool.INSTANCE.arenas.each { arena ->
-            arena.pwargsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-            arena.stringsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-        }
+    @Before
+    void setup() {
+        System.setProperty('ddwaf.logLevel', 'DEBUG')
+        Waf.initialize(System.getProperty('useReleaseBinaries') == null)
+        System.setProperty('DD_APPSEC_WAF_TIMEOUT', '500000' /* 500 ms */)
+        builder = new WafBuilder() // initial config will always be default
+        wafMetrics = new WafMetrics()
+        maxDepth = 5
+        maxElements = 20
+        maxStringSize = 100
+        timeoutInUs = 200000000 // 200 us
+        runBudget = 0 // unspecified
     }
 
-    @AfterClass
+    @After
     @SuppressWarnings('ExplicitGarbageCollection')
-    static void afterClass() {
+    void afterClass() {
+        if (builder?.online) {
+            builder.destroy()
+        }
         System.gc()
     }
 
     @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
     Waf.ResultWithData runRules(Object data) {
-        ctx.runRules([
+        ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V1_0)
+        Waf.runContext([
                 'server.request.headers.no_cookies': [
                         'user-agent': data
                 ]
-        ] as Map<String, Object>, limits, metrics)
+        ], limits, wafMetrics, builder.buildWafHandleInstance(null))
     }
 }

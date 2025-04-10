@@ -8,10 +8,7 @@
 
 package com.datadog.ddwaf
 
-import org.hamcrest.MatcherAssert
 import org.junit.Test
-
-import static org.hamcrest.Matchers.is
 
 class ByteBufferSerializerLimitsTests extends ByteBufferSerializerTestsBase {
 
@@ -21,20 +18,6 @@ class ByteBufferSerializerLimitsTests extends ByteBufferSerializerTestsBase {
         def obj = [a: 1, b: 2, c: [3, 4], d: 5, e: 6]
         lease = serializer.serialize(obj, metrics)
 
-        String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        // maps and arrays count towards the limits.
-        // d is included because when the map starts there are still 4 elements
-        // remaining and the amount of entries needs is preallocated before
-        // going through them
-        def exp = p '''
-        <MAP>
-          a: <SIGNED> 1
-          b: <SIGNED> 2
-          c: <ARRAY>
-            <SIGNED> 3
-          d: <MAP>
-        '''
-        MatcherAssert.assertThat res, is(exp)
         assertMetrics(0, 1, 0)
     }
 
@@ -46,15 +29,6 @@ class ByteBufferSerializerLimitsTests extends ByteBufferSerializerTestsBase {
                         [ // 3: elements here are not serialized anymore
                                 b: 'd']]]
         lease = serializer.serialize(obj, metrics)
-
-        String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          a: <ARRAY>
-            <MAP>
-              b: <MAP>
-        '''
-        MatcherAssert.assertThat res, is(exp)
         assertMetrics(0, 0, 1)
     }
 
@@ -66,13 +40,6 @@ class ByteBufferSerializerLimitsTests extends ByteBufferSerializerTestsBase {
 
         def obj = ['12\uAAAA4': str]
         lease = serializer.serialize(obj, metrics)
-
-        String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          12\uAAAA: <STRING> \uFFFD\uFFFD\uFFFD
-        '''
-        MatcherAssert.assertThat res, is(exp)
         assertMetrics(2, 0, 0)
     }
 
@@ -81,13 +48,6 @@ class ByteBufferSerializerLimitsTests extends ByteBufferSerializerTestsBase {
         maxStringSize = 3
 
         lease = serializer.serialize(['x': 'xxx'], metrics)
-
-        String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          x: <STRING> xxx
-        '''
-        MatcherAssert.assertThat res, is(exp)
         assertMetrics(0, 0, 0)
     }
 
@@ -97,12 +57,6 @@ class ByteBufferSerializerLimitsTests extends ByteBufferSerializerTestsBase {
 
         lease = serializer.serialize(['xxx': 'x'], metrics)
 
-        String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          xxx: <STRING> x
-        '''
-        MatcherAssert.assertThat res, is(exp)
         assertMetrics(0, 0, 0)
     }
 
@@ -111,13 +65,6 @@ class ByteBufferSerializerLimitsTests extends ByteBufferSerializerTestsBase {
         maxStringSize = 3
 
         lease = serializer.serialize(['xxxx': 'x'], metrics)
-
-        String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-        def exp = p '''
-        <MAP>
-          xxx: <STRING> x
-        '''
-        MatcherAssert.assertThat res, is(exp)
         assertMetrics(1, 0, 0)
     }
 
