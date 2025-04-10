@@ -41,7 +41,8 @@ class ObfuscationTests extends WafTestBase {
 
         ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
         Waf.ResultWithData awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, wafMetrics, builder.buildWafHandleInstance(null))
+                ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, wafMetrics,
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
 
         def json = new JsonSlurper().parseText(awd.data)

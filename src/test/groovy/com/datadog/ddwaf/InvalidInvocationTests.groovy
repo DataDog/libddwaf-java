@@ -64,7 +64,8 @@ class InvalidInvocationTests extends WafTestBase {
     void 'error converting update spec'() {
         ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
-            Waf.runContext(new BadMap(delegate: [arachni_rule: false]), limits, wafMetrics, builder.buildWafHandleInstance(null))
+            Waf.runContext(new BadMap(delegate: [arachni_rule: false]), limits, wafMetrics,
+                    builder.buildWafHandleInstance(null))
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
     }
