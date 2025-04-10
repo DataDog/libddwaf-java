@@ -38,15 +38,10 @@ public class WafContext implements Closeable {
      */
     private long ptr;     // KEEP THIS FIELD!
     private boolean online;
-    private WafHandle wafHandle;
+    private final WafHandle wafHandle;
 
-    public WafContext(WafBuilder wafBuilder) {
-        try {
-            wafHandle = wafBuilder.buildWafHandleInstance(wafHandle);
-        } catch (AbstractWafException e) {
-            LOGGER.debug("Creating WafContext for {} failed", wafBuilder);
-            throw new RuntimeException(e);
-        }
+    public WafContext(WafHandle wafHandle) {
+        this.wafHandle = wafHandle;
         LOGGER.debug("Creating WafContext for {}", wafHandle);
         this.ptr = initWafContext(wafHandle);
         this.lease = ByteBufferSerializer.getBlankLease();
@@ -172,6 +167,9 @@ public class WafContext implements Closeable {
         }
 
         // if we reach this point, we were originally online
+        if(wafHandle!= null && wafHandle.isOnline()){
+            wafHandle.destroy();
+        }
         if (this.selfRef != null) {
             LeakDetection.notifyClose(this.selfRef);
         }

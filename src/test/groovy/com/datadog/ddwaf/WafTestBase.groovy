@@ -193,6 +193,6 @@ class WafTestBase {
                 'server.request.headers.no_cookies': [
                         'user-agent': data
                 ]
-        ], limits, wafMetrics, builder)
+        ], limits, wafMetrics, builder.buildWafHandleInstance(null))
     }
 }

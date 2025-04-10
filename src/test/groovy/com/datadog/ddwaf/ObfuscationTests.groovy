@@ -24,7 +24,7 @@ class ObfuscationTests extends WafTestBase {
 
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
 
         def json = new JsonSlurper().parseText(awd.data)
@@ -41,7 +41,7 @@ class ObfuscationTests extends WafTestBase {
 
         ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
         Waf.ResultWithData awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, wafMetrics, builder)
+                ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
 
         def json = new JsonSlurper().parseText(awd.data)
@@ -60,7 +60,7 @@ class ObfuscationTests extends WafTestBase {
 
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, wafMetrics,
-                thisBuilder)
+                thisBuilder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
 
         def json = new JsonSlurper().parseText(awd.data)
@@ -77,7 +77,7 @@ class ObfuscationTests extends WafTestBase {
         ruleSetInfo = thisBuilder.addOrUpdateConfig('enya', ruleSet)
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                thisBuilder)
+                thisBuilder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
 
         def json = new JsonSlurper().parseText(awd.data)

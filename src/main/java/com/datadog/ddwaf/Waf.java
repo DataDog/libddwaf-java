@@ -62,23 +62,23 @@ public final class Waf {
 
     public static ResultWithData runContext(Map<String, Object> parameters,
                            Limits limits,
-                           WafMetrics metrics, WafBuilder wafBuilder) throws AbstractWafException {
-        return runContext(parameters, limits, metrics, wafBuilder, false);
+                           WafMetrics metrics, WafHandle wafHandle) throws AbstractWafException {
+        return runContext(parameters, limits, metrics, wafHandle, false);
     }
 
     public static ResultWithData runEphemeralContext(Map<String, Object> parameters,
                                               Limits limits,
-                                              WafMetrics metrics, WafBuilder wafBuilder) throws AbstractWafException {
-        return runContext(parameters, limits, metrics, wafBuilder, true);
+                                              WafMetrics metrics, WafHandle wafHandle) throws AbstractWafException {
+        return runContext(parameters, limits, metrics, wafHandle, true);
     }
 
     private static ResultWithData runContext(Map<String, Object> parameters,
                            Limits limits,
-                           WafMetrics metrics, WafBuilder wafBuilder, boolean ephemeral) throws AbstractWafException {
-        if (wafBuilder == null || !wafBuilder.isOnline()) {
+                           WafMetrics metrics, WafHandle wafHandle, boolean ephemeral) throws AbstractWafException {
+        if (wafHandle == null || !wafHandle.isOnline()) {
             throw new UnclassifiedWafException("WafBuilder is offline");
         }
-        WafContext wafContext = new WafContext(wafBuilder);
+        WafContext wafContext = new WafContext(wafHandle);
         ResultWithData result = ephemeral ? wafContext.runEphemeral(parameters, limits, metrics) : wafContext.run(parameters, limits, metrics);
         wafContext.close();
         return result;

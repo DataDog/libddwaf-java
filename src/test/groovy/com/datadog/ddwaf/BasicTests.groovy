@@ -34,7 +34,7 @@ class BasicTests extends WafTestBase {
         ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, wafMetrics, builder)
+                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
 
         def json = new JsonSlurper().parseText(awd.data)
@@ -64,7 +64,7 @@ class BasicTests extends WafTestBase {
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
 
         def json = new JsonSlurper().parseText(awd.data)
@@ -97,7 +97,7 @@ class BasicTests extends WafTestBase {
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.size(), is(1)
         assertThat awd.actions.keySet(), hasItem('block_request')
@@ -115,7 +115,7 @@ class BasicTests extends WafTestBase {
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.size(), is(3)
 
@@ -162,7 +162,7 @@ class BasicTests extends WafTestBase {
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.keySet(), containsInAnyOrder('aaaa', 'block_request', 'bbbb')
     }
@@ -189,7 +189,7 @@ class BasicTests extends WafTestBase {
 
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
         assertThat awd.actions.keySet(), contains('block_request')
 
@@ -211,7 +211,7 @@ class BasicTests extends WafTestBase {
         ]
         ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -223,7 +223,7 @@ class BasicTests extends WafTestBase {
 
         def data = ['foo', 'Arachni'] as String[]
         ResultWithData awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -236,7 +236,7 @@ class BasicTests extends WafTestBase {
 
         def data = [null, 'Arachni']
         ResultWithData awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -249,7 +249,7 @@ class BasicTests extends WafTestBase {
 
         def data = [true, false, 'Arachni']
         ResultWithData awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -263,7 +263,7 @@ class BasicTests extends WafTestBase {
 
         def data = [new MyClass(), 'Arachni']
         ResultWithData awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder)
+                ['server.request.headers.no_cookies': ['user-agent': data]], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -319,10 +319,10 @@ class BasicTests extends WafTestBase {
       }'''
         ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
-        ResultWithData res = Waf.runContext(['http.client_ip': '1.2.3.4'], limits, wafMetrics, builder)
+        ResultWithData res = Waf.runContext(['http.client_ip': '1.2.3.4'], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat res.result, is(Waf.Result.OK)
 
-        res = Waf.runContext(['usr.id': 'paco'], limits, wafMetrics, builder)
+        res = Waf.runContext(['usr.id': 'paco'], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat res.result, is(Waf.Result.OK)
 
         def newData = [
@@ -350,10 +350,10 @@ class BasicTests extends WafTestBase {
         ]
         ruleSetInfo = builder.addOrUpdateConfig('enyaX', [rules_data: newData])
 
-        res = Waf.runContext(['http.client_ip': '1.2.3.4'], limits, wafMetrics, builder)
+        res = Waf.runContext(['http.client_ip': '1.2.3.4'], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat res.result, is(Waf.Result.MATCH)
 
-        res = Waf.runContext(['usr.id': 'paco'], limits, wafMetrics, builder)
+        res = Waf.runContext(['usr.id': 'paco'], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat res.result, is(Waf.Result.MATCH)
         builder.removeConfig('enyaX')
     }
@@ -428,17 +428,17 @@ class BasicTests extends WafTestBase {
         ruleSetInfo = builder.addOrUpdateConfig('enya', ruleSet)
 
         ResultWithData res = Waf.runContext(['server.request.query': [excluded_key: 'true']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat res.result, is(Waf.Result.MATCH)
 
         res = Waf.runContext(
                 ['server.request.query': [excluded_key: 'true', activate_exclusion: 'false']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat res.result, is(Waf.Result.MATCH)
 
         res = Waf.runContext(
                 ['server.request.query': [excluded_key: 'true', activate_exclusion: 'true']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat res.result, is(Waf.Result.OK)
     }
 
@@ -467,7 +467,7 @@ class BasicTests extends WafTestBase {
 
         Waf.ResultWithData awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.OK)
 
         overrideSpec['rules_override'][0]['enabled'] = true
@@ -475,7 +475,7 @@ class BasicTests extends WafTestBase {
         ruleSetInfo = builder.addOrUpdateConfig('enyaD', overrideSpec)
         awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 
@@ -508,10 +508,10 @@ class BasicTests extends WafTestBase {
 
         def awd = Waf.runContext(
                 ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, wafMetrics,
-                builder)
+                builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.OK)
         awd = Waf.runContext(
-                ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, wafMetrics, builder)
+                ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.result, is(Waf.Result.MATCH)
     }
 }

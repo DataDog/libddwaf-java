@@ -146,7 +146,7 @@ class SchemaTests extends WafTestBase {
                 ]
         ]
 
-        Waf.ResultWithData awd = Waf.runContext(data, limits, wafMetrics, builder)
+        Waf.ResultWithData awd = Waf.runContext(data, limits, wafMetrics, builder.buildWafHandleInstance(null))
         assertThat awd.derivatives, isA(Map)
 
         def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.derivatives['_dd.appsec.s.req.body']))

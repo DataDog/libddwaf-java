@@ -95,7 +95,7 @@ class FingerprintTests extends WafTestBase {
                 ],
                 limits,
                 wafMetrics,
-                builder
+                builder.buildWafHandleInstance(null)
         )
         assertThat res.result, is(Waf.Result.MATCH)
         assertThat res.derivatives.keySet(), contains('_dd.appsec.fp.http.endpoint')

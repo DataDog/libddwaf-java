@@ -41,7 +41,7 @@ class InvalidInvocationTests extends WafTestBase {
     void 'runRule with conversion throwing exception'() {
         ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
-            Waf.runContext(new BadMap(delegate: [:]), limits, wafMetrics, builder)
+            Waf.runContext(new BadMap(delegate: [:]), limits, wafMetrics, builder.buildWafHandleInstance(null))
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
         assert exc.cause.cause instanceof IllegalStateException
@@ -54,7 +54,7 @@ class InvalidInvocationTests extends WafTestBase {
         builder.destroy()
         def exc = shouldFail(UnclassifiedWafException) {
             Waf.runContext(['server.request.headers.no_cookies': ['user-agent': ['Arachni/v1']]], limits, wafMetrics,
-                    builder)
+                    builder.buildWafHandleInstance(null))
         }
         assertThat exc.message, containsString('WafBuilder is offline')
         builder = new WafBuilder()
@@ -64,7 +64,7 @@ class InvalidInvocationTests extends WafTestBase {
     void 'error converting update spec'() {
         ruleSetInfo = builder.addOrUpdateConfig('enya', ARACHNI_ATOM_V2_1)
         def exc = shouldFail(UnclassifiedWafException) {
-            Waf.runContext(new BadMap(delegate: [arachni_rule: false]), limits, wafMetrics, builder)
+            Waf.runContext(new BadMap(delegate: [arachni_rule: false]), limits, wafMetrics, builder.buildWafHandleInstance(null))
         }
         assert exc.cause.message =~ 'Exception encoding parameters'
     }
