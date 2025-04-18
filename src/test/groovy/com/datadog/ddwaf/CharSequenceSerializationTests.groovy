@@ -8,6 +8,8 @@
 
 package com.datadog.ddwaf
 
+import groovy.json.JsonSlurper
+import org.junit.Before
 import org.junit.Test
 
 import java.nio.ByteBuffer
@@ -17,7 +19,32 @@ import java.nio.CharBuffer
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
-class CharSequenceSerializationTests implements ReqBodyTrait {
+class CharSequenceSerializationTests extends WafTestBase {
+
+    static final Map REQ_BODY_ATOM = (Map) new JsonSlurper().parseText('''
+        {
+          "version": "1.0",
+          "events": [
+            {
+              "id": "req_body_rule",
+              "name": "Request body capturing",
+              "conditions": [
+                {
+                  "operation": "match_regex",
+                  "parameters": {
+                    "inputs": ["server.request.body.raw"],
+                    "regex": "my string"
+                  }
+                }
+              ],
+              "tags": {
+                "type": "req_body_detection"
+              },
+              "action": "record"
+            }
+          ]
+        }
+        ''')
 
     @Test
     void 'Should MATCH with data passed as String'() {
@@ -99,5 +126,24 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
         CharBuffer cs = CharBuffer.wrap('12my string')
         Waf.ResultWithData awd = testWithData(cs)
         assertThat awd.result, is(Waf.Result.OK)
+    }
+
+    @Before
+    void setUp() {
+        maxDepth = 10
+        maxElements = 200
+        maxStringSize = 100
+        timeoutInUs = 20000000
+        runBudget = 0
+    }
+
+    private Waf.ResultWithData testWithData(Object data) {
+        def rule = REQ_BODY_ATOM
+
+        def params = [
+                'server.request.body.raw': data
+        ]
+        ruleSetInfo = builder.addOrUpdateConfig('enya', rule)
+        Waf.runContext(params, limits, wafMetrics, builder.buildWafHandleInstance(null))
     }
 }
