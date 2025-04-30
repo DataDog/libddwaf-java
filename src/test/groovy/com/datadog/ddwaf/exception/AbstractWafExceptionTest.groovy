@@ -2,6 +2,7 @@ package com.datadog.ddwaf.exception
 
 import com.datadog.ddwaf.WafErrorCode
 import org.junit.Test
+import static org.junit.Assert.fail
 
 class AbstractWafExceptionTest {
 
@@ -39,17 +40,11 @@ class AbstractWafExceptionTest {
          * This makes it perfect for testing the unhandled enum case without risking interference
          * with actual WAF error scenarios.
          */
-        boolean exceptionThrown = false
-        String errorMessage = null
         try {
             AbstractWafException.createFromErrorCode(WafErrorCode.BINDING_ERROR.code)
-            // Expected exception did not occur
+            fail('Expected IllegalStateException to be thrown')
         } catch (IllegalStateException e) {
-            exceptionThrown = true
-            errorMessage = e.message
+            assert e.message == 'Unhandled WafErrorCode: BINDING_ERROR'
         }
-        assert exceptionThrown, 'Expected IllegalStateException was not thrown'
-        assert errorMessage == 'Unhandled WafErrorCode: BINDING_ERROR'
     }
 }
-

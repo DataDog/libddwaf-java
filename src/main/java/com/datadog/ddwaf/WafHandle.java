@@ -8,16 +8,21 @@
 
 package com.datadog.ddwaf;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.UUID;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class WafHandle {
+    private static final Logger LOGGER = LoggerFactory.getLogger(WafHandle.class);
     private final long nativeHandle;
     private boolean online;
     private final Lock writeLock;
     private final Lock readLock;
     private final String uniqueName;
+    private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
     // called from JNI
     private WafHandle(long handle) {
@@ -30,6 +35,12 @@ public class WafHandle {
         this.readLock = rwLock.readLock();
         this.writeLock = rwLock.writeLock();
         this.uniqueName = UUID.randomUUID().toString();
+        if (Waf.EXIT_ON_LEAK) {
+            this.selfRef = LeakDetection.registerCloseable(this);
+        } else {
+            this.selfRef = null;
+        }
+        LOGGER.debug("Successfully create Waf context {}", uniqueName);
     }
 
     private void checkIfOnline() {
@@ -45,6 +56,9 @@ public class WafHandle {
                 return;
             }
             destroyWafHandle(this.nativeHandle);
+            if (this.selfRef != null) {
+                LeakDetection.notifyClose(this.selfRef);
+            }
         } finally {
             online = false;
             this.writeLock.unlock();

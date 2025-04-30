@@ -8,11 +8,138 @@
 
 package com.datadog.ddwaf
 
+import groovy.json.JsonSlurper
 import org.junit.Test
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import static groovy.test.GroovyAssert.shouldFail
+import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.is 
 
 class WafHandleTest implements WafTrait {
+
+    private final static Logger LOGGER = LoggerFactory.getLogger(WafHandleTest)
+
+    @Test
+    void 'Reference sample should pass'() {
+        def rule = '''
+          {
+            "version": "1.0",
+            "events": [
+              {
+                "id": "arachni_rule",
+                "name": "Arachni",
+                "conditions": [
+                  {
+                    "operation": "match_regex",
+                    "parameters": {
+                      "inputs": ["arg1"],
+                      "regex": ".*"
+                    }
+                  },
+                  {
+                    "operation": "match_regex",
+                    "parameters": {
+                      "inputs": ["arg2"],
+                      "regex": ".*"
+                    }
+                  }
+                ],
+                "tags": {
+                  "type": "flow1"
+                },
+                "action": "record"
+              }
+            ]
+          }
+        '''
+        builder.addOrUpdateConfig('test', new JsonSlurper().parseText(rule) as Map<String, Object>)
+        handle = builder.buildWafHandleInstance()
+        context = new WafContext(handle)
+
+        Waf.ResultWithData awd = context.run([arg1: 'string 1'], limits, metrics)
+        LOGGER.debug('ResultWithData after 1st runWafContext: {}', awd)
+        assertThat awd.result, is(Waf.Result.OK)
+
+        awd = context.run([arg2: 'string 2'], limits, metrics)
+        LOGGER.debug('ResultWithData after 2nd runWafContext: {}', awd)
+        assertThat awd.result, is(Waf.Result.MATCH)
+
+        assert metrics.totalRunTimeNs > 0
+        assert metrics.totalDdwafRunTimeNs > 0
+        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
+    }
+
+    @Test
+    void 'Reference sample for rules 2_2'() {
+        def rule = '''
+          {
+            "version": "2.2",
+            "metadata": {
+              "rules_version": "1.10.0"
+            },
+            "rules": [
+              {
+                "id": "rule1",
+                "name": "rule1",
+                "tags": {
+                  "type": "flow1",
+                  "category": "category1"
+                },
+                "conditions": [
+                  {
+                    "parameters": {
+                      "inputs": [
+                        {
+                          "address": "server_request_body"
+                        }
+                      ],
+                      "list": [
+                        "bodytest"
+                      ]
+                    },
+                    "operator": "phrase_match"
+                  }
+                ]
+              },
+              {
+                "id": "rule2",
+                "name": "rule2",
+                "tags": {
+                  "type": "flow2",
+                  "category": "category2"
+                },
+                "conditions": [
+                  {
+                    "parameters": {
+                      "inputs": [
+                        {
+                          "address": "graphql_server_all_resolvers"
+                        }
+                      ],
+                      "list": [
+                        "graphqltest"
+                      ]
+                    },
+                    "operator": "phrase_match"
+                  }
+                ]
+              }
+            ],
+          }'''
+        builder.addOrUpdateConfig('test', new JsonSlurper().parseText(rule) as Map<String, Object>)
+        handle = builder.buildWafHandleInstance()
+        context = new WafContext(handle)
+
+        Waf.ResultWithData awd = context.run([server_request_body: 'bodytest'], limits, metrics)
+        LOGGER.debug('ResultWithData after 1st runWafContext: {}', awd)
+        assertThat awd.result, is(Waf.Result.MATCH)
+
+        awd = context.runEphemeral([graphql_server_all_resolvers: 'graphqltest'], limits, metrics)
+        LOGGER.debug('ResultWithData after 2st runWafContext: {}', awd)
+        assertThat awd.result, is(Waf.Result.MATCH)
+    }
 
     @Test
     void 'waf handle is online after creation'() {

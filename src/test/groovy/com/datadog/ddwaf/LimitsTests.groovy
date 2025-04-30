@@ -117,7 +117,7 @@ class LimitsTests implements WafTrait {
     }
 
     @Test
-    void 'generalBudgetInUs is observed during PWARgs conversion'() {
+    void 'timeout when general budget is exhausted'() {
         timeoutInUs = 5
 
         shouldFail(TimeoutWafException) {

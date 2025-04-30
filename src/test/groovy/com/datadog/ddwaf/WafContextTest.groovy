@@ -8,6 +8,7 @@
 
 package com.datadog.ddwaf
 
+import com.datadog.ddwaf.exception.AbstractWafException
 import com.datadog.ddwaf.exception.InvalidArgumentWafException
 import com.datadog.ddwaf.exception.InvalidObjectWafException
 import com.datadog.ddwaf.exception.TimeoutWafException
@@ -18,6 +19,8 @@ import org.junit.Test
 import java.nio.ByteBuffer
 
 import static groovy.test.GroovyAssert.shouldFail
+import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.is
 
 class WafContextTest implements WafTrait {
 
@@ -69,6 +72,17 @@ class WafContextTest implements WafTrait {
 
         shouldFail(InvalidArgumentWafException) {
             context.run(null, limits, metrics)
+        }
+    }
+
+    @Test
+    void 'throw an exception when both persistent and ephemeral are null in wafContext'() {
+        wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+        handle = builder.buildWafHandleInstance()
+        context = new WafContext(handle)
+
+        shouldFail(InvalidArgumentWafException) {
+            context.run(null, null, limits, metrics)
         }
     }
 
@@ -224,6 +238,17 @@ class WafContextTest implements WafTrait {
                 context.runWafContext(slice, null, limits, metrics)
             }
         }
+    }
+
+    @Test
+    void 'handle can be destroyed with live context'() {
+        wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V2_1)
+        handle = builder.buildWafHandleInstance()
+        context = new WafContext(handle)
+        handle.close()
+
+        Waf.ResultWithData rwd = context.run([:], limits, metrics)
+        assertThat rwd.result, is(Waf.Result.OK)
     }
 }
 
