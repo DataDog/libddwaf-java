@@ -79,6 +79,7 @@ static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
 static void _update_metrics(JNIEnv *env, jobject metrics_obj, const ddwaf_result *ret);
 static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig, ddwaf_config *out_config);
+static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code, const ddwaf_result *ret);
 static inline bool _has_derivative(const ddwaf_result *res);
 
@@ -886,25 +887,42 @@ static ddwaf_builder _get_builder_checked(JNIEnv *env, jclass clazz,
     return builder;
 }
 
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(JNIEnv *env, jclass clazz,
+JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(JNIEnv *env, jclass clazz,
                                                                         jobject builder, jstring path) {
-
     UNUSED(clazz);
     UNUSED(env);
     if (builder && path) {
-        ddwaf_builder_remove_config(_get_builder_checked(env, clazz, builder), JNI(GetStringUTFChars, path, NULL), JNI(GetStringLength, path));
+        ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
+        if (JNI(ExceptionCheck)) {
+            JAVA_LOG(DDWAF_LOG_DEBUG, "build not found");
+            return JNI_FALSE;
+        }
+        const char * path_string = JNI(GetStringUTFChars, path, NULL);
+        if (JNI(ExceptionCheck)) {
+            JAVA_LOG(DDWAF_LOG_DEBUG, "path could not be converted for ddwaf");
+            return JNI_FALSE;
+        }
+        int path_length = JNI(GetStringLength, path);
+        if (JNI(ExceptionCheck)) {
+            JAVA_LOG(DDWAF_LOG_DEBUG, "path length could not be found for ddwaf");
+            return JNI_FALSE;
+        }
+
+        return ddwaf_builder_remove_config(ddwaf_builder, path_string, path_length);
     }
+    JAVA_LOG(DDWAF_LOG_DEBUG, "Provide a path and builder to remove config!");
+    return JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(JNIEnv *env, jclass clazz,
 jobject builder, jstring path, jobject configuration, jobject diagnostics) {
     ddwaf_object ddwaf_diagnostics;
     ddwaf_object_invalid(&ddwaf_diagnostics);
-        struct _limits limits = {
-                .max_depth = 20,
-                .max_elements = 1000000,
-                .max_string_size = 1000000,
-        };
+    struct _limits limits = {
+        .max_depth = 20,
+        .max_elements = 1000000,
+        .max_string_size = 1000000,
+    };
     ddwaf_object ddwaf_configuration =_convert_checked(env, configuration, &limits, 0);
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
@@ -913,14 +931,17 @@ jobject builder, jstring path, jobject configuration, jobject diagnostics) {
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
     }
-    ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
     const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
     }
-    ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
+    ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
+    if (JNI(ExceptionCheck)) {
+            JAVA_LOG(DDWAF_LOG_DEBUG, "build not found");
+        return JNI_FALSE;
+    }
+    bool result = ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
                                                                                         &ddwaf_diagnostics);
-
     ddwaf_object_free(&ddwaf_configuration);
     if (memcmp(&ddwaf_diagnostics, &(ddwaf_object) {0},
                                     sizeof(ddwaf_diagnostics)) != 0) {
@@ -942,25 +963,30 @@ jobject builder, jstring path, jobject configuration, jobject diagnostics) {
             }
         }
     ddwaf_object_free(&ddwaf_diagnostics);
-    return JNI_TRUE;
+    return result;
 
     error:
         ddwaf_object_free(&ddwaf_diagnostics);
-        return JNI_FALSE;
+        return result;
 }
 
 JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafBuilder_initBuilder(JNIEnv *env, jclass clazz, jobject config) {
     UNUSED(clazz);
     ddwaf_config ddwaf_configuration;
     _convert_ddwaf_config_checked(env, config, &ddwaf_configuration);
+    if (JNI(ExceptionCheck)) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "config was not found in ddwaf");
+        return 0L;
+    }
     ddwaf_builder builder = ddwaf_builder_init(&ddwaf_configuration);
+    _dispose_of_ddwaf_config(&ddwaf_configuration);
     return (jlong) (intptr_t) builder;
 }
 
 JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafBuilder_buildInstance(JNIEnv *env, jclass clazz, jobject builder_java) {
     ddwaf_builder builder = _get_builder_checked(env, clazz, builder_java);
     if (JNI(ExceptionCheck) || !builder ) {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "build instance did not succeed");
+        JAVA_LOG(DDWAF_LOG_DEBUG, "builder was not found in ddwaf");
         return NULL;
     }
     ddwaf_handle handle = ddwaf_builder_build_instance(builder);
@@ -976,9 +1002,8 @@ JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafBuilder_buildInstance(JNIEnv
 
     if (JNI(ExceptionCheck) || !java_handle) {
         JAVA_LOG(DDWAF_LOG_DEBUG, "Problem in converting ddwaf_handle to java handle");
-        return NULL;
+        ddwaf_destroy(handle);
     }
-
     return java_handle;
 }
 
@@ -1994,7 +2019,7 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
     }
     if (!JNI(IsSameObject, key_regex_jstr, NULL)) {
         key_regex = java_to_utf8_checked(env, (jstring) key_regex_jstr,
-                                         &(size_t) {0});
+                                         &(size_t){0});
         if (!key_regex) {
             return false;
         }
@@ -2010,7 +2035,7 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
     }
     if (!JNI(IsSameObject, value_regex_jstr, NULL)) {
         value_regex = java_to_utf8_checked(env, (jstring) value_regex_jstr,
-                                           &(size_t) {0});
+                                           &(size_t){0});
         if (!value_regex) {
             free(key_regex);
             return false;
@@ -2021,7 +2046,7 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
         }
     }
 
-    *out_config = (ddwaf_config) {
+    *out_config = (ddwaf_config){
             // disable these checks. We also have our own
             // limits given at rule run time
             .limits =
@@ -2042,7 +2067,11 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
 
     return true;
 }
-
+static void _dispose_of_ddwaf_config(ddwaf_config *cfg)
+{
+    free((void *) (uintptr_t) cfg->obfuscator.key_regex);
+    free((void *) (uintptr_t) cfg->obfuscator.value_regex);
+}
 
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
                                       const ddwaf_result *ret)

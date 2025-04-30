@@ -36,7 +36,7 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNa
  * Method:    removeConfigNative
  * Signature: (Lcom/datadog/ddwaf/WafBuilder;Ljava/lang/String;)V
  */
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative
+JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative
   (JNIEnv *, jclass, jobject, jstring);
 
 /*

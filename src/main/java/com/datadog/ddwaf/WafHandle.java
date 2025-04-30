@@ -40,7 +40,7 @@ public class WafHandle {
         } else {
             this.selfRef = null;
         }
-        LOGGER.debug("Successfully create Waf context {}", uniqueName);
+        LOGGER.debug("Successfully create Waf handle {}", uniqueName);
     }
 
     private void checkIfOnline() {
@@ -91,7 +91,7 @@ public class WafHandle {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("WafContext{");
+        final StringBuilder sb = new StringBuilder("WafHandle{");
         sb.append(uniqueName);
         sb.append('}');
         return sb.toString();

@@ -11,10 +11,13 @@ package com.datadog.ddwaf;
 import com.datadog.ddwaf.exception.AbstractWafException;
 import com.datadog.ddwaf.exception.InvalidRuleSetException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
 public final class WafBuilder {
+    private static final Logger log = LoggerFactory.getLogger(WafBuilder.class);
     // The ptr field holds the pointer to PWAddContext and managed by PowerWAF
     private final long ptr;     // KEEP THIS FIELD!
     private boolean online;
@@ -40,14 +43,9 @@ public final class WafBuilder {
     public synchronized WafDiagnostics addOrUpdateConfig(String path, Map<String, Object> config) throws InvalidRuleSetException {
         WafDiagnostics[] infoRef = new WafDiagnostics[1];
         if (addOrUpdateConfigNative(this, path, config, infoRef)) {
-            // at least one rule ok or no error
-            if (infoRef[0] != null && (infoRef[0].getNumConfigError() == 0 || infoRef[0].getNumConfigOK() != 0)) {
-                return infoRef[0];
-            } else {
-                throw new InvalidRuleSetException(infoRef[0], "Invalid WAF configuration");
-            }
+            return infoRef[0];
         } else {
-            throw new IllegalArgumentException("Invalid WAF configuration");
+            throw new InvalidRuleSetException(infoRef[0], "Invalid WAF configuration");
         }
     }
 
@@ -59,7 +57,9 @@ public final class WafBuilder {
      */
     public synchronized void removeConfig(String path) {
         if (path != null) {
-            removeConfigNative(this, path);
+            if (!removeConfigNative(this, path)) {
+                log.warn("Cannot remove config from path {}, check logs further", path);
+            }
         }
     }
 
@@ -100,7 +100,7 @@ public final class WafBuilder {
 
     private static native long initBuilder(WafConfig config);
     private static native boolean addOrUpdateConfigNative(WafBuilder wafBuilder, String path, Map<String, Object> definition, WafDiagnostics[] infoRef);
-    private static native void removeConfigNative(WafBuilder wafBuilder, String oldPath);
+    private static native boolean removeConfigNative(WafBuilder wafBuilder, String oldPath);
     private static native void destroyBuilder(long builderPtr);
 
     public boolean isOnline() {

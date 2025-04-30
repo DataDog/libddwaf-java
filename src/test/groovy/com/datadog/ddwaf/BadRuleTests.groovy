@@ -8,7 +8,6 @@
 
 package com.datadog.ddwaf
 
-import com.datadog.ddwaf.exception.AbstractWafException
 import com.datadog.ddwaf.exception.InvalidRuleSetException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
@@ -20,9 +19,8 @@ class BadRuleTests implements WafTrait {
 
     @Test
     void 'no events'() {
-        wafDiagnostics = builder.addOrUpdateConfig('test', [version: '0.0', events: []])
-        shouldFail(AbstractWafException) {
-            handle = builder.buildWafHandleInstance()
+        shouldFail(InvalidRuleSetException) {
+            wafDiagnostics = builder.addOrUpdateConfig('test', [version: '0.0', events: []])
         }
     }
 

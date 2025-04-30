@@ -15,7 +15,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
-import static org.hamcrest.Matchers.is 
+import static org.hamcrest.Matchers.is
 
 class WafHandleTest implements WafTrait {
 

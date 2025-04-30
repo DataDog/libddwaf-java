@@ -8,7 +8,6 @@
 
 package com.datadog.ddwaf
 
-import com.datadog.ddwaf.exception.AbstractWafException
 import com.datadog.ddwaf.exception.InvalidArgumentWafException
 import com.datadog.ddwaf.exception.InvalidObjectWafException
 import com.datadog.ddwaf.exception.TimeoutWafException
