@@ -138,7 +138,6 @@ class LimitsTests implements WafTrait {
     }
 
     @Test
-    @Ignore
     void 'runBudgetInUs is observed'() {
         def atom = new JsonSlurper().parseText('''
           {
@@ -184,15 +183,11 @@ class LimitsTests implements WafTrait {
         ctx = Waf.createHandle('test', atom)
 
         timeoutInUs = 10000000 // 10 sec
-        runBudget = 10 // 10 microseconds
+        runBudget = 5 // 5 microseconds
         maxStringSize = Integer.MAX_VALUE
 
-        def res = runRules('Arachni' * 9000)
-        assertThat res.result, is(oneOf(
-                Waf.Result.MATCH,
-                Waf.Result.OK)) // depending if it happened on first or 2nd rule
-
-        def json = slurper.parseText(res.data)
-        assertThat json.ret_code, hasItem(is(new TimeoutWafException().code))
+        shouldFail(TimeoutWafException) {
+            runRules('Arachni' * 9000)
+        }
     }
 }
