@@ -39,8 +39,18 @@ public final class WafBuilder {
      * @param config The configuration to add, update or remove.
      * @return The diagnostics of the configuration.
      * @throws InvalidRuleSetException if the config is invalid.
+     * @throws UnclassifiedWafException if request is not valid.
      */
-    public synchronized WafDiagnostics addOrUpdateConfig(String path, Map<String, Object> config) throws InvalidRuleSetException {
+    public synchronized WafDiagnostics addOrUpdateConfig(String path, Map<String, Object> config) throws UnclassifiedWafException {
+        if (!online) {
+            throw new UnclassifiedWafException("WafBuilder is offline");
+        }
+        if (config == null) {
+            throw new IllegalArgumentException("Config cannot be null");
+        }
+        if (path == null || path.isEmpty()) {
+            throw new IllegalArgumentException("Path cannot be empty");
+        }
         WafDiagnostics[] infoRef = new WafDiagnostics[1];
         if (addOrUpdateConfigNative(this, path, config, infoRef)) {
             return infoRef[0];
