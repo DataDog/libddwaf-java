@@ -897,7 +897,7 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
             JAVA_LOG(DDWAF_LOG_DEBUG, "build not found");
             return JNI_FALSE;
         }
-        const char * path_string = JNI(GetStringUTFChars, path, NULL);
+        const char* path_string = JNI(GetStringUTFChars, path, NULL);
         if (JNI(ExceptionCheck)) {
             JAVA_LOG(DDWAF_LOG_DEBUG, "path could not be converted for ddwaf");
             return JNI_FALSE;
@@ -908,7 +908,12 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
             return JNI_FALSE;
         }
 
-        return ddwaf_builder_remove_config(ddwaf_builder, path_string, path_length);
+        bool result = ddwaf_builder_remove_config(ddwaf_builder, path_string, path_length);
+        JNI(ReleaseStringUTFChars, path, path_string);
+        if (JNI(ExceptionCheck)) {
+            JAVA_LOG(DDWAF_LOG_DEBUG, "error in path variable release, memory leak");
+        }
+        return result;
     }
     JAVA_LOG(DDWAF_LOG_DEBUG, "Provide a path and builder to remove config!");
     return JNI_FALSE;
@@ -923,7 +928,7 @@ jobject builder, jstring path, jobject configuration, jobject diagnostics) {
         .max_elements = 1000000,
         .max_string_size = 1000000,
     };
-    ddwaf_object ddwaf_configuration =_convert_checked(env, configuration, &limits, 0);
+    ddwaf_object ddwaf_configuration = _convert_checked(env, configuration, &limits, 0);
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
     }
@@ -931,7 +936,7 @@ jobject builder, jstring path, jobject configuration, jobject diagnostics) {
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
     }
-    const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
+    const char* path_ddwaf = JNI(GetStringUTFChars, path, NULL);
     if (JNI(ExceptionCheck)) {
         return JNI_FALSE;
     }
@@ -942,6 +947,10 @@ jobject builder, jstring path, jobject configuration, jobject diagnostics) {
     }
     bool result = ddwaf_builder_add_or_update_config(ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
                                                                                         &ddwaf_diagnostics);
+    JNI(ReleaseStringUTFChars, path, path_ddwaf);
+    if (JNI(ExceptionCheck)) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "error in path variable release, memory leak");
+    }
     ddwaf_object_free(&ddwaf_configuration);
     if (memcmp(&ddwaf_diagnostics, &(ddwaf_object) {0},
                                     sizeof(ddwaf_diagnostics)) != 0) {
