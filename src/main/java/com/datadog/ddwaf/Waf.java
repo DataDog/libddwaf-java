@@ -11,17 +11,18 @@ package com.datadog.ddwaf;
 import com.datadog.ddwaf.exception.AbstractWafException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
 import com.datadog.ddwaf.exception.UnsupportedVMException;
+
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 
 public final class Waf {
-    public static final String LIB_VERSION = "1.22.0";
+    public static final String LIB_VERSION = "1.24.1";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Waf.class);
     static final boolean EXIT_ON_LEAK;
@@ -61,78 +62,8 @@ public final class Waf {
         initialized = true;
     }
 
-    /**
-     * Creates a new collection of rules with the default configuration.
-     * @param uniqueId a unique id identifying the context. It better be unique!
-     * @param ruleDefinitions a map rule name to rule definition
-     * @return the new context
-     */
-    public static WafHandle createHandle(
-            String uniqueId, Map<String, Object> ruleDefinitions)
-            throws AbstractWafException {
-        return new WafHandle(uniqueId, null, ruleDefinitions);
-    }
-
-    /**
-     * Creates a new collection of rules.
-     * @param uniqueId a unique id identifying the builder. It better be unique!
-     * @param ruleDefinitions a map rule name to rule definition
-     * @param config configuration settings or null for the default
-     * @return the new builder
-     */
-    public static WafHandle createHandle(
-            String uniqueId, WafConfig config, Map<String, Object> ruleDefinitions)
-            throws AbstractWafException {
-        return new WafHandle(uniqueId, config, ruleDefinitions);
-    }
-
-    /**
-     * Creates a rule given its definition.
-     *
-     * See also pw_initH.
-     *
-     * @param definition map with keys version and events
-     * @param config configuration for the obfuscator. Non-null.
-     * @param rulesetInfoOut either a null or a 1-byte element holding an out
-     *                       reference for a {@link RuleSetInfo}.
-     * @return a non-null native handle
-     * @throws IllegalArgumentException
-     */
-    static native NativeWafHandle addRules(
-            Map<String, Object> definition, WafConfig config, RuleSetInfo[] rulesetInfoOut);
-
-    /* pw_clearRuleH */
-    static native void clearRules(NativeWafHandle handle);
-
-    static native String[] getKnownAddresses(NativeWafHandle handle);
-
-    static native String[] getKnownActions(NativeWafHandle handle);
-
-    /**
-     * Runs a rule with the parameters pre-serialized into direct
-     * ByteBuffers. The initial PWArgs must be the object at offset 0
-     * of <code>firstPWArgsBuffer</code>. This object will have pointers
-     * to the remaining data, part of which can live in the buffers
-     * listed in <code>otherBuffers</code>.
-     *
-     * See pw_runH.
-     *
-     * @param handle the Waf rule handle
-     * @param firstPWArgsBuffer a buffer whose first object should be top PWArgs
-     * @param limits the limits
-     * @param metrics the metrics collector, or null
-     * @return the resulting action (OK or MATCH) and associated details
-     */
-    static native ResultWithData runRules(NativeWafHandle handle,
-                                          ByteBuffer firstPWArgsBuffer,
-                                          Limits limits,
-                                          WafMetrics metrics) throws AbstractWafException;
-
+    /** (FOR TESTING PURPOSES ONLY) Converts a ByteBuffer to a String. */
     static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
-
-    static native NativeWafHandle update(NativeWafHandle handle,
-                                         Map<String, Object> specification,
-                                         RuleSetInfo[] ruleSetInfoRef);
 
     public static native String getVersion();
 
