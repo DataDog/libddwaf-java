@@ -265,7 +265,7 @@ jobs:
           name: jni_${{ env.artifactsuff }}
 
   Native_binaries_Stage_asan:
-    name: ASAN/static analyzer on Linux
+    name: ASAN on Linux
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout project
@@ -275,14 +275,29 @@ jobs:
     - name: Install GCC and clang
       run: |
         sudo apt-get update
-        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++ \
-          clang clang-tools ruby
+        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++
       shell: bash
     - name: Build and test (with ASAN)
       run: ./gradlew check -PwithASAN
+
+  Native_binaries_Stage_static_analyzer:
+    name: Static analyzer on Linux
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout project
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install GCC and clang
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++ clang-19 clang-tools-19
+      shell: bash
+    - name: Build
+      run: ./gradlew buildLibddwafDebug
     - name: Run static analyzer
       run: |
-        ci/static_analysis
+        SCAN_BUILD=scan-build-19 ./ci/static_analysis
       shell: bash
 
   Dev_Tests:
@@ -339,6 +354,7 @@ jobs:
       - Native_binaries_Stage_windows_x86_64
       - Native_binaries_Stage_linux
       - Native_binaries_Stage_asan
+      - Native_binaries_Stage_static_analyzer
     steps:
     - name: Setup JDK 1.8
       uses: actions/setup-java@v4

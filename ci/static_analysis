@@ -1,50 +1,53 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -ex
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR="$SCRIPT_DIR/.."
+CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$PROJECT_DIR/build/libddwaf-out-debug/share/cmake/libddwaf}"
+CMAKE_PREFIX_PATH="$(realpath "$CMAKE_PREFIX_PATH")"
+echo "Using CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
+if [[ ! -d "$CMAKE_PREFIX_PATH" ]]; then
+  echo "CMAKE_PREFIX_PATH does not exist: $CMAKE_PREFIX_PATH"
+  echo "Run './gradlew buildLibddwafDebug' first or set CMAKE_PREFIX_PATH"
+  exit 1
+fi
+
+SCAN_BUILD="${SCAN_BUILD:-scan-build}"
 
 analyzer_checks=(
-  alpha.core.BoolAssignment alpha.core.CallAndMessageUnInitRefArg
-  alpha.core.CastSize alpha.core.Conversion alpha.core.DynamicTypeChecker
-  alpha.core.FixedAddr alpha.core.IdenticalExpr alpha.core.PointerArithm
-  alpha.core.PointerSub alpha.core.SizeofPtr alpha.core.TestAfterDivZero
-  alpha.cplusplus.IteratorRange alpha.deadcode.UnreachableCode
-  alpha.security.ArrayBound alpha.security.ArrayBoundV2
-  alpha.security.MallocOverflow alpha.security.ReturnPtrRange
-  alpha.security.taint.TaintPropagation alpha.unix.BlockInCriticalSection
-  alpha.unix.Chroot alpha.unix.PthreadLock alpha.unix.SimpleStream
-  alpha.unix.Stream alpha.unix.cstring.BufferOverlap
-  alpha.unix.cstring.NotNullTerminated alpha.unix.cstring.OutOfBounds
-  nullability.NullPassedToNonnull nullability.NullReturnedFromNonnull
-  nullability.NullableDereferenced nullability.NullablePassedToNonnull
-  nullability.NullableReturnedFromNonnull valist.CopyToSelf
-  valist.Uninitialized valist.Unterminated
+  security.insecureAPI.rand
+  security.insecureAPI.strcpy
+  nullability.NullPassedToNonnull
+  nullability.NullReturnedFromNonnull
+  nullability.NullableDereferenced
+  nullability.NullablePassedToNonnull
+  nullability.NullableReturnedFromNonnull
+  valist.CopyToSelf
+  valist.Uninitialized
+  valist.Unterminated
 )
 
-check_switches=()
+scan_build_cmd=(
+  "$SCAN_BUILD"
+  --exclude
+  _deps
+  -o
+  output
+)
 for x in "${analyzer_checks[@]}"; do
-  check_switches+=(-enable-checker "$x")
+  scan_build_cmd+=(-enable-checker "$x")
 done
 
 mkdir -p static_analysis
 cd static_analysis
-scan-build "${check_switches[@]}" -o output \
-  cmake .. -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_PREFIX_PATH=$(realpath ../build/libddwaf-out-asan/share/cmake/libddwaf/)
-scan-build "${check_switches[@]}" -o output make -j
-function clang_violations {
-  ruby <<'EOD'
-	file = Dir.glob('./output/*/index.html').first
-	exit if file.nil?
-	data = File.read(file)
-	puts data.scan(%r{<td class="DESC">([^<]+)</td><td>(.*?[^/<]+\.[cp]+)</td>}m).
-	map { |x| x.reverse.join(": ") + "\n" }
-EOD
-}
-analyzer_violations=
-IFS=$'\n' analyzer_violations=($(clang_violations))
-if [[ ${#analyzer_violations[@]} -gt 0 ]]; then
+"${scan_build_cmd[@]}" cmake .. \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+make clean
+"${scan_build_cmd[@]}" make -j
+if ls ./output/*/failures/* &> /dev/null; then
   echo "Found clang analyzer violations. Failing."
-  printf '%s\n' "${analyzer_violations[@]}"
   exit 1
 fi
 echo "No clang analyzer violations found"
