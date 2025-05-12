@@ -11,12 +11,9 @@
 #include "logging.h"
 #include <assert.h>
 
-bool java_meth_init_checked(
-        JNIEnv *env,
-        struct j_method *jmeth,
-        const char *class_name,
-        const char *method_name, const char *sig,
-        enum j_method_type type)
+bool java_meth_init_checked(JNIEnv *env, struct j_method *jmeth,
+                            const char *class_name, const char *method_name,
+                            const char *sig, enum j_method_type type)
 {
     bool result = false;
     jmethodID meth_id;
@@ -51,15 +48,16 @@ bool java_meth_init_checked(
 
     if (!meth_id) {
         assert(JNI(ExceptionCheck));
-        java_wrap_exc("Could not find method %s.%s%s",
-                      class_name, method_name, sig);
+        java_wrap_exc("Could not find method %s.%s%s", class_name, method_name,
+                      sig);
         goto end;
     }
 
-    *jmeth = (struct j_method) {
-        .type = type != JMETHOD_VIRTUAL_RETRIEVE_CLASS ? type : JMETHOD_VIRTUAL,
-        .class_glob = class_global,
-        .meth_id = meth_id,
+    *jmeth = (struct j_method){
+            .type = type != JMETHOD_VIRTUAL_RETRIEVE_CLASS ? type
+                                                           : JMETHOD_VIRTUAL,
+            .class_glob = class_global,
+            .meth_id = meth_id,
     };
     result = true;
 
@@ -71,10 +69,8 @@ end:
     return result;
 }
 
-jobject java_meth_call(JNIEnv *env,
-                       const struct j_method *jmeth,
-                       jobject receiver,
-                       ...)
+jobject java_meth_call(JNIEnv *env, const struct j_method *jmeth,
+                       jobject receiver, ...)
 {
     if (jmeth->type == JMETHOD_UNINITIALIZED) {
         JNI(ThrowNew, jcls_rte, "j_method unitialized");
@@ -98,14 +94,13 @@ jobject java_meth_call(JNIEnv *env,
     if (jmeth->type == JMETHOD_CONSTRUCTOR) {
         ret = JNI(NewObjectV, class_strongref, jmeth->meth_id, args);
     } else if (jmeth->type == JMETHOD_STATIC) {
-        ret = JNI(CallStaticObjectMethodV,
-                  class_strongref, jmeth->meth_id, args);
+        ret = JNI(CallStaticObjectMethodV, class_strongref, jmeth->meth_id,
+                  args);
     } else if (jmeth->type == JMETHOD_NON_VIRTUAL) {
-        ret = JNI(CallNonvirtualObjectMethodV, receiver,
-                  class_strongref, jmeth->meth_id, args);
-    } else { // JMETHOD_VIRTUAL
-        ret = JNI(CallObjectMethodV, receiver,
+        ret = JNI(CallNonvirtualObjectMethodV, receiver, class_strongref,
                   jmeth->meth_id, args);
+    } else { // JMETHOD_VIRTUAL
+        ret = JNI(CallObjectMethodV, receiver, jmeth->meth_id, args);
     }
 
     va_end(args);
@@ -126,11 +121,10 @@ void java_meth_destroy(JNIEnv *env, struct j_method *jmeth)
 }
 
 // returns a global reference
-jobject java_static_field_checked(JNIEnv *env, jclass clazz,
-                                  const char *name, const char *sig)
+jobject java_static_field_checked(JNIEnv *env, jclass clazz, const char *name,
+                                  const char *sig)
 {
-    jobject local_obj  = NULL,
-            global_obj = NULL;
+    jobject local_obj = NULL, global_obj = NULL;
 
     jfieldID id = JNI(GetStaticFieldID, clazz, name, sig);
     if (!id) {

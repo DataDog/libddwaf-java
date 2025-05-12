@@ -20,53 +20,57 @@ import java.net.URL;
 import org.junit.Test;
 
 public class WafGCTests {
-    ReferenceQueue<ClassLoader> refQueue;
-    WeakReference<ClassLoader> weakRef;
+  ReferenceQueue<ClassLoader> refQueue;
+  WeakReference<ClassLoader> weakRef;
 
-    private void testBody() throws Exception {
-        ClassLoader parentCl = WafGCTests.class.getClassLoader();
+  private void testBody() throws Exception {
+    ClassLoader parentCl = WafGCTests.class.getClassLoader();
 
-        String urlSrc = parentCl.getResource("com/datadog/ddwaf/Waf.class").getFile();
-        int endOfDirSrc = urlSrc.indexOf("com/datadog/");
-        String srcClassesDir = urlSrc.substring(0, endOfDirSrc);
+    String urlSrc = parentCl.getResource("com/datadog/ddwaf/Waf.class").getFile();
+    int endOfDirSrc = urlSrc.indexOf("com/datadog/");
+    String srcClassesDir = urlSrc.substring(0, endOfDirSrc);
 
-        ChildFirstURLClassLoader cl;
-        cl = new ChildFirstURLClassLoader(
-                new URL[] { new URL("file://" + srcClassesDir), }, parentCl);
+    ChildFirstURLClassLoader cl;
+    cl =
+        new ChildFirstURLClassLoader(
+            new URL[] {
+              new URL("file://" + srcClassesDir),
+            },
+            parentCl);
 
-        refQueue = new ReferenceQueue<>();
-        weakRef = new WeakReference<>(cl, refQueue);
+    refQueue = new ReferenceQueue<>();
+    weakRef = new WeakReference<>(cl, refQueue);
 
-        Class<?> clazz = cl.loadClass("com.datadog.ddwaf.Waf");
-        Method initialize = clazz.getMethod("initialize", boolean.class);
-        boolean simpleInit = System.getProperty("useReleaseBinaries") == null;
-        initialize.invoke(null, simpleInit);
+    Class<?> clazz = cl.loadClass("com.datadog.ddwaf.Waf");
+    Method initialize = clazz.getMethod("initialize", boolean.class);
+    boolean simpleInit = System.getProperty("useReleaseBinaries") == null;
+    initialize.invoke(null, simpleInit);
 
-        Method deinitialize = clazz.getMethod("deinitialize");
-        deinitialize.invoke(null);
+    Method deinitialize = clazz.getMethod("deinitialize");
+    deinitialize.invoke(null);
+  }
+
+  @Test
+  public void library_is_unloaded() throws Exception {
+    testBody();
+
+    Reference<? extends ClassLoader> poll;
+    int i = 0;
+    while (true) {
+      System.gc();
+      System.runFinalization();
+      System.gc();
+      poll = refQueue.poll();
+      if (poll != null) {
+        break;
+      }
+      if (i++ < 10) {
+        Thread.yield();
+      } else {
+        break;
+      }
     }
 
-    @Test
-    public void library_is_unloaded() throws Exception {
-        testBody();
-
-        Reference<? extends ClassLoader> poll;
-        int i = 0;
-        while (true) {
-            System.gc();
-            System.runFinalization();
-            System.gc();
-            poll = refQueue.poll();
-            if (poll != null) {
-                break;
-            }
-            if (i++ < 10) {
-                Thread.yield();
-            } else {
-                break;
-            }
-        }
-
-        assertThat(poll, sameInstance(weakRef));
-    }
+    assertThat(poll, sameInstance(weakRef));
+  }
 }

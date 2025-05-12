@@ -23,10 +23,10 @@ typedef struct {
     size_t offset;
 } hstring;
 
-#define INITIAL_CAPACITY ((size_t)16)
+#define INITIAL_CAPACITY ((size_t) 16)
 
-JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(
-        JNIEnv *, jclass, jobject);
+JNIEXPORT jstring JNICALL
+Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(JNIEnv *, jclass, jobject);
 
 static void _hstring_write_pwargs(hstring *str, size_t depth,
                                   const ddwaf_object *pwargs);
@@ -48,10 +48,8 @@ JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(
 
     ddwaf_object root;
     memcpy(&root, input_p, sizeof root);
-    hstring str = {
-        .buffer = malloc(INITIAL_CAPACITY),
-        .capacity = INITIAL_CAPACITY
-    };
+    hstring str = {.buffer = malloc(INITIAL_CAPACITY),
+                   .capacity = INITIAL_CAPACITY};
     if (!str.buffer) {
         return NULL;
     }
@@ -67,7 +65,7 @@ JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(
 }
 
 #if defined(__GNUC__) || defined(__clang__)
-# define max(a, b)                                                              \
+#define max(a, b)                                                              \
     ({                                                                         \
         __typeof__(a) _a = (a);                                                \
         __typeof__(b) _b = (b);                                                \
@@ -75,7 +73,7 @@ JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(
     })
 #else
 // this evaluates a and b twice though
-# define max(a, b)  (((a) > (b)) ? (a) : (b))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
 static bool _hstring_ensure_extra_capacity(hstring *str, size_t data_size)
@@ -94,7 +92,6 @@ static bool _hstring_ensure_extra_capacity(hstring *str, size_t data_size)
         str->capacity = new_capacity;
     }
     return true;
-
 }
 static void _hstring_append(hstring *str, const char *data, size_t data_size)
 {
@@ -110,8 +107,10 @@ static void _hstring_append(hstring *str, const char *data, size_t data_size)
 #endif
     str->offset += data_size;
 }
-#define HSTRING_APPEND_CONST(str, constant) \
-    do { _hstring_append(str, constant "", sizeof(constant) - 1); } while (0)
+#define HSTRING_APPEND_CONST(str, constant)                                    \
+    do {                                                                       \
+        _hstring_append(str, constant "", sizeof(constant) - 1);               \
+    } while (0)
 
 static void _hstring_repeat(hstring *str, char c, size_t repeat_times)
 {
@@ -123,7 +122,7 @@ static void _hstring_repeat(hstring *str, char c, size_t repeat_times)
     }
     for (size_t i = 0; i < repeat_times; i++) {
 #ifndef __clang_analyzer__
-    // clang analyzer doesn't seem to look into ensure_extra_capacity
+        // clang analyzer doesn't seem to look into ensure_extra_capacity
         str->buffer[str->offset + i] = c;
 #endif
     }

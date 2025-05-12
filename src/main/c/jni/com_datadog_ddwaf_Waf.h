@@ -10,74 +10,80 @@ extern "C" {
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    addRules
- * Signature: (Ljava/util/Map;Lcom/datadog/ddwaf/WafConfig;[Lcom/datadog/ddwaf/RuleSetInfo;)Lcom/datadog/ddwaf/NativeWafHandle;
+ * Signature:
+ * (Ljava/util/Map;Lcom/datadog/ddwaf/WafConfig;[Lcom/datadog/ddwaf/RuleSetInfo;)Lcom/datadog/ddwaf/NativeWafHandle;
  */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_addRules
-  (JNIEnv *, jclass, jobject, jobject, jobjectArray);
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_addRules(JNIEnv *, jclass,
+                                                              jobject, jobject,
+                                                              jobjectArray);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    clearRules
  * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)V
  */
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_clearRules
-  (JNIEnv *, jclass, jobject);
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_clearRules(JNIEnv *, jclass,
+                                                             jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    getKnownAddresses
  * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)[Ljava/lang/String;
  */
-JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownAddresses
-  (JNIEnv *, jclass, jobject);
+JNIEXPORT jobjectArray JNICALL
+Java_com_datadog_ddwaf_Waf_getKnownAddresses(JNIEnv *, jclass, jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    getKnownActions
  * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)[Ljava/lang/String;
  */
-JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownActions
-  (JNIEnv *, jclass, jobject);
+JNIEXPORT jobjectArray JNICALL
+Java_com_datadog_ddwaf_Waf_getKnownActions(JNIEnv *, jclass, jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    runRules
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;Ljava/nio/ByteBuffer;Lcom/datadog/ddwaf/Waf$Limits;Lcom/datadog/ddwaf/WafMetrics;)Lcom/datadog/ddwaf/Waf$ResultWithData;
+ * Signature:
+ * (Lcom/datadog/ddwaf/NativeWafHandle;Ljava/nio/ByteBuffer;Lcom/datadog/ddwaf/Waf$Limits;Lcom/datadog/ddwaf/WafMetrics;)Lcom/datadog/ddwaf/Waf$ResultWithData;
  */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_runRules
-  (JNIEnv *, jclass, jobject, jobject, jobject, jobject);
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_runRules(JNIEnv *, jclass,
+                                                              jobject, jobject,
+                                                              jobject, jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    pwArgsBufferToString
  * Signature: (Ljava/nio/ByteBuffer;)Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString
-  (JNIEnv *, jclass, jobject);
+JNIEXPORT jstring JNICALL
+Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(JNIEnv *, jclass, jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    update
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;Ljava/util/Map;[Lcom/datadog/ddwaf/RuleSetInfo;)Lcom/datadog/ddwaf/NativeWafHandle;
+ * Signature:
+ * (Lcom/datadog/ddwaf/NativeWafHandle;Ljava/util/Map;[Lcom/datadog/ddwaf/RuleSetInfo;)Lcom/datadog/ddwaf/NativeWafHandle;
  */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_update
-  (JNIEnv *, jclass, jobject, jobject, jobjectArray);
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_update(JNIEnv *, jclass,
+                                                            jobject, jobject,
+                                                            jobjectArray);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    getVersion
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_getVersion
-  (JNIEnv *, jclass);
+JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_getVersion(JNIEnv *,
+                                                                jclass);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    deinitialize
  * Signature: ()V
  */
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_deinitialize
-  (JNIEnv *, jclass);
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_deinitialize(JNIEnv *,
+                                                               jclass);
 
 #ifdef __cplusplus
 }

@@ -11,49 +11,48 @@ package com.datadog.ddwaf;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class WafMetrics {
-    // total accumulated time between runs, including metrics
-    AtomicLong totalRunTimeNs = new AtomicLong();
-    AtomicLong totalDdwafRunTimeNs = new AtomicLong();
-    AtomicLong truncatedStringTooLongCount = new AtomicLong();
-    AtomicLong truncatedListMapTooLargeCount = new AtomicLong();
-    AtomicLong truncatedObjectTooDeepCount = new AtomicLong();
+  // total accumulated time between runs, including metrics
+  AtomicLong totalRunTimeNs = new AtomicLong();
+  AtomicLong totalDdwafRunTimeNs = new AtomicLong();
+  AtomicLong truncatedStringTooLongCount = new AtomicLong();
+  AtomicLong truncatedListMapTooLargeCount = new AtomicLong();
+  AtomicLong truncatedObjectTooDeepCount = new AtomicLong();
 
-    WafMetrics() {
-    }
+  WafMetrics() {}
 
-    public long getTotalRunTimeNs() {
-        return totalRunTimeNs.get();
-    }
+  public long getTotalRunTimeNs() {
+    return totalRunTimeNs.get();
+  }
 
-    protected void addTotalRunTimeNs(long increment) {
-        totalRunTimeNs.addAndGet(increment);
-    }
+  protected void addTotalRunTimeNs(long increment) {
+    totalRunTimeNs.addAndGet(increment);
+  }
 
-    public long getTotalDdwafRunTimeNs() {
-        return totalDdwafRunTimeNs.get();
-    }
+  public long getTotalDdwafRunTimeNs() {
+    return totalDdwafRunTimeNs.get();
+  }
 
-    public long getTruncatedStringTooLongCount() {
-        return truncatedStringTooLongCount.get();
-    }
+  public long getTruncatedStringTooLongCount() {
+    return truncatedStringTooLongCount.get();
+  }
 
-    public long getTruncatedListMapTooLargeCount() {
-        return truncatedListMapTooLargeCount.get();
-    }
+  public long getTruncatedListMapTooLargeCount() {
+    return truncatedListMapTooLargeCount.get();
+  }
 
-    public long getTruncatedObjectTooDeepCount() {
-        return truncatedObjectTooDeepCount.get();
-    }
+  public long getTruncatedObjectTooDeepCount() {
+    return truncatedObjectTooDeepCount.get();
+  }
 
-    protected void incrementTruncatedStringTooLongCount() {
-        truncatedStringTooLongCount.incrementAndGet();
-    }
+  protected void incrementTruncatedStringTooLongCount() {
+    truncatedStringTooLongCount.incrementAndGet();
+  }
 
-    protected void incrementTruncatedListMapTooLargeCount() {
-        truncatedListMapTooLargeCount.incrementAndGet();
-    }
+  protected void incrementTruncatedListMapTooLargeCount() {
+    truncatedListMapTooLargeCount.incrementAndGet();
+  }
 
-    protected void incrementTruncatedObjectTooDeepCount() {
-        truncatedObjectTooDeepCount.incrementAndGet();
-    }
+  protected void incrementTruncatedObjectTooDeepCount() {
+    truncatedObjectTooDeepCount.incrementAndGet();
+  }
 }

@@ -30,22 +30,17 @@ struct j_method {
 };
 #pragma clang diagnostic pop
 
-bool java_meth_init_checked(
-        JNIEnv *env,
-        struct j_method *jmeth,
-        const char *class_name,
-        const char *method_name, const char *sig,
-        enum j_method_type type);
+bool java_meth_init_checked(JNIEnv *env, struct j_method *jmeth,
+                            const char *class_name, const char *method_name,
+                            const char *sig, enum j_method_type type);
 
 void java_meth_destroy(JNIEnv *env, struct j_method *jmeth);
 
 // returns a local ref
-jobject java_meth_call(JNIEnv *env,
-                       const struct j_method *jmeth,
-                       jobject receiver,
-                       ...);
+jobject java_meth_call(JNIEnv *env, const struct j_method *jmeth,
+                       jobject receiver, ...);
 
 // returns a weak global ref
-jobject java_static_field_checked(JNIEnv *env, jclass clazz,
-                                  const char *name, const char *sig);
+jobject java_static_field_checked(JNIEnv *env, jclass clazz, const char *name,
+                                  const char *sig);
 #endif

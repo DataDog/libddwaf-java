@@ -11,10 +11,10 @@ package com.datadog.ddwaf.exception;
 import com.datadog.ddwaf.RuleSetInfo;
 
 public class InvalidRuleSetException extends UnclassifiedWafException {
-    public final RuleSetInfo ruleSetInfo;
+  public final RuleSetInfo ruleSetInfo;
 
-    public InvalidRuleSetException(RuleSetInfo ruleSetInfo, Throwable orig) {
-        super(orig);
-        this.ruleSetInfo = ruleSetInfo;
-    }
+  public InvalidRuleSetException(RuleSetInfo ruleSetInfo, Throwable orig) {
+    super(orig);
+    this.ruleSetInfo = ruleSetInfo;
+  }
 }

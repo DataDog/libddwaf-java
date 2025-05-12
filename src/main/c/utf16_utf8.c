@@ -17,11 +17,12 @@
 /* adapted from PHP code in ext/standard/html.c
  * (that I wrote back in the day, so no copyright problems) */
 
-#define MB_FAILURE(pos, advance) do { \
-    *cursor = pos + (advance); \
-    *status = false; \
-    return 0; \
-} while (0)
+#define MB_FAILURE(pos, advance)                                               \
+    do {                                                                       \
+        *cursor = pos + (advance);                                             \
+        *status = false;                                                       \
+        return 0;                                                              \
+    } while (0)
 
 #define CHECK_LEN(pos, chars_need) ((str_len - (pos)) >= (chars_need))
 
@@ -29,7 +30,7 @@
 #define UTF16_TRAIL(c) ((c) >= 0xDC00 && (c) <= 0xDFFF)
 
 /* valid as single byte character or leading byte */
-#define UTF8_LEAD(c)  ((c) < 0x80 || ((c) >= 0xC2 && (c) <= 0xF4))
+#define UTF8_LEAD(c) ((c) < 0x80 || ((c) >= 0xC2 && (c) <= 0xF4))
 /* whether it's actually valid depends on other stuff;
  * this macro cannot check for non-shortest forms, surrogates or
  * code points above 0x10FFFF */
@@ -37,11 +38,10 @@
 
 #define REPL_CHAR 0xFFFDU
 
-static inline uint32_t _get_next_codepoint_utf16(
-        const jchar *str, // jchar is unsigned
-        size_t str_len /* in code units */,
-        size_t *cursor,
-        bool *status)
+static inline uint32_t
+_get_next_codepoint_utf16(const jchar *str, // jchar is unsigned
+                          size_t str_len /* in code units */, size_t *cursor,
+                          bool *status)
 {
     size_t pos = *cursor;
     uint32_t codepoint;
@@ -78,11 +78,9 @@ static inline uint32_t _get_next_codepoint_utf16(
     return codepoint;
 }
 
-static inline uint32_t _get_next_codepoint_utf8(
-        const uint8_t *str,
-        size_t str_len,
-        size_t *cursor,
-        bool *status)
+static inline uint32_t _get_next_codepoint_utf8(const uint8_t *str,
+                                                size_t str_len, size_t *cursor,
+                                                bool *status)
 {
     /* We'll follow strategy 2. from section 3.6.1 of UTR #36:
      * "In a reported illegal byte sequence, do not include any
@@ -115,8 +113,8 @@ static inline uint32_t _get_next_codepoint_utf8(
     } else if (c < 0xf0) {
         size_t avail = str_len - pos;
 
-        if (avail < 3 ||
-                !UTF8_TRAIL(str[pos + 1]) || !UTF8_TRAIL(str[pos + 2])) {
+        if (avail < 3 || !UTF8_TRAIL(str[pos + 1]) ||
+            !UTF8_TRAIL(str[pos + 2])) {
             if (avail < 2 || UTF8_LEAD(str[pos + 1]))
                 MB_FAILURE(pos, 1);
             else if (avail < 3 || UTF8_LEAD(str[pos + 2]))
@@ -125,7 +123,8 @@ static inline uint32_t _get_next_codepoint_utf8(
                 MB_FAILURE(pos, 3);
         }
 
-        codepoint = ((c & 0x0fU) << 12) | ((str[pos + 1] & 0x3fU) << 6) | (str[pos + 2] & 0x3f);
+        codepoint = ((c & 0x0fU) << 12) | ((str[pos + 1] & 0x3fU) << 6) |
+                    (str[pos + 2] & 0x3f);
         if (codepoint < 0x800) { /* non-shortest form */
             MB_FAILURE(pos, 3);
         } else if (codepoint >= 0xd800 && codepoint <= 0xdfff) { /* surrogate */
@@ -135,9 +134,8 @@ static inline uint32_t _get_next_codepoint_utf8(
     } else if (c < 0xf5) {
         size_t avail = str_len - pos;
 
-        if (avail < 4 ||
-                !UTF8_TRAIL(str[pos + 1]) || !UTF8_TRAIL(str[pos + 2]) ||
-                !UTF8_TRAIL(str[pos + 3])) {
+        if (avail < 4 || !UTF8_TRAIL(str[pos + 1]) ||
+            !UTF8_TRAIL(str[pos + 2]) || !UTF8_TRAIL(str[pos + 3])) {
             if (avail < 2 || UTF8_LEAD(str[pos + 1]))
                 MB_FAILURE(pos, 1);
             else if (avail < 3 || UTF8_LEAD(str[pos + 2]))
@@ -149,7 +147,7 @@ static inline uint32_t _get_next_codepoint_utf8(
         }
 
         codepoint = ((c & 0x07U) << 18) | ((str[pos + 1] & 0x3fU) << 12) |
-                ((str[pos + 2] & 0x3fU) << 6) | (str[pos + 3] & 0x3f);
+                    ((str[pos + 2] & 0x3fU) << 6) | (str[pos + 3] & 0x3f);
         if (codepoint < 0x10000 || codepoint > 0x10FFFF) {
             /* non-shortest form or outside range */
             MB_FAILURE(pos, 4);
@@ -170,19 +168,19 @@ static inline size_t _write_utf8_codeunits(uint8_t *buf, uint32_t k)
     /* assert(0x0 <= k <= 0x10FFFF); */
 
     if (k < 0x80) {
-        buf[0] = (uint8_t)k;
+        buf[0] = (uint8_t) k;
         retval = 1;
     } else if (k < 0x800) {
-        buf[0] = (uint8_t)(0xc0 | (k >> 6));
+        buf[0] = (uint8_t) (0xc0 | (k >> 6));
         buf[1] = 0x80 | (k & 0x3f);
         retval = 2;
     } else if (k < 0x10000) {
-        buf[0] = (uint8_t)(0xe0 | (k >> 12));
+        buf[0] = (uint8_t) (0xe0 | (k >> 12));
         buf[1] = 0x80 | ((k >> 6) & 0x3f);
         buf[2] = 0x80 | (k & 0x3f);
         retval = 3;
     } else {
-        buf[0] = (uint8_t)(0xf0 | (k >> 18));
+        buf[0] = (uint8_t) (0xf0 | (k >> 18));
         buf[1] = 0x80 | ((k >> 12) & 0x3f);
         buf[2] = 0x80 | ((k >> 6) & 0x3f);
         buf[3] = 0x80 | (k & 0x3f);
@@ -196,26 +194,24 @@ static inline size_t _write_utf8_codeunits(uint8_t *buf, uint32_t k)
 static inline size_t _write_utf16_codeunits(jchar *buf, uint32_t k)
 {
     if (k < 0x10000) {
-        buf[0] = (jchar)k;
+        buf[0] = (jchar) k;
         return 1;
     } else {
         buf[0] = 0xD800 | ((k & 0xFFFF) >> 10); // high 10 bits excl over bit 20
-        buf[1] = 0xDC00 | (k & 0x3FF); // low 10 bits
+        buf[1] = 0xDC00 | (k & 0x3FF);          // low 10 bits
         return 2;
     }
 }
 
-void java_utf16_to_utf8_checked(JNIEnv *env,
-                                const jchar *in,
+void java_utf16_to_utf8_checked(JNIEnv *env, const jchar *in,
                                 jsize length /* in code units*/,
-                                uint8_t **out_p,
-                                size_t *out_len_p)
+                                uint8_t **out_p, size_t *out_len_p)
 {
     assert(sizeof(jsize) < sizeof(size_t));
 
     // let's be optimistic and assume the input string is all ascii
     // +3 because we always require 4 bytes before writing
-    size_t out_cap = (size_t)length + 3; // not including NUL
+    size_t out_cap = (size_t) length + 3; // not including NUL
     size_t out_len = 0;
 
     // Cannot overflow (jsize is an int)
@@ -226,7 +222,7 @@ void java_utf16_to_utf8_checked(JNIEnv *env,
     }
 
     size_t in_cursor = 0;
-    while (in_cursor < (size_t)length) {
+    while (in_cursor < (size_t) length) {
         size_t out_left = out_cap - out_len;
         if (out_left < 4) {
             out_cap *= 2;
@@ -240,8 +236,8 @@ void java_utf16_to_utf8_checked(JNIEnv *env,
         }
 
         bool status;
-        uint32_t cp = _get_next_codepoint_utf16(
-                    in, (size_t)length, &in_cursor, &status);
+        uint32_t cp = _get_next_codepoint_utf16(in, (size_t) length, &in_cursor,
+                                                &status);
         if (!status) {
             cp = REPL_CHAR;
         }
@@ -260,18 +256,17 @@ void java_utf16_to_utf8_checked(JNIEnv *env,
     }
 }
 
-jstring java_utf8_to_jstring_checked(JNIEnv *env,
-                                     const char *in_signed,
+jstring java_utf8_to_jstring_checked(JNIEnv *env, const char *in_signed,
                                      size_t in_len)
 {
-    const uint8_t *in = (const uint8_t*)in_signed;
+    const uint8_t *in = (const uint8_t *) in_signed;
     // at most we'll have as many UTF-16 code units as UTF-8 code units
     // (in case of only ASCII characters)
     size_t out_cap = in_len; // not including NUL
     size_t out_len = 0;
 
     jchar *out;
-    if (out_cap > ((size_t)-1) / sizeof(*out) - 1) {
+    if (out_cap > ((size_t) -1) / sizeof(*out) - 1) {
         JNI(ThrowNew, jcls_rte, "string is too large");
         return NULL;
     }
@@ -284,15 +279,13 @@ jstring java_utf8_to_jstring_checked(JNIEnv *env,
     size_t in_cursor = 0;
     while (in_cursor < in_len) {
         bool status;
-        uint32_t cp = _get_next_codepoint_utf8(
-                    in, in_len, &in_cursor, &status);
+        uint32_t cp = _get_next_codepoint_utf8(in, in_len, &in_cursor, &status);
 
         if (!status) {
             cp = REPL_CHAR;
         }
 
-        if (out_cap < out_len + 1 ||
-                (cp > 0xFFFF && out_cap < out_len + 2)) {
+        if (out_cap < out_len + 1 || (cp > 0xFFFF && out_cap < out_len + 2)) {
             JNI(ThrowNew, jcls_rte, "output string is unexpectedly too short");
             free(out);
             return NULL;
@@ -307,14 +300,13 @@ jstring java_utf8_to_jstring_checked(JNIEnv *env,
         return NULL;
     }
 
-    jstring ret = JNI(NewString, out, (jint)out_len);
+    jstring ret = JNI(NewString, out, (jint) out_len);
     free(out);
     return ret;
 }
 
-static char *_to_utf8_checked_utf16_len(JNIEnv *env,
-                                        jstring str, jint utf16_len,
-                                        size_t *utf8_out_len)
+static char *_to_utf8_checked_utf16_len(JNIEnv *env, jstring str,
+                                        jint utf16_len, size_t *utf8_out_len)
 {
     const jchar *utf16_str = JNI(GetStringChars, str, NULL);
 
@@ -333,7 +325,7 @@ static char *_to_utf8_checked_utf16_len(JNIEnv *env,
 
     JNI(ReleaseStringChars, str, utf16_str);
 
-    return (char *)out;
+    return (char *) out;
 }
 
 char *java_to_utf8_checked(JNIEnv *env, jstring str, size_t *utf8_out_len)
@@ -348,8 +340,8 @@ char *java_to_utf8_checked(JNIEnv *env, jstring str, size_t *utf8_out_len)
 }
 
 // sets a pending exception in case of failure
-char *java_to_utf8_limited_checked(
-        JNIEnv *env, jstring str, size_t *len, int max_len)
+char *java_to_utf8_limited_checked(JNIEnv *env, jstring str, size_t *len,
+                                   int max_len)
 {
     const jint utf16_len = JNI(GetStringLength, str);
     if (JNI(ExceptionCheck)) {
@@ -361,10 +353,10 @@ char *java_to_utf8_limited_checked(
         return _to_utf8_checked_utf16_len(env, str, utf16_len, len);
     }
 
-    jchar *utf16_str = calloc((size_t)max_len, sizeof *utf16_str);
+    jchar *utf16_str = calloc((size_t) max_len, sizeof *utf16_str);
     if (!utf16_str) {
-            JNI(ThrowNew, jcls_rte, "malloc failed allocated jchar array");
-            return NULL;
+        JNI(ThrowNew, jcls_rte, "malloc failed allocated jchar array");
+        return NULL;
     }
 
     JNI(GetStringRegion, str, 0, max_len, utf16_str);
@@ -381,19 +373,20 @@ char *java_to_utf8_limited_checked(
 
     free(utf16_str);
 
-    return (char *)out;
+    return (char *) out;
 }
 
-jstring java_json_to_jstring_checked(JNIEnv *env, const struct json_segment *seg)
+jstring java_json_to_jstring_checked(JNIEnv *env,
+                                     const struct json_segment *seg)
 {
-    struct json_iterator it = { .seg = seg };
+    struct json_iterator it = {.seg = seg};
     // at most we'll have as many UTF-16 code units as UTF-8 code units
     // (in case of only ASCII characters)
     size_t out_cap = json_length(seg); // not including NUL
     size_t out_len = 0;
 
     jchar *out;
-    if (out_cap > ((size_t)-1) / sizeof(*out) - 1) {
+    if (out_cap > ((size_t) -1) / sizeof(*out) - 1) {
         JNI(ThrowNew, jcls_rte, "string is too large");
         return NULL;
     }
@@ -426,15 +419,14 @@ jstring java_json_to_jstring_checked(JNIEnv *env, const struct json_segment *seg
         }
 
         bool status;
-        uint32_t cp = _get_next_codepoint_utf8(
-                    buffer, buffer_len, &buffer_cursor, &status);
+        uint32_t cp = _get_next_codepoint_utf8(buffer, buffer_len,
+                                               &buffer_cursor, &status);
 
         if (!status) {
             cp = REPL_CHAR;
         }
 
-        if (out_cap < out_len + 1 ||
-                (cp > 0xFFFF && out_cap < out_len + 2)) {
+        if (out_cap < out_len + 1 || (cp > 0xFFFF && out_cap < out_len + 2)) {
             JNI(ThrowNew, jcls_rte, "output string is unexpectedly too short");
             free(out);
             return NULL;
@@ -449,7 +441,7 @@ jstring java_json_to_jstring_checked(JNIEnv *env, const struct json_segment *seg
         return NULL;
     }
 
-    jstring ret = JNI(NewString, out, (jint)out_len);
+    jstring ret = JNI(NewString, out, (jint) out_len);
     free(out);
     return ret;
 }

@@ -9,13 +9,13 @@
 package com.datadog.ddwaf;
 
 public class NativeWafHandle {
-    private final long nativeHandle;
+  private final long nativeHandle;
 
-    // called from JNI
-    private NativeWafHandle(long handle) {
-        if (handle == 0) {
-            throw new IllegalArgumentException("Cannot build null WafHandles");
-        }
-        this.nativeHandle = handle;
+  // called from JNI
+  private NativeWafHandle(long handle) {
+    if (handle == 0) {
+      throw new IllegalArgumentException("Cannot build null WafHandles");
     }
+    this.nativeHandle = handle;
+  }
 }

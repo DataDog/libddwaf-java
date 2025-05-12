@@ -29,7 +29,7 @@ int vasprintf(char **strp, const char *fmt, va_list ap)
         return -1;
     }
 
-    size_t size = (size_t)len + 1;
+    size_t size = (size_t) len + 1;
     char *str = malloc(size);
     if (!str) {
         return -1;
@@ -44,7 +44,8 @@ int vasprintf(char **strp, const char *fmt, va_list ap)
     return r;
 }
 
-int asprintf(char **strp, const char *fmt, ...) {
+int asprintf(char **strp, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     int r = vasprintf(strp, fmt, ap);
@@ -56,7 +57,7 @@ int asprintf(char **strp, const char *fmt, ...) {
 #ifdef _MSC_VER
 #include <windows.h>
 
-long clock_gettime(clockid_t which_clock, struct timespec* tp)
+long clock_gettime(clockid_t which_clock, struct timespec *tp)
 {
     static double freq_per_ns = -1.0;
     if (freq_per_ns < 0.0) {
@@ -70,9 +71,9 @@ long clock_gettime(clockid_t which_clock, struct timespec* tp)
     }
 
     LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter.QuadPart); //always succeeds
+    QueryPerformanceCounter(&counter.QuadPart); // always succeeds
 
-    int64_t counter_ns = (int64_t)(((double)counter.QuadPart) / freq_per_ns);
+    int64_t counter_ns = (int64_t) (((double) counter.QuadPart) / freq_per_ns);
 
     tp->tv_sec = counter_ns / 1000000000UL;
     tp->tv_nsec = counter_ns % 1000000000UL;
@@ -90,10 +91,10 @@ void *memrchr(const void *buf, int c, size_t n)
             return NULL;
         }
 
-        if (*p-- == (char)c) {
+        if (*p-- == (char) c) {
             break;
         }
     }
 
-    return (void *)(uintptr_t)(p + 1);
+    return (void *) (uintptr_t) (p + 1);
 }

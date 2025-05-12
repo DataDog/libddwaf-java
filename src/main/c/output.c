@@ -43,7 +43,8 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
                                           int depth,
                                           struct json_segment *cur_seg);
 
-static bool _is_derivative(const ddwaf_object *entry, const char *prefix) {
+static bool _is_derivative(const ddwaf_object *entry, const char *prefix)
+{
     size_t prefix_size = strlen(prefix);
     if (entry->parameterNameLength < prefix_size) {
         return false;
@@ -60,7 +61,8 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
     }
 
     jobject rules = NULL, custom_rules = NULL, rules_data = NULL,
-            rules_override = NULL, exclusions = NULL, ret = NULL, exclusion_data = NULL;
+            rules_override = NULL, exclusions = NULL, ret = NULL,
+            exclusion_data = NULL;
 
     rules = _convert_section_checked(env, obj, LSTR("rules"));
     if (JNI(ExceptionCheck)) {
@@ -88,7 +90,8 @@ jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
     }
 
     ret = java_meth_call(env, &_rsi_init, NULL, rulesetVersion, rules,
-                         custom_rules, rules_data, rules_override, exclusions, exclusion_data);
+                         custom_rules, rules_data, rules_override, exclusions,
+                         exclusion_data);
 
 err:
     if (rulesetVersion) {
@@ -480,7 +483,7 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
 }
 
 static uint8_t *_encode_gzip(const struct json_segment *json, size_t json_len,
-                          size_t *out_size)
+                             size_t *out_size)
 {
     z_stream strm = {0};
     if (deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 31, 8,
@@ -488,7 +491,7 @@ static uint8_t *_encode_gzip(const struct json_segment *json, size_t json_len,
         return NULL;
     }
 
-    size_t deflated_size =  json_len < 1024 ? 1024 : json_len;
+    size_t deflated_size = json_len < 1024 ? 1024 : json_len;
     uint8_t *ret = malloc(deflated_size);
     if (ret == NULL) {
         deflateEnd(&strm);
@@ -514,10 +517,10 @@ static uint8_t *_encode_gzip(const struct json_segment *json, size_t json_len,
             }
 
             size_t avail_out = deflated_size - strm.total_out;
-            if (avail_out > (unsigned)-1) {
-                avail_out = (unsigned)-1;
+            if (avail_out > (unsigned) -1) {
+                avail_out = (unsigned) -1;
             }
-            strm.avail_out = (unsigned)avail_out;
+            strm.avail_out = (unsigned) avail_out;
             strm.next_out = ret + strm.total_out;
 
             if (deflate(&strm, it.seg->next == NULL ? Z_FINISH : Z_NO_FLUSH) ==
@@ -529,7 +532,7 @@ static uint8_t *_encode_gzip(const struct json_segment *json, size_t json_len,
         } while (strm.avail_out == 0);
     }
 
-    *out_size =  strm.total_out;
+    *out_size = strm.total_out;
     if (deflateEnd(&strm) == Z_OK) {
         return ret;
     }
@@ -590,18 +593,21 @@ jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
 
     for (size_t i = 0; i < obj->nbEntries; i++) {
         ddwaf_object *entry = &obj->array[i];
-        jstring key = java_utf8_to_jstring_checked(env, entry->parameterName, entry->parameterNameLength);
+        jstring key = java_utf8_to_jstring_checked(env, entry->parameterName,
+                                                   entry->parameterNameLength);
         if (JNI(ExceptionCheck)) {
             goto error;
         }
 
         jstring value = NULL;
         if (_is_derivative(entry, "_dd.appsec.s.")) {
-            // json schemas are json that has to be gzipped and encoded in base64
+            // json schemas are json that has to be gzipped and encoded in
+            // base64
             value = _encode_json_gzip_base64_checked(env, entry);
         } else if (_is_derivative(entry, "_dd.appsec.fp.")) {
             // fingerprints are simple strings
-            value = java_utf8_to_jstring_checked(env, entry->stringValue, entry->nbEntries);
+            value = java_utf8_to_jstring_checked(env, entry->stringValue,
+                                                 entry->nbEntries);
         }
 
         if (JNI(ExceptionCheck)) {
@@ -633,74 +639,77 @@ error:
 jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
 {
     switch (obj->type) {
-        // TODO: Implement missing types, when needed
-        case DDWAF_OBJ_INVALID:
-        case DDWAF_OBJ_SIGNED:
-        case DDWAF_OBJ_UNSIGNED:
-        case DDWAF_OBJ_FLOAT:
-        case DDWAF_OBJ_BOOL:
-            JNI(ThrowNew, jcls_rte, "Unsupported ddwaf object type");
+    // TODO: Implement missing types, when needed
+    case DDWAF_OBJ_INVALID:
+    case DDWAF_OBJ_SIGNED:
+    case DDWAF_OBJ_UNSIGNED:
+    case DDWAF_OBJ_FLOAT:
+    case DDWAF_OBJ_BOOL:
+        JNI(ThrowNew, jcls_rte, "Unsupported ddwaf object type");
+        return NULL;
+    case DDWAF_OBJ_STRING:
+        return java_utf8_to_jstring_checked(env, obj->stringValue,
+                                            obj->nbEntries);
+    case DDWAF_OBJ_ARRAY: {
+        if (obj->nbEntries > MAX_JINT) {
+            JNI(ThrowNew, jcls_rte, "Too many elements in ddwaf array");
             return NULL;
-        case DDWAF_OBJ_STRING:
-            return java_utf8_to_jstring_checked(env, obj->stringValue, obj->nbEntries);
-        case DDWAF_OBJ_ARRAY: {
-            if (obj->nbEntries > MAX_JINT) {
-                JNI(ThrowNew, jcls_rte, "Too many elements in ddwaf array");
-                return NULL;
-            }
-            jobject ret = java_meth_call(env, &_array_list_init, NULL, (jint) obj->nbEntries);
-            if (ret == NULL) {
-                return NULL;
-            }
-
-            for (uint64_t i = 0; i < obj->nbEntries; i++) {
-                jobject elem = convert_ddwaf_object_to_jobject(env, &obj->array[i]);
-                if (JNI(ExceptionCheck)) {
-                    JNI(DeleteLocalRef, ret);
-                    return NULL;
-                }
-
-                java_meth_call(env, &_array_list_add, ret, elem);
-                JNI(DeleteLocalRef, elem);
-                if (JNI(ExceptionCheck)) {
-                    JNI(DeleteLocalRef, ret);
-                    return NULL;
-                }
-            }
-
-            return ret;
         }
-        case DDWAF_OBJ_MAP: {
-            jobject ret = java_meth_call(env, &_linked_hm_init, NULL);
-            if (ret == NULL) {
+        jobject ret = java_meth_call(env, &_array_list_init, NULL,
+                                     (jint) obj->nbEntries);
+        if (ret == NULL) {
+            return NULL;
+        }
+
+        for (uint64_t i = 0; i < obj->nbEntries; i++) {
+            jobject elem = convert_ddwaf_object_to_jobject(env, &obj->array[i]);
+            if (JNI(ExceptionCheck)) {
+                JNI(DeleteLocalRef, ret);
                 return NULL;
             }
 
-            for (uint64_t i = 0; i < obj->nbEntries; i++) {
-                ddwaf_object *elem = &obj->array[i];
-                jstring key = java_utf8_to_jstring_checked(env, elem->parameterName, elem->parameterNameLength);
-                if (JNI(ExceptionCheck)) {
-                    JNI(DeleteLocalRef, ret);
-                    return NULL;
-                }
+            java_meth_call(env, &_array_list_add, ret, elem);
+            JNI(DeleteLocalRef, elem);
+            if (JNI(ExceptionCheck)) {
+                JNI(DeleteLocalRef, ret);
+                return NULL;
+            }
+        }
 
-                jobject value = convert_ddwaf_object_to_jobject(env, elem);
-                if (JNI(ExceptionCheck)) {
-                    JNI(DeleteLocalRef, key);
-                    return NULL;
-                }
+        return ret;
+    }
+    case DDWAF_OBJ_MAP: {
+        jobject ret = java_meth_call(env, &_linked_hm_init, NULL);
+        if (ret == NULL) {
+            return NULL;
+        }
 
-                java_meth_call(env, &_map_put, ret, key, value);
+        for (uint64_t i = 0; i < obj->nbEntries; i++) {
+            ddwaf_object *elem = &obj->array[i];
+            jstring key = java_utf8_to_jstring_checked(
+                    env, elem->parameterName, elem->parameterNameLength);
+            if (JNI(ExceptionCheck)) {
+                JNI(DeleteLocalRef, ret);
+                return NULL;
+            }
+
+            jobject value = convert_ddwaf_object_to_jobject(env, elem);
+            if (JNI(ExceptionCheck)) {
                 JNI(DeleteLocalRef, key);
-                JNI(DeleteLocalRef, value);
-                if (JNI(ExceptionCheck)) {
-                    JNI(DeleteLocalRef, ret);
-                    return NULL;
-                }
+                return NULL;
             }
 
-            return ret;
+            java_meth_call(env, &_map_put, ret, key, value);
+            JNI(DeleteLocalRef, key);
+            JNI(DeleteLocalRef, value);
+            if (JNI(ExceptionCheck)) {
+                JNI(DeleteLocalRef, ret);
+                return NULL;
+            }
         }
+
+        return ret;
+    }
     }
     JNI(ThrowNew, jcls_rte, "Unknown ddwaf object type");
     return NULL;

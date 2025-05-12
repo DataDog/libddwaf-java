@@ -13,8 +13,8 @@ See the [readme](./README.md) for more information.
 
 ## Code style
 
-Code style is not yet enforced by technical means. However, try to leep the same
-style as the current files. Additionally, a .clang-format file is included,
-which can be used to format C files.
+Code style is enforced by clang-format and spotless. To format all code, run:
 
-<!-- vim: set tw=80: -->
+```bash
+./gradlew format
+```

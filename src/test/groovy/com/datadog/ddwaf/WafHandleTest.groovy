@@ -23,11 +23,11 @@ import static org.hamcrest.Matchers.is
 
 class WafHandleTest implements ReactiveTrait {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(WafHandleTest)
+  private final static Logger LOGGER = LoggerFactory.getLogger(WafHandleTest)
 
-    @Test
-    void 'Reference sample should pass'() {
-        def rule = '''
+  @Test
+  void 'Reference sample should pass'() {
+    def rule = '''
           {
             "version": "1.0",
             "events": [
@@ -59,26 +59,26 @@ class WafHandleTest implements ReactiveTrait {
           }
         '''
 
-        ctx = new WafHandle('test', null, new JsonSlurper().parseText(rule))
-        wafContext = ctx.openContext()
-        metrics = ctx.createMetrics()
+    ctx = new WafHandle('test', null, new JsonSlurper().parseText(rule))
+    wafContext = ctx.openContext()
+    metrics = ctx.createMetrics()
 
-        Waf.ResultWithData awd = wafContext.run([arg1: 'string 1'], limits, metrics)
-        LOGGER.debug('ResultWithData after 1st runWafContext: {}', awd)
-        assertThat awd.result, is(Waf.Result.OK)
+    Waf.ResultWithData awd = wafContext.run([arg1: 'string 1'], limits, metrics)
+    LOGGER.debug('ResultWithData after 1st runWafContext: {}', awd)
+    assertThat awd.result, is(Waf.Result.OK)
 
-        awd = wafContext.run([arg2: 'string 2'], limits, metrics)
-        LOGGER.debug('ResultWithData after 2nd runWafContext: {}', awd)
-        assertThat awd.result, is(Waf.Result.MATCH)
+    awd = wafContext.run([arg2: 'string 2'], limits, metrics)
+    LOGGER.debug('ResultWithData after 2nd runWafContext: {}', awd)
+    assertThat awd.result, is(Waf.Result.MATCH)
 
-        assert metrics.totalRunTimeNs > 0
-        assert metrics.totalDdwafRunTimeNs > 0
-        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
-    }
+    assert metrics.totalRunTimeNs > 0
+    assert metrics.totalDdwafRunTimeNs > 0
+    assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
+  }
 
-    @Test
-    void 'Reference sample for rules 2_2'() {
-        def rule = '''
+  @Test
+  void 'Reference sample for rules 2_2'() {
+    def rule = '''
           {
             "version": "2.2",
             "metadata": {
@@ -134,97 +134,97 @@ class WafHandleTest implements ReactiveTrait {
             ],
           }'''
 
-        ctx = new WafHandle('test', null, new JsonSlurper().parseText(rule))
-        wafContext = ctx.openContext()
-        metrics = ctx.createMetrics()
+    ctx = new WafHandle('test', null, new JsonSlurper().parseText(rule))
+    wafContext = ctx.openContext()
+    metrics = ctx.createMetrics()
 
-        Waf.ResultWithData awd = wafContext.run([server_request_body: 'bodytest'], limits, metrics)
-        LOGGER.debug('ResultWithData after 1st runWafContext: {}', awd)
-        assertThat awd.result, is(Waf.Result.MATCH)
+    Waf.ResultWithData awd = wafContext.run([server_request_body: 'bodytest'], limits, metrics)
+    LOGGER.debug('ResultWithData after 1st runWafContext: {}', awd)
+    assertThat awd.result, is(Waf.Result.MATCH)
 
-        awd = wafContext.runEphemeral([graphql_server_all_resolvers: 'graphqltest'], limits, metrics)
-        LOGGER.debug('ResultWithData after 2st runWafContext: {}', awd)
-        assertThat awd.result, is(Waf.Result.MATCH)
+    awd = wafContext.runEphemeral([graphql_server_all_resolvers: 'graphqltest'], limits, metrics)
+    LOGGER.debug('ResultWithData after 2st runWafContext: {}', awd)
+    assertThat awd.result, is(Waf.Result.MATCH)
+  }
+
+  @Test
+  void 'timeout when general budget is exhausted'() {
+    final limits = new Waf.Limits(100, 100, 100, 0, Long.MAX_VALUE)
+    ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
+    wafContext = ctx.openContext()
+    metrics = ctx.createMetrics()
+    shouldFail(TimeoutWafException) {
+      wafContext.run([arg1: 'string 1'], limits, metrics)
     }
+  }
 
-    @Test
-    void 'timeout when general budget is exhausted'() {
-        final limits = new Waf.Limits(100, 100, 100, 0, Long.MAX_VALUE)
-        ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
-        wafContext = ctx.openContext()
-        metrics = ctx.createMetrics()
-        shouldFail(TimeoutWafException) {
-            wafContext.run([arg1: 'string 1'], limits, metrics)
-        }
+  @Test
+  void 'throw an exception when both persistent and ephemeral are null in wafContext'() {
+    ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
+    wafContext = ctx.openContext()
+    metrics = ctx.createMetrics()
+    shouldFail(AbstractWafException) {
+      wafContext.run(null, null, limits, metrics)
     }
+  }
 
-    @Test
-    void 'throw an exception when both persistent and ephemeral are null in wafContext'() {
-        ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
-        wafContext = ctx.openContext()
-        metrics = ctx.createMetrics()
-        shouldFail(AbstractWafException) {
-            wafContext.run(null, null, limits, metrics)
-        }
+  @Test
+  void 'throw an exception when both persistent and ephemeral are null'() {
+    ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
+    metrics = ctx.createMetrics()
+    shouldFail(AbstractWafException) {
+      ctx.runRules(null, limits, metrics)
     }
+  }
 
-    @Test
-    void 'throw an exception when both persistent and ephemeral are null'() {
-        ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
-        metrics = ctx.createMetrics()
-        shouldFail(AbstractWafException) {
-            ctx.runRules(null, limits, metrics)
-        }
+  @Test
+  void 'constructor throws if given a null context'() {
+    shouldFail(NullPointerException) {
+      new WafContext(null)
     }
+  }
 
-    @Test
-    void 'constructor throws if given a null context'() {
-        shouldFail(NullPointerException) {
-            new WafContext(null)
-        }
+  @Test
+  void 'should throw if double free'() {
+    ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
+    def wafContext = ctx.openContext()
+    wafContext.close()
+    final t = shouldFail(IllegalStateException) {
+      wafContext.close()
     }
+    assertThat t.message, is('This WafContext is no longer online')
+  }
 
-    @Test
-    void 'should throw if double free'() {
-        ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
-        def wafContext = ctx.openContext()
-        wafContext.close()
-        final t = shouldFail(IllegalStateException) {
-            wafContext.close()
-        }
-        assertThat t.message, is('This WafContext is no longer online')
+  @Test
+  void 'should throw if run after close'() {
+    ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
+    def wafContext = ctx.openContext()
+    wafContext.close()
+    final t = shouldFail(UnclassifiedWafException) {
+      wafContext.run([arg1: 'string 1'], limits, metrics)
     }
+    assertThat t.message, containsString('This WafContext is no longer online')
+  }
 
-    @Test
-    void 'should throw if run after close'() {
-        ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
-        def wafContext = ctx.openContext()
-        wafContext.close()
-        final t = shouldFail(UnclassifiedWafException) {
-            wafContext.run([arg1: 'string 1'], limits, metrics)
-        }
-        assertThat t.message, containsString('This WafContext is no longer online')
+  @Test
+  void 'should throw IllegalArgumentException if Limits is null while run'() {
+    ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
+    wafContext = ctx.openContext()
+    shouldFail(IllegalArgumentException) {
+      wafContext.run([:], null, metrics)
     }
+  }
 
-    @Test
-    void 'should throw IllegalArgumentException if Limits is null while run'() {
-        ctx = new WafHandle('test', null, ARACHNI_ATOM_V2_1)
-        wafContext = ctx.openContext()
-        shouldFail(IllegalArgumentException) {
-            wafContext.run([:], null, metrics)
-        }
+  @Test
+  void 'context can be destroyed with live wafContext'() {
+    new WafHandle('test', null, ARACHNI_ATOM_V2_1).withCloseable {
+      wafContext = it.openContext()
     }
+    Waf.ResultWithData rwd = wafContext.run([:], limits, metrics)
+    assertThat rwd.result, is(Waf.Result.OK)
+    wafContext.close()
 
-    @Test
-    void 'context can be destroyed with live wafContext'() {
-        new WafHandle('test', null, ARACHNI_ATOM_V2_1).withCloseable {
-            wafContext = it.openContext()
-        }
-        Waf.ResultWithData rwd = wafContext.run([:], limits, metrics)
-        assertThat rwd.result, is(Waf.Result.OK)
-        wafContext.close()
-
-        /* prevent @After hooks from trying to close it */
-        wafContext = null
-    }
+    /* prevent @After hooks from trying to close it */
+    wafContext = null
+  }
 }
