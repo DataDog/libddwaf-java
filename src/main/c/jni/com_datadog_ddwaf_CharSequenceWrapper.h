@@ -12,8 +12,8 @@ extern "C" {
  * Method:    resetState
  * Signature: (Ljava/nio/CharBuffer;Ljava/lang/CharSequence;)V
  */
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_CharSequenceWrapper_resetState
-  (JNIEnv *, jclass, jobject, jobject);
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_CharSequenceWrapper_resetState(
+        JNIEnv *, jclass, jobject, jobject);
 
 #ifdef __cplusplus
 }

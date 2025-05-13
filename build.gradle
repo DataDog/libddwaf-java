@@ -24,6 +24,7 @@ plugins {
     id 'codenarc'
     id 'me.champeau.jmh' version '0.7.2'
     id 'info.solidsoft.pitest' version '1.15.0'
+    id 'com.diffplug.spotless' version '6.13.0'
 }
 
 repositories {
@@ -43,6 +44,29 @@ targetCompatibility = 1.8
 java {
     withJavadocJar()
     withSourcesJar()
+}
+
+spotless {
+    java {
+        toggleOffOn()
+        // This is the last Google Java Format version that supports Java 8
+        googleJavaFormat('1.7')
+        target 'src/**/*.java'
+    }
+    groovyGradle {
+        toggleOffOn()
+        target '*.gradle'
+    }
+    groovy {
+        toggleOffOn()
+        greclipse().configFile('gradle/spotless-groovy.properties')
+        target 'src/**/*.groovy'
+    }
+    format 'misc', {
+        target '*.md', '.gitattributes', '.gitignore', '.github/**', 'ci/**'
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
 }
 
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
@@ -573,6 +597,20 @@ tasks.named("pitest").configure {
 
 project.afterEvaluate {
     tasks.withType(PublishToMavenRepository).each { it.enabled = false }
+}
+
+tasks.register('clangFormat', Exec) {
+    def clangFormat = System.getenv('CLANG_FORMAT')
+    if (clangFormat == null) {
+        clangFormat = 'clang-format'
+    }
+    commandLine clangFormat, '-i'
+    args fileTree('src/main/c').include(['**/*.c', '**/*.h']).files.collect { it.absolutePath }
+}
+
+tasks.register('format') {
+    dependsOn 'clangFormat'
+    dependsOn 'spotlessApply'
 }
 
 // vim: set et ts=4 sw=4 list:

@@ -9,7 +9,7 @@
 package com.datadog.ddwaf.exception;
 
 public class TimeoutWafException extends AbstractWafException {
-    public TimeoutWafException() {
-        super("Timeout", 0);
-    }
+  public TimeoutWafException() {
+    super("Timeout", 0);
+  }
 }

@@ -20,8 +20,10 @@ extern "C" {
  * Method:    getByteBufferAddress
  * Signature: (Ljava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_ByteBufferSerializer_getByteBufferAddress
-  (JNIEnv *, jclass, jobject);
+JNIEXPORT jlong JNICALL
+Java_com_datadog_ddwaf_ByteBufferSerializer_getByteBufferAddress(JNIEnv *,
+                                                                 jclass,
+                                                                 jobject);
 
 #ifdef __cplusplus
 }

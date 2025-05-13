@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.is
 @CompileStatic
 trait WafTrait extends JNITrait {
 
-    static final Map ARACHNI_ATOM_V1_0 = (Map) new JsonSlurper().parseText('''
+  static final Map ARACHNI_ATOM_V1_0 = (Map) new JsonSlurper().parseText('''
         {
           "version": "1.0",
           "events": [
@@ -43,7 +43,7 @@ trait WafTrait extends JNITrait {
           ]
         }''')
 
-    static final Map ARACHNI_ATOM_V2_1 = (Map) new JsonSlurper().parseText('''
+  static final Map ARACHNI_ATOM_V2_1 = (Map) new JsonSlurper().parseText('''
         {
           "version": "2.1",
           "metadata": {
@@ -78,7 +78,7 @@ trait WafTrait extends JNITrait {
           ]
         }''')
 
-    static final Map ARACHNI_ATOM_BLOCK = (Map) new JsonSlurper().parseText('''
+  static final Map ARACHNI_ATOM_BLOCK = (Map) new JsonSlurper().parseText('''
         {
           "version": "2.1",
           "metadata": {
@@ -162,49 +162,49 @@ trait WafTrait extends JNITrait {
           ]
         }''')
 
-    int maxDepth = 5
-    int maxElements = 20
-    int maxStringSize = 100
-    long timeoutInUs = 200000 // 200 ms
-    long runBudget = 0 // unspecified
+  int maxDepth = 5
+  int maxElements = 20
+  int maxStringSize = 100
+  long timeoutInUs = 200000 // 200 ms
+  long runBudget = 0 // unspecified
 
-    Waf.Limits getLimits() {
-        new Waf.Limits(
-                maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
+  Waf.Limits getLimits() {
+    new Waf.Limits(
+      maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
+  }
+
+  WafHandle ctx
+  WafMetrics metrics
+
+  JsonSlurper slurper = new JsonSlurper()
+
+  @After
+  void after() {
+    ctx?.close()
+
+    // Check that all buffers were reset
+    ByteBufferSerializer.ArenaPool.INSTANCE.arenas.each { arena ->
+      arena.pwargsSegments.each { segment ->
+        assertThat segment.buffer.position(), is(0)
+      }
+      arena.stringsSegments.each { segment ->
+        assertThat segment.buffer.position(), is(0)
+      }
     }
+  }
 
-    WafHandle ctx
-    WafMetrics metrics
+  @AfterClass
+  @SuppressWarnings('ExplicitGarbageCollection')
+  static void afterClass() {
+    System.gc()
+  }
 
-    JsonSlurper slurper = new JsonSlurper()
-
-    @After
-    void after() {
-        ctx?.close()
-
-        // Check that all buffers were reset
-        ByteBufferSerializer.ArenaPool.INSTANCE.arenas.each { arena ->
-            arena.pwargsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-            arena.stringsSegments.each { segment ->
-                assertThat segment.buffer.position(), is(0)
-            }
-        }
-    }
-
-    @AfterClass
-    @SuppressWarnings('ExplicitGarbageCollection')
-    static void afterClass() {
-        System.gc()
-    }
-
-    @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
-    Waf.ResultWithData runRules(Object data) {
-        ctx.runRules([
-                'server.request.headers.no_cookies': [
-                        'user-agent': data
-                ]
-        ] as Map<String, Object>, limits, metrics)
-    }
+  @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
+  Waf.ResultWithData runRules(Object data) {
+    ctx.runRules([
+      'server.request.headers.no_cookies': [
+        'user-agent': data
+      ]
+    ] as Map<String, Object>, limits, metrics)
+  }
 }

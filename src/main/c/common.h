@@ -15,7 +15,7 @@
 
 #define JNI(method, ...) (*env)->method(env, ##__VA_ARGS__)
 #ifdef UNUSED
-#  undef UNUSED
+#undef UNUSED
 #endif
 #define UNUSED(var) (void) var
 

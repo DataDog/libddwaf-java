@@ -12,10 +12,10 @@ import org.junit.After
 
 trait ReactiveTrait extends WafTrait {
 
-    WafContext wafContext
+  WafContext wafContext
 
-    @After
-    void clearAdditive() {
-        wafContext?.close()
-    }
+  @After
+  void clearAdditive() {
+    wafContext?.close()
+  }
 }

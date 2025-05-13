@@ -14,7 +14,7 @@ import groovy.transform.CompileStatic
 @CompileStatic
 trait ReqBodyTrait extends WafTrait {
 
-    static final Map REQ_BODY_ATOM = (Map) new JsonSlurper().parseText('''
+  static final Map REQ_BODY_ATOM = (Map) new JsonSlurper().parseText('''
         {
           "version": "1.0",
           "events": [
@@ -39,14 +39,14 @@ trait ReqBodyTrait extends WafTrait {
         }
         ''')
 
-    Waf.ResultWithData testWithData(Object data) {
-        def rule = REQ_BODY_ATOM
+  Waf.ResultWithData testWithData(Object data) {
+    def rule = REQ_BODY_ATOM
 
-        def params = [
-                'server.request.body.raw': data
-        ]
+    def params = [
+      'server.request.body.raw': data
+    ]
 
-        ctx = ctx ?: Waf.createHandle('test', rule)
-        ctx.runRules(params, limits, metrics)
-    }
+    ctx = ctx ?: Waf.createHandle('test', rule)
+    ctx.runRules(params, limits, metrics)
+  }
 }

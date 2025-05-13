@@ -9,7 +9,7 @@
 package com.datadog.ddwaf.exception;
 
 public class InvalidObjectWafException extends AbstractWafException {
-    public InvalidObjectWafException(int errorCode) {
-        super("Invalid object", errorCode);
-    }
+  public InvalidObjectWafException(int errorCode) {
+    super("Invalid object", errorCode);
+  }
 }

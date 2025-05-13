@@ -18,8 +18,7 @@ static jmethodID _add_and_get;
 
 bool metrics_init(JNIEnv *env)
 {
-    jclass pwaf_metrics_cls =
-            JNI(FindClass, "com/datadog/ddwaf/WafMetrics");
+    jclass pwaf_metrics_cls = JNI(FindClass, "com/datadog/ddwaf/WafMetrics");
     if (!pwaf_metrics_cls) {
         return false;
     }
@@ -27,13 +26,15 @@ bool metrics_init(JNIEnv *env)
     bool ret = false;
 
     _total_ddwaf_run_time_ns_field =
-            JNI(GetFieldID, pwaf_metrics_cls, "totalDdwafRunTimeNs", "Ljava/util/concurrent/atomic/AtomicLong;");
+            JNI(GetFieldID, pwaf_metrics_cls, "totalDdwafRunTimeNs",
+                "Ljava/util/concurrent/atomic/AtomicLong;");
     if (!_total_ddwaf_run_time_ns_field) {
         goto error;
     }
 
     _total_run_time_ns_field =
-            JNI(GetFieldID, pwaf_metrics_cls, "totalRunTimeNs", "Ljava/util/concurrent/atomic/AtomicLong;");
+            JNI(GetFieldID, pwaf_metrics_cls, "totalRunTimeNs",
+                "Ljava/util/concurrent/atomic/AtomicLong;");
     if (!_total_run_time_ns_field) {
         goto error;
     }
