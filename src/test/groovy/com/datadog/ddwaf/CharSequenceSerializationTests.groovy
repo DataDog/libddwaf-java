@@ -8,6 +8,7 @@
 
 package com.datadog.ddwaf
 
+import groovy.json.JsonSlurper
 import org.junit.Test
 
 import java.nio.ByteBuffer
@@ -17,7 +18,32 @@ import java.nio.CharBuffer
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
 
-class CharSequenceSerializationTests implements ReqBodyTrait {
+class CharSequenceSerializationTests implements WafTrait {
+
+  static final Map REQ_BODY_ATOM = (Map) new JsonSlurper().parseText('''
+        {
+          "version": "1.0",
+          "events": [
+            {
+              "id": "req_body_rule",
+              "name": "Request body capturing",
+              "conditions": [
+                {
+                  "operation": "match_regex",
+                  "parameters": {
+                    "inputs": ["server.request.body.raw"],
+                    "regex": "my string"
+                  }
+                }
+              ],
+              "tags": {
+                "type": "req_body_detection"
+              },
+              "action": "record"
+            }
+          ]
+        }
+        ''')
 
   @Test
   void 'Should MATCH with data passed as String'() {
@@ -100,4 +126,16 @@ class CharSequenceSerializationTests implements ReqBodyTrait {
     Waf.ResultWithData awd = testWithData(cs)
     assertThat awd.result, is(Waf.Result.OK)
   }
+
+  private Waf.ResultWithData testWithData(Object data) {
+    wafDiagnostics = builder.addOrUpdateConfig('test', REQ_BODY_ATOM)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.body.raw': data]
+    final result = context.run(params, limits, metrics)
+    context.close()
+    handle.close()
+    result
+  }
 }
+

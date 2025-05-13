@@ -125,7 +125,7 @@ class SchemaTests implements WafTrait {
     maxElements = 30
     timeoutInUs = 20000000
     runBudget = 20000000
-    ctx = Waf.createHandle('test', EXTRACT_SCHEMA)
+    wafDiagnostics = builder.addOrUpdateConfig('test', EXTRACT_SCHEMA)
 
     def data = [
       'waf.context.settings': [
@@ -143,8 +143,9 @@ class SchemaTests implements WafTrait {
         vehicle_identification_number: 'WWW5R56GNG0000000'
       ]
     ]
-
-    Waf.ResultWithData awd = ctx.runRules(data, limits, metrics)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData awd = context.run(data, limits, metrics)
     assertThat awd.derivatives, isA(Map)
 
     def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.derivatives['_dd.appsec.s.req.body']))
@@ -188,3 +189,4 @@ class SchemaTests implements WafTrait {
     }
   }
 }
+

@@ -19,8 +19,11 @@ class ObfuscationTests implements WafTrait {
   void 'obfuscation by key with default settings'() {
     def ruleSet = ARACHNI_ATOM_V2_1
 
-    ctx = Waf.createHandle('test', ruleSet)
-    Waf.ResultWithData awd = ctx.runRules(
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData awd = context.run(
       ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, metrics)
     assertThat awd.result, is(Waf.Result.MATCH)
 
@@ -35,8 +38,11 @@ class ObfuscationTests implements WafTrait {
   void 'obfuscation by value with default settings'() {
     def ruleSet = ARACHNI_ATOM_V2_1
     def val = 'Arachni/v1 password=s3krit'
-    ctx = Waf.createHandle('test', ruleSet)
-    Waf.ResultWithData awd = ctx.runRules(
+
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData awd = context.run(
       ['server.request.headers.no_cookies': ['user-agent': [val]]], limits, metrics)
     assertThat awd.result, is(Waf.Result.MATCH)
 
@@ -51,8 +57,11 @@ class ObfuscationTests implements WafTrait {
   void 'no obfuscation if key regex is set to empty string'() {
     def ruleSet = ARACHNI_ATOM_V2_1
 
-    ctx = Waf.createHandle('test', new WafConfig(obfuscatorKeyRegex: ''), ruleSet)
-    Waf.ResultWithData awd = ctx.runRules(
+    def thisBuilder = new WafBuilder(new WafConfig(obfuscatorKeyRegex: ''))
+    wafDiagnostics = thisBuilder.addOrUpdateConfig('test', ruleSet)
+    handle = thisBuilder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData awd = context.run(
       ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, metrics)
     assertThat awd.result, is(Waf.Result.MATCH)
 
@@ -66,8 +75,11 @@ class ObfuscationTests implements WafTrait {
   void 'value obfuscation'() {
     def ruleSet = ARACHNI_ATOM_V2_1
 
-    ctx = Waf.createHandle('test', new WafConfig(obfuscatorValueRegex: 'rachni'), ruleSet)
-    Waf.ResultWithData awd = ctx.runRules(
+    def thisBuilder = new WafBuilder(new WafConfig(obfuscatorValueRegex: 'rachni'))
+    wafDiagnostics = thisBuilder.addOrUpdateConfig('test', ruleSet)
+    handle = thisBuilder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData awd = context.run(
       ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
     assertThat awd.result, is(Waf.Result.MATCH)
 
@@ -77,3 +89,4 @@ class ObfuscationTests implements WafTrait {
     assert json[0].rule_matches[0]['parameters'][0].highlight == ['<Redacted>']
   }
 }
+
