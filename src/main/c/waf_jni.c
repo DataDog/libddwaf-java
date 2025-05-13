@@ -911,22 +911,23 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
 {
     UNUSED(clazz);
     UNUSED(env);
+    const char *path_string = NULL;
     if (builder && path) {
         ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
         if (JNI(ExceptionCheck)) {
             JAVA_LOG(DDWAF_LOG_DEBUG, "build not found");
-            return JNI_FALSE;
+            goto error;
         }
-        const char *path_string = JNI(GetStringUTFChars, path, NULL);
+        path_string = JNI(GetStringUTFChars, path, NULL);
         if (JNI(ExceptionCheck)) {
             JAVA_LOG(DDWAF_LOG_DEBUG, "path could not be converted for ddwaf");
-            return JNI_FALSE;
+            goto error;
         }
         int path_length = JNI(GetStringLength, path);
         if (JNI(ExceptionCheck)) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
                      "path length could not be found for ddwaf");
-            return JNI_FALSE;
+            goto error;
         }
 
         bool result = ddwaf_builder_remove_config(ddwaf_builder, path_string,
@@ -939,6 +940,17 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
         return result;
     }
     JAVA_LOG(DDWAF_LOG_DEBUG, "Provide a path and builder to remove config!");
+    goto error;
+
+error:
+    if (path_string != NULL) {
+        // release the string if it was allocated
+        JNI(ReleaseStringUTFChars, path, path_string);
+        if (JNI(ExceptionCheck)) {
+            JAVA_LOG(DDWAF_LOG_DEBUG,
+                     "error in path variable release, memory leak");
+        }
+    }
     return JNI_FALSE;
 }
 
@@ -947,6 +959,7 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
         JNIEnv *env, jclass clazz, jobject builder, jstring path,
         jobject configuration, jobject diagnostics)
 {
+    bool result = false;
     ddwaf_object ddwaf_diagnostics;
     ddwaf_object_invalid(&ddwaf_diagnostics);
     struct _limits limits = {
@@ -957,22 +970,22 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
     ddwaf_object ddwaf_configuration =
             _convert_checked(env, configuration, &limits, 0);
     if (JNI(ExceptionCheck)) {
-        return JNI_FALSE;
+        goto error;
     }
     uint32_t path_length = JNI(GetStringLength, path);
     if (JNI(ExceptionCheck)) {
-        return JNI_FALSE;
+        goto error;
     }
     const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
     if (JNI(ExceptionCheck)) {
-        return JNI_FALSE;
+        goto error;
     }
     ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
     if (JNI(ExceptionCheck)) {
         JAVA_LOG(DDWAF_LOG_DEBUG, "build not found");
-        return JNI_FALSE;
+        goto error;
     }
-    bool result = ddwaf_builder_add_or_update_config(
+    result = ddwaf_builder_add_or_update_config(
             ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
             &ddwaf_diagnostics);
     JNI(ReleaseStringUTFChars, path, path_ddwaf);
@@ -1006,6 +1019,7 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
     return result;
 
 error:
+    ddwaf_object_free(&ddwaf_configuration);
     ddwaf_object_free(&ddwaf_diagnostics);
     return result;
 }
