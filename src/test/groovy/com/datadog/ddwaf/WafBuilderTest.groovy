@@ -113,24 +113,31 @@ class WafBuilderTest implements WafTrait {
   }
 
   @Test
-  void 'add configuration with empty uniqueId'() {
-    // The implementation may actually throw either IllegalArgumentException or another exception
-    // when an empty string is provided as the key
-    shouldFail {
+  void 'add configuration with empty path throws'() {
+    shouldFail(IllegalArgumentException) {
       builder.addOrUpdateConfig('', ARACHNI_ATOM_V1_0)
     }
   }
 
   @Test
-  void 'remove configuration with empty uniqueId'() {
-    // Use empty string instead of null
-    boolean exceptionThrown = false
-    try {
-      builder.removeConfig('')
-    } catch (IllegalArgumentException | IllegalStateException e) {
-      exceptionThrown = true
+  void 'add configuration with null path throws'() {
+    shouldFail(IllegalArgumentException) {
+      builder.addOrUpdateConfig(null, ARACHNI_ATOM_V1_0)
     }
-    assert !exceptionThrown, 'Should not throw exception for empty uniqueId'
+  }
+
+  @Test
+  void 'remove configuration with empty path throws'() {
+    shouldFail(IllegalArgumentException) {
+      builder.removeConfig('')
+    }
+  }
+
+  @Test
+  void 'remove configuration with null path throws'() {
+    shouldFail(IllegalArgumentException) {
+      builder.removeConfig(null)
+    }
   }
 
   @Test

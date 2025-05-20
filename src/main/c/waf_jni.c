@@ -916,7 +916,7 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
         return JNI_FALSE;
     }
     if (!path) {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "Cannot remove config with null path");
+        JNI(ThrowNew, jcls_iae, "path is null");
         return JNI_FALSE;
     }
 
@@ -947,7 +947,17 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
         JNIEnv *env, jclass clazz, jobject builder, jstring path,
         jobject configuration, jobject diagnostics)
 {
-    bool result = false;
+    jboolean result = JNI_FALSE;
+
+    if (!builder) {
+        JNI(ThrowNew, jcls_rte, "builder is null");
+        return JNI_FALSE;
+    }
+    if (!path) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "cannot add or update config with null path");
+        return JNI_FALSE;
+    }
+
     ddwaf_object ddwaf_diagnostics;
     ddwaf_object_invalid(&ddwaf_diagnostics);
     struct _limits limits = {
