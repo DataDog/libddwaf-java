@@ -1062,6 +1062,7 @@ JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafHandle_destroyWafHandle(
     UNUSED(clazz);
     ddwaf_destroy((ddwaf_handle) (intptr_t) waf_handle);
 }
+
 JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_destroyBuilder(
         JNIEnv *env, jclass clazz, jlong builder_ptr)
 {
