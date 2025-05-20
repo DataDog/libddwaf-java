@@ -57,9 +57,9 @@ class ObfuscationTests implements WafTrait {
   void 'no obfuscation if key regex is set to empty string'() {
     def ruleSet = ARACHNI_ATOM_V2_1
 
-    def thisBuilder = new WafBuilder(new WafConfig(obfuscatorKeyRegex: ''))
-    wafDiagnostics = thisBuilder.addOrUpdateConfig('test', ruleSet)
-    handle = thisBuilder.buildWafHandleInstance()
+    builder = new WafBuilder(new WafConfig(obfuscatorKeyRegex: ''))
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
     Waf.ResultWithData awd = context.run(
       ['server.request.headers.no_cookies': ['user-agent': [password: 'Arachni/v1']]], limits, metrics)
@@ -75,9 +75,9 @@ class ObfuscationTests implements WafTrait {
   void 'value obfuscation'() {
     def ruleSet = ARACHNI_ATOM_V2_1
 
-    def thisBuilder = new WafBuilder(new WafConfig(obfuscatorValueRegex: 'rachni'))
-    wafDiagnostics = thisBuilder.addOrUpdateConfig('test', ruleSet)
-    handle = thisBuilder.buildWafHandleInstance()
+    builder = new WafBuilder(new WafConfig(obfuscatorValueRegex: 'rachni'))
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
     Waf.ResultWithData awd = context.run(
       ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)

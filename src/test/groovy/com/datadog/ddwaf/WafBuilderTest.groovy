@@ -40,13 +40,12 @@ class WafBuilderTest implements WafTrait {
 
   @Test
   void 'init builder with custom config'() {
-    final builder = new WafBuilder(new WafConfig())
-    assert builder.online
+    builder = new WafBuilder(new WafConfig())
   }
 
   @Test
-  void 'close works'() {
-    final builder = new WafBuilder()
+  void 'double close does not throw'() {
+    builder = new WafBuilder()
     assert builder.online
     builder.close()
     assert !builder.online
@@ -207,15 +206,12 @@ class WafBuilderTest implements WafTrait {
 
   @Test
   void 'custom WafConfig with regex patterns'() {
-    // Create config with custom regex patterns
     WafConfig customConfig = new WafConfig()
     customConfig.obfuscatorKeyRegex = 'key_.*'
     customConfig.obfuscatorValueRegex = '.*password.*'
 
     // Builder should initialize correctly with custom config
-    final customBuilder = new WafBuilder(customConfig)
-    assert customBuilder.online
-    customBuilder.close()
+    builder = new WafBuilder(customConfig)
   }
 
   @Test

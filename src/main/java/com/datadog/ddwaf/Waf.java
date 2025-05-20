@@ -29,7 +29,7 @@ public final class Waf {
   private static boolean initialized;
 
   static {
-    String exl = System.getProperty("Waf_EXIT_ON_LEAK", "false");
+    String exl = System.getProperty("DD_APPSEC_DDWAF_EXIT_ON_LEAK", "false");
     EXIT_ON_LEAK = !exl.equalsIgnoreCase("false");
   }
 

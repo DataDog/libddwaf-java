@@ -19,6 +19,7 @@ public final class WafBuilder {
   // The ptr field holds the pointer to PWAddContext and managed by PowerWAF
   private final long ptr; // KEEP THIS FIELD!
   private boolean online;
+  private final LeakDetection.PhantomRefWithName<Object> selfRef;
 
   public WafBuilder() {
     this(null);
@@ -28,6 +29,11 @@ public final class WafBuilder {
     online = true;
     config = config == null ? WafConfig.DEFAULT_CONFIG : config;
     this.ptr = initBuilder(config);
+    if (Waf.EXIT_ON_LEAK) {
+      this.selfRef = LeakDetection.registerCloseable(this);
+    } else {
+      this.selfRef = null;
+    }
   }
 
   /**
@@ -110,6 +116,9 @@ public final class WafBuilder {
     }
     online = false;
     destroyBuilder(ptr);
+    if (this.selfRef != null) {
+      LeakDetection.notifyClose(this.selfRef);
+    }
   }
 
   /** Builds a new WafHandle. This method is NOT THREAD SAFE. */

@@ -518,7 +518,7 @@ tasks.withType(Test).configureEach {
         it.jvmArgs += ['-Xcheck:jni']
     }
 
-    it.jvmArgs += ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true']
+    it.jvmArgs += ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DDD_APPSEC_DDWAF_EXIT_ON_LEAK=true']
     it.jvmArgs += ['-DuseReleaseBinaries=true']
     it.dependsOn copyNativeLibs
 
@@ -584,7 +584,7 @@ pitest {
     junit5PluginVersion = '1.2.1'
     targetClasses = ['io.sqreen.*']
     def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
-    jvmArgs = ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true', "-Djava.library.path=$javaLibPath"]
+    jvmArgs = ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DDD_APPSEC_DDWAF_EXIT_ON_LEAK=true', "-Djava.library.path=$javaLibPath"]
     threads = 8
     outputFormats = ['HTML']
     mutators = ['STRONGER']

@@ -163,6 +163,7 @@ trait WafTrait extends JNITrait {
           ]
         }''')
 
+  private WafBuilder origBuilder
   WafBuilder builder
   WafHandle handle
   WafContext context
@@ -188,6 +189,7 @@ trait WafTrait extends JNITrait {
     Waf.initialize(System.getProperty('useReleaseBinaries') == null)
     System.setProperty('DD_APPSEC_WAF_TIMEOUT', '500000' /* 500 ms */)
     builder = new WafBuilder() // initial config will always be default
+    origBuilder = this.builder
     metrics = new WafMetrics()
     maxDepth = 5
     maxElements = 20
@@ -197,9 +199,14 @@ trait WafTrait extends JNITrait {
   }
 
   @After
+  @SuppressWarnings('ExplicitGarbageCollection')
   void after() {
     if (builder?.online) {
       builder.close()
+    }
+    // The test may have created a new builder and ignored the original
+    if (origBuilder != builder && origBuilder?.online) {
+      origBuilder.close()
     }
     if (handle?.online) {
       handle.close()
@@ -217,6 +224,9 @@ trait WafTrait extends JNITrait {
         assertThat segment.buffer.position(), is(0)
       }
     }
+
+    // Force garbage collection to detect object leaks
+    System.gc()
   }
 
   @AfterClass
@@ -229,6 +239,7 @@ trait WafTrait extends JNITrait {
   Waf.ResultWithData runRules(Object data) {
     wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
     handle?.close()
+    context?.close()
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
     context.run([

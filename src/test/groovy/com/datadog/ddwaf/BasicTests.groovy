@@ -531,6 +531,8 @@ class BasicTests implements WafTrait {
       )
     assertThat res.result, is(Waf.Result.MATCH)
     assertThat res.actions.size(), is(0)
+    context.close()
+    handle.close()
 
     def newData = [
       [
