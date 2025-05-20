@@ -959,6 +959,7 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
         return JNI_FALSE;
     }
 
+    jobject result_diagnostics = NULL;
     ddwaf_object ddwaf_diagnostics;
     ddwaf_object_invalid(&ddwaf_diagnostics);
     struct _limits limits = {
@@ -990,22 +991,16 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
 
     if (memcmp(&ddwaf_diagnostics, &(ddwaf_object){0},
                sizeof(ddwaf_diagnostics)) != 0) {
-        jobject jrsi =
+        result_diagnostics =
                 output_convert_diagnostics_checked(env, &ddwaf_diagnostics);
 
         if (JNI(ExceptionCheck)) {
             java_wrap_exc("Error converting diagnostics structure");
             goto error;
         }
-        JNI(SetObjectArrayElement, diagnostics, 0, jrsi);
+        JNI(SetObjectArrayElement, diagnostics, 0, result_diagnostics);
         if (JNI(ExceptionCheck)) {
             java_wrap_exc("Error setting reference for WafDiagnostics");
-            goto error;
-        }
-        JNI(DeleteLocalRef, jrsi);
-        if (JNI(ExceptionCheck)) {
-            java_wrap_exc(
-                    "Error deleting internal reference for WafDiagnostics");
             goto error;
         }
     }
@@ -1013,6 +1008,9 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
 error:
     if (path_string) {
         JNI(ReleaseStringUTFChars, path, path_string);
+    }
+    if (result_diagnostics) {
+        JNI(DeleteLocalRef, result_diagnostics);
     }
     ddwaf_object_free(&ddwaf_configuration);
     ddwaf_object_free(&ddwaf_diagnostics);
