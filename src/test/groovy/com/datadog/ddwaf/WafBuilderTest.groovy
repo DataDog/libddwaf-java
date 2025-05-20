@@ -41,6 +41,7 @@ class WafBuilderTest implements WafTrait {
   @Test
   void 'init builder with custom config'() {
     builder = new WafBuilder(new WafConfig())
+    assert builder.online
   }
 
   @Test
@@ -212,6 +213,7 @@ class WafBuilderTest implements WafTrait {
 
     // Builder should initialize correctly with custom config
     builder = new WafBuilder(customConfig)
+    assert builder.online
   }
 
   @Test
