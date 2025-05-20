@@ -145,7 +145,7 @@ class WafBuilderTest implements WafTrait {
   @Test
   void 'remove config without builder throws'() {
     shouldFail {
-      WafBuilder.removeConfigNative(null, "test")
+      WafBuilder.removeConfigNative(null, 'test')
     }
   }
 
