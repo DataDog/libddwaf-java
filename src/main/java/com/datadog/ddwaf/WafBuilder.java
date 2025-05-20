@@ -63,13 +63,13 @@ public final class WafBuilder {
   }
 
   /**
-   * Removes a configuration.
+   * Removes a configuration. It does not fail if the configuration does not exist.
    *
    * @param path Path to the configuration.
    * @throws UnclassifiedWafException If the builder is closed.
    * @throws IllegalArgumentException If the path is null or empty.
    */
-  public synchronized void removeConfig(String path) {
+  public synchronized void removeConfig(String path) throws UnclassifiedWafException {
     if (!online) {
       throw new UnclassifiedWafException("WafBuilder is offline");
     }
@@ -79,7 +79,9 @@ public final class WafBuilder {
     if (path.isEmpty()) {
       throw new IllegalArgumentException("Path cannot be empty");
     }
-    removeConfigNative(this, path);
+    if (!removeConfigNative(this, path)) {
+      throw new UnclassifiedWafException("Failed to remove configuration");
+    }
   }
 
   /**
@@ -119,7 +121,7 @@ public final class WafBuilder {
   private static native boolean addOrUpdateConfigNative(
       WafBuilder wafBuilder, String path, Map<String, Object> definition, WafDiagnostics[] infoRef);
 
-  private static native void removeConfigNative(WafBuilder wafBuilder, String oldPath);
+  private static native boolean removeConfigNative(WafBuilder wafBuilder, String oldPath);
 
   private static native void destroyBuilder(long builderPtr);
 

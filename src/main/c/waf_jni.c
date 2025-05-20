@@ -929,7 +929,7 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
         goto error;
     }
     path_string = JNI(GetStringUTFChars, path, NULL);
-    if (JNI(ExceptionCheck)) {
+    if (!path_string) {
         goto error;
     }
 
@@ -948,13 +948,14 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
         jobject configuration, jobject diagnostics)
 {
     jboolean result = JNI_FALSE;
+    const char *path_string = NULL;
 
     if (!builder) {
         JNI(ThrowNew, jcls_rte, "builder is null");
         return JNI_FALSE;
     }
     if (!path) {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "cannot add or update config with null path");
+        JNI(ThrowNew, jcls_iae, "path is null");
         return JNI_FALSE;
     }
 
@@ -970,35 +971,30 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    uint32_t path_length = JNI(GetStringLength, path);
+    jsize path_length = JNI(GetStringLength, path);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    const char *path_ddwaf = JNI(GetStringUTFChars, path, NULL);
-    if (JNI(ExceptionCheck)) {
+    path_string = JNI(GetStringUTFChars, path, NULL);
+    if (!path_string) {
         goto error;
     }
     ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
     if (JNI(ExceptionCheck)) {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "build not found");
         goto error;
     }
+
     result = ddwaf_builder_add_or_update_config(
-            ddwaf_builder, path_ddwaf, path_length, &ddwaf_configuration,
+            ddwaf_builder, path_string, path_length, &ddwaf_configuration,
             &ddwaf_diagnostics);
-    JNI(ReleaseStringUTFChars, path, path_ddwaf);
-    if (JNI(ExceptionCheck)) {
-        JAVA_LOG(DDWAF_LOG_DEBUG,
-                 "error in path variable release, memory leak");
-    }
-    ddwaf_object_free(&ddwaf_configuration);
+
     if (memcmp(&ddwaf_diagnostics, &(ddwaf_object){0},
                sizeof(ddwaf_diagnostics)) != 0) {
         jobject jrsi =
                 output_convert_diagnostics_checked(env, &ddwaf_diagnostics);
 
         if (JNI(ExceptionCheck)) {
-            java_wrap_exc("Error converting rule info structure");
+            java_wrap_exc("Error converting diagnostics structure");
             goto error;
         }
         JNI(SetObjectArrayElement, diagnostics, 0, jrsi);
@@ -1013,10 +1009,11 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
             goto error;
         }
     }
-    ddwaf_object_free(&ddwaf_diagnostics);
-    return result;
 
 error:
+    if (path_string) {
+        JNI(ReleaseStringUTFChars, path, path_string);
+    }
     ddwaf_object_free(&ddwaf_configuration);
     ddwaf_object_free(&ddwaf_diagnostics);
     return result;

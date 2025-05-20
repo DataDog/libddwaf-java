@@ -77,10 +77,12 @@ class WafBuilderTest implements WafTrait {
   }
 
   @Test
-  void 'remove a non-existing configuration'() {
+  void 'remove a non-existing configuration throws'() {
     wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
     assert wafDiagnostics.numConfigOK == 1
-    builder.removeConfig('non-existing')
+    shouldFail(UnclassifiedWafException) {
+      builder.removeConfig('non-existing')
+    }
     handle = builder.buildWafHandleInstance()
     assert handle != null
   }
@@ -141,6 +143,13 @@ class WafBuilderTest implements WafTrait {
   }
 
   @Test
+  void 'remove config without builder throws'() {
+    shouldFail {
+      WafBuilder.removeConfigNative(null, "test")
+    }
+  }
+
+  @Test
   void 'update existing configuration'() {
     // Add initial configuration
     wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
@@ -186,19 +195,6 @@ class WafBuilderTest implements WafTrait {
     // After closing, it's offline
     builder.close()
     assert !builder.online
-  }
-
-  @Test
-  void 'remove null path is handled gracefully'() {
-    // Should not throw an exception
-    builder.removeConfig(null)
-  }
-
-  @Test
-  void 'remove config without builder throws'() {
-    shouldFail {
-      WafBuilder.removeConfigNative(null, "test")
-    }
   }
 
   @Test
