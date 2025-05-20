@@ -910,46 +910,36 @@ JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
     UNUSED(clazz);
     UNUSED(env);
     const char *path_string = NULL;
-    if (builder && path) {
-        ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
-        if (JNI(ExceptionCheck)) {
-            JAVA_LOG(DDWAF_LOG_DEBUG, "build not found");
-            goto error;
-        }
-        path_string = JNI(GetStringUTFChars, path, NULL);
-        if (JNI(ExceptionCheck)) {
-            JAVA_LOG(DDWAF_LOG_DEBUG, "path could not be converted for ddwaf");
-            goto error;
-        }
-        int path_length = JNI(GetStringLength, path);
-        if (JNI(ExceptionCheck)) {
-            JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "path length could not be found for ddwaf");
-            goto error;
-        }
-
-        bool result = ddwaf_builder_remove_config(ddwaf_builder, path_string,
-                                                  path_length);
-        JNI(ReleaseStringUTFChars, path, path_string);
-        if (JNI(ExceptionCheck)) {
-            JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "error in path variable release, memory leak");
-        }
-        return result;
+    jboolean result = JNI_FALSE;
+    if (!builder) {
+        JNI(ThrowNew, jcls_rte, "builder is null");
+        return JNI_FALSE;
     }
-    JAVA_LOG(DDWAF_LOG_DEBUG, "Provide a path and builder to remove config!");
-    goto error;
+    if (!path) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "Cannot remove config with null path");
+        return JNI_FALSE;
+    }
 
+    ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    int path_length = JNI(GetStringLength, path);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    path_string = JNI(GetStringUTFChars, path, NULL);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+
+    result = ddwaf_builder_remove_config(ddwaf_builder, path_string,
+                                         path_length);
 error:
-    if (path_string != NULL) {
-        // release the string if it was allocated
+    if (path_string) {
         JNI(ReleaseStringUTFChars, path, path_string);
-        if (JNI(ExceptionCheck)) {
-            JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "error in path variable release, memory leak");
-        }
     }
-    return JNI_FALSE;
+    return result;
 }
 
 JNIEXPORT jboolean JNICALL

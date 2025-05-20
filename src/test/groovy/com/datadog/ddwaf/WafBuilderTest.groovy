@@ -184,13 +184,14 @@ class WafBuilderTest implements WafTrait {
   @Test
   void 'remove null path is handled gracefully'() {
     // Should not throw an exception
-    boolean exceptionThrown = false
-    try {
-      builder.removeConfig(null)
-    } catch (IllegalArgumentException | IllegalStateException e) {
-      exceptionThrown = true
+    builder.removeConfig(null)
+  }
+
+  @Test
+  void 'remove config without builder throws'() {
+    shouldFail {
+      WafBuilder.removeConfigNative(null, "test")
     }
-    assert !exceptionThrown, 'Should not throw exception for null path'
   }
 
   @Test
