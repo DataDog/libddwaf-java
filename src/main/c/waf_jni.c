@@ -734,9 +734,7 @@ static bool _fetch_builder_fields(JNIEnv *env)
         goto error;
     }
 
-    JNI(DeleteLocalRef, builder_jclass);
     ret = true;
-    return ret;
 error:
     if (builder_jclass) {
         JNI(DeleteLocalRef, builder_jclass);
