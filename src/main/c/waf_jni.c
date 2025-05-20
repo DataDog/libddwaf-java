@@ -1901,7 +1901,7 @@ static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
     jstring env_key = NULL;
     jstring val_jstr = NULL;
     char *val_cstr = NULL;
-    long long val = DDWAF_RUN_TIMEOUT * 1000; // microseconds, not millis
+    long long val = DDWAF_RUN_TIMEOUT;
 
     if (!java_meth_init_checked(
                 env, &get_prop, "java/lang/System", "getProperty",
