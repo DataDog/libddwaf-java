@@ -24,13 +24,16 @@ class ByteBufferSerializerTestsBase implements WafTrait {
   WafMetrics metrics
 
   @Before
-  void before() {
+  @Override
+  void setup() {
+    WafTrait.super.setup()
     metrics = new WafMetrics()
   }
 
   @After
   @Override
   void after() {
+    WafTrait.super.after()
     lease?.close()
     lease = null
   }

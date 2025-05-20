@@ -12,6 +12,7 @@ import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
 import org.junit.After
 import org.junit.AfterClass
+import org.junit.Before
 
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
@@ -162,25 +163,57 @@ trait WafTrait extends JNITrait {
           ]
         }''')
 
-  int maxDepth = 5
-  int maxElements = 20
-  int maxStringSize = 100
-  long timeoutInUs = 200000 // 200 ms
-  long runBudget = 0 // unspecified
+  private WafBuilder origBuilder
+  WafBuilder builder
+  WafHandle handle
+  WafContext context
+  WafMetrics metrics
+  WafDiagnostics wafDiagnostics
+
+  JsonSlurper slurper = new JsonSlurper()
 
   Waf.Limits getLimits() {
     new Waf.Limits(
       maxDepth, maxElements, maxStringSize, timeoutInUs, runBudget)
   }
 
-  WafHandle ctx
-  WafMetrics metrics
+  int maxDepth
+  int maxElements
+  int maxStringSize
+  long timeoutInUs
+  long runBudget
 
-  JsonSlurper slurper = new JsonSlurper()
+  @Before
+  void setup() {
+    System.setProperty('ddwaf.logLevel', 'DEBUG')
+    Waf.initialize(System.getProperty('useReleaseBinaries') == null)
+    System.setProperty('DD_APPSEC_WAF_TIMEOUT', '500000' /* 500 ms */)
+    builder = new WafBuilder() // initial config will always be default
+    origBuilder = this.builder
+    metrics = new WafMetrics()
+    maxDepth = 5
+    maxElements = 20
+    maxStringSize = 100
+    timeoutInUs = 200000000 // 200 us
+    runBudget = 0 // unspecified
+  }
 
   @After
+  @SuppressWarnings('ExplicitGarbageCollection')
   void after() {
-    ctx?.close()
+    if (builder?.online) {
+      builder.close()
+    }
+    // The test may have created a new builder and ignored the original
+    if (origBuilder != builder && origBuilder?.online) {
+      origBuilder.close()
+    }
+    if (handle?.online) {
+      handle.close()
+    }
+    if (context?.online) {
+      context.close()
+    }
 
     // Check that all buffers were reset
     ByteBufferSerializer.ArenaPool.INSTANCE.arenas.each { arena ->
@@ -191,6 +224,9 @@ trait WafTrait extends JNITrait {
         assertThat segment.buffer.position(), is(0)
       }
     }
+
+    // Force garbage collection to detect object leaks
+    System.gc()
   }
 
   @AfterClass
@@ -201,10 +237,16 @@ trait WafTrait extends JNITrait {
 
   @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
   Waf.ResultWithData runRules(Object data) {
-    ctx.runRules([
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    handle?.close()
+    context?.close()
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    context.run([
       'server.request.headers.no_cookies': [
         'user-agent': data
       ]
     ] as Map<String, Object>, limits, metrics)
   }
 }
+

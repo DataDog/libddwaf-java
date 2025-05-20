@@ -82,9 +82,10 @@ class FingerprintTests implements WafTrait {
 }
 ''')
 
-    ctx = Waf.createHandle('test', ruleSet)
-
-    Waf.ResultWithData res = ctx.runRules(
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData res = context.run(
       [
         'waf.context.processor'            : ['fingerprint': true],
         'server.request.method'            : 'GET',
@@ -101,3 +102,4 @@ class FingerprintTests implements WafTrait {
     assertThat res.derivatives['_dd.appsec.fp.http.endpoint'], matchesPattern('http-get-.*')
   }
 }
+
