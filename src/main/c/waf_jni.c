@@ -989,8 +989,7 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
             ddwaf_builder, path_string, path_length, &ddwaf_configuration,
             &ddwaf_diagnostics);
 
-    if (memcmp(&ddwaf_diagnostics, &(ddwaf_object){0},
-               sizeof(ddwaf_diagnostics)) != 0) {
+    if (ddwaf_object_type(&ddwaf_diagnostics) != DDWAF_OBJ_INVALID) {
         result_diagnostics =
                 output_convert_diagnostics_checked(env, &ddwaf_diagnostics);
 
@@ -1036,8 +1035,7 @@ JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafBuilder_buildInstance(
         JNIEnv *env, jclass clazz, jobject builder_java)
 {
     ddwaf_builder builder = _get_builder_checked(env, clazz, builder_java);
-    if (JNI(ExceptionCheck) || !builder) {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "builder was not found in ddwaf");
+    if (JNI(ExceptionCheck)) {
         return NULL;
     }
     ddwaf_handle handle = ddwaf_builder_build_instance(builder);

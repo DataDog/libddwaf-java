@@ -8,7 +8,6 @@
 
 package com.datadog.ddwaf;
 
-import com.datadog.ddwaf.exception.AbstractWafException;
 import com.datadog.ddwaf.exception.InvalidRuleSetException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
 import java.util.Map;
@@ -85,13 +84,13 @@ public final class WafBuilder {
   }
 
   /**
-   * Builds a new WafHandle instance that can be used for creating contexts
+   * Builds a new WafHandle instance that can be used for creating contexts.
    *
    * @return The new WafHandle instance.
-   * @throws AbstractWafException if the WafHandle cannot be built. Most likely cause is that there
-   *     are no valid rules in the configurations.
+   * @throws UnclassifiedWafException if the WafHandle cannot be built. Most likely cause is that
+   *     there are no valid rules in the configurations.
    */
-  public synchronized WafHandle buildWafHandleInstance() throws AbstractWafException {
+  public synchronized WafHandle buildWafHandleInstance() throws UnclassifiedWafException {
     if (!online) {
       throw new UnclassifiedWafException("WafBuilder is offline");
     }
