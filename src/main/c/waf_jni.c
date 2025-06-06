@@ -85,13 +85,13 @@ static int64_t get_remaining_budget(struct timespec start, struct timespec end,
 static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
 static void _update_metrics(JNIEnv *env, jobject metrics_obj,
-                            const ddwaf_result *ret);
+                            const ddwaf_object *ret);
 static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
                                           ddwaf_config *out_config);
 static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
-                                      const ddwaf_result *ret);
-static inline bool _has_derivative(const ddwaf_result *res);
+                                      const ddwaf_object *ret);
+static inline bool _has_derivative(const ddwaf_object *res);
 
 #define MAX_DEPTH_UPPER_LIMIT ((uint32_t) 32)
 
@@ -453,7 +453,7 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
     ddwaf_object *ephemeral_input_ptr = NULL;
 
     struct _limits limits;
-    ddwaf_result ret;
+    ddwaf_object ret;
     struct timespec start;
 
     if (!_get_time_checked(env, &start)) {
@@ -534,8 +534,9 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
 
     DDWAF_RET_CODE ret_code = ddwaf_run(context, persistent_input_ptr,
                                         ephemeral_input_ptr, &ret, run_budget);
-
-    if (ret.timeout) {
+    const ddwaf_object *timeout = ddwaf_object_find(&ret, "timeout", 7);
+    if (timeout != NULL && timeout->type == DDWAF_OBJ_BOOL &&
+        ddwaf_object_get_bool(timeout)) {
         _throw_pwaf_timeout_exception(env);
         goto freeRet;
     }
@@ -562,7 +563,7 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
 
 freeRet:
     _update_metrics(env, metrics_obj, &ret);
-    ddwaf_result_free(&ret);
+    ddwaf_object_free(&ret);
 
     return result;
 
@@ -2026,7 +2027,7 @@ static void _throw_pwaf_timeout_exception(JNIEnv *env)
 }
 
 static void _update_metrics(JNIEnv *env, jobject metrics_obj,
-                            const ddwaf_result *ret)
+                            const ddwaf_object *ret)
 {
     // save exception if any
     jthrowable earlier_exc = JNI(ExceptionOccurred);
@@ -2036,8 +2037,13 @@ static void _update_metrics(JNIEnv *env, jobject metrics_obj,
 
     // metrics update
     if (!JNI(IsSameObject, metrics_obj, NULL)) {
-        // we don't know the total time then
-        metrics_update_checked(env, metrics_obj, 0, (jlong) ret->total_runtime);
+        // Get duration from the ddwaf_object structure
+        const ddwaf_object *duration_obj = ddwaf_object_find(ret, "duration", 8);
+        jlong duration = 0;
+        if (duration_obj != NULL && duration_obj->type == DDWAF_OBJ_UNSIGNED) {
+            duration = (jlong) ddwaf_object_get_unsigned(duration_obj);
+        }
+        metrics_update_checked(env, metrics_obj, 0, duration);
     }
 
     if (earlier_exc) {
@@ -2128,18 +2134,21 @@ static void _dispose_of_ddwaf_config(ddwaf_config *cfg)
 }
 
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
-                                      const ddwaf_result *ret)
+                                      const ddwaf_object *ret)
 {
     if (code == DDWAF_OK && !_has_derivative(ret)) {
         return _result_with_data_ok_null;
     }
 
+    // Get actions from the new ddwaf_object structure
+    const ddwaf_object *actions_obj = ddwaf_object_find(ret, "actions", 7);
     jobject actions_jmap;
     bool del_actions_jmap = false;
-    if (ret->actions.type != DDWAF_OBJ_MAP || ret->actions.nbEntries == 0) {
+    if (actions_obj == NULL || actions_obj->type != DDWAF_OBJ_MAP ||
+        ddwaf_object_size(actions_obj) == 0) {
         actions_jmap = _result_with_data_empty_map;
     } else {
-        actions_jmap = convert_ddwaf_object_to_jobject(env, &ret->actions);
+        actions_jmap = convert_ddwaf_object_to_jobject(env, actions_obj);
         if (!actions_jmap) {
             java_wrap_exc("%s", "Error creating actions map");
             return NULL;
@@ -2147,9 +2156,12 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
         del_actions_jmap = true;
     }
 
+    // Get events from the new ddwaf_object structure
+    const ddwaf_object *events_obj = ddwaf_object_find(ret, "events", 6);
     jstring data_obj = NULL;
-    if (ret->events.type == DDWAF_OBJ_ARRAY && ret->events.nbEntries > 0) {
-        struct json_segment *seg = output_convert_json(&ret->events);
+    if (events_obj != NULL && events_obj->type == DDWAF_OBJ_ARRAY &&
+        ddwaf_object_size(events_obj) > 0) {
+        struct json_segment *seg = output_convert_json(events_obj);
         if (!seg) {
             JNI(ThrowNew, jcls_iae, "failed converting events array to json");
             goto err;
@@ -2163,11 +2175,12 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
         }
     }
 
+    // Get attributes (formerly derivatives) from the new ddwaf_object structure
+    const ddwaf_object *attributes_obj = ddwaf_object_find(ret, "attributes", 10);
     jobject derivatives = NULL;
-    if (ret->derivatives.type == DDWAF_OBJ_MAP &&
-        ret->derivatives.nbEntries > 0) {
-        derivatives =
-                output_convert_derivatives_checked(env, &ret->derivatives);
+    if (attributes_obj != NULL && attributes_obj->type == DDWAF_OBJ_MAP &&
+        ddwaf_object_size(attributes_obj) > 0) {
+        derivatives = output_convert_derivatives_checked(env, attributes_obj);
         if (!derivatives) {
             java_wrap_exc("%s", "Failed encoding inferred derivatives");
             goto err;
@@ -2191,8 +2204,9 @@ err:
     return NULL;
 }
 
-static inline bool _has_derivative(const ddwaf_result *res)
+static inline bool _has_derivative(const ddwaf_object *res)
 {
-    return res->derivatives.type == DDWAF_OBJ_MAP &&
-           res->derivatives.nbEntries > 0;
+    const ddwaf_object *attributes_obj = ddwaf_object_find(res, "attributes", 10);
+    return attributes_obj != NULL && attributes_obj->type == DDWAF_OBJ_MAP &&
+           ddwaf_object_size(attributes_obj) > 0;
 }
