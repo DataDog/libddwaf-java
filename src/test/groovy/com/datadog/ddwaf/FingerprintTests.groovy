@@ -10,10 +10,10 @@ import static org.hamcrest.Matchers.matchesPattern
 
 class FingerprintTests implements WafTrait {
 
-    @Test
-    void 'test fingerprints'() {
-        final userAgent = 'Arachni/v1.5.1'
-        final ruleSet = (Map) new JsonSlurper().parseText('''
+  @Test
+  void 'test fingerprints'() {
+    final userAgent = 'Arachni/v1.5.1'
+    final ruleSet = (Map) new JsonSlurper().parseText('''
 {
   "version": "2.2",
   "metadata": {
@@ -82,22 +82,24 @@ class FingerprintTests implements WafTrait {
 }
 ''')
 
-        ctx = Waf.createHandle('test', ruleSet)
-
-        Waf.ResultWithData res = ctx.runRules(
-                [
-                        'waf.context.processor'            : ['fingerprint': true],
-                        'server.request.method'            : 'GET',
-                        'server.request.uri.raw'           : 'http://localhost:8080/test',
-                        'server.request.body'              : [:],
-                        'server.request.query'             : [name: ['test']],
-                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
-                ],
-                limits,
-                metrics
-        )
-        assertThat res.result, is(Waf.Result.MATCH)
-        assertThat res.derivatives.keySet(), contains('_dd.appsec.fp.http.endpoint')
-        assertThat res.derivatives['_dd.appsec.fp.http.endpoint'], matchesPattern('http-get-.*')
-    }
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData res = context.run(
+      [
+        'waf.context.processor'            : ['fingerprint': true],
+        'server.request.method'            : 'GET',
+        'server.request.uri.raw'           : 'http://localhost:8080/test',
+        'server.request.body'              : [:],
+        'server.request.query'             : [name: ['test']],
+        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
+      ],
+      limits,
+      metrics
+      )
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.derivatives.keySet(), contains('_dd.appsec.fp.http.endpoint')
+    assertThat res.derivatives['_dd.appsec.fp.http.endpoint'], matchesPattern('http-get-.*')
+  }
 }
+

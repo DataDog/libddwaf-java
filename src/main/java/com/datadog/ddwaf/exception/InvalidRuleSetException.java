@@ -8,13 +8,18 @@
 
 package com.datadog.ddwaf.exception;
 
-import com.datadog.ddwaf.RuleSetInfo;
+import com.datadog.ddwaf.WafDiagnostics;
 
 public class InvalidRuleSetException extends UnclassifiedWafException {
-    public final RuleSetInfo ruleSetInfo;
+  public final WafDiagnostics wafDiagnostics;
 
-    public InvalidRuleSetException(RuleSetInfo ruleSetInfo, Throwable orig) {
-        super(orig);
-        this.ruleSetInfo = ruleSetInfo;
-    }
+  public InvalidRuleSetException(WafDiagnostics wafDiagnostics, String message) {
+    super(message);
+    this.wafDiagnostics = wafDiagnostics;
+  }
+
+  public InvalidRuleSetException(WafDiagnostics wafDiagnostics, Throwable orig) {
+    super(orig);
+    this.wafDiagnostics = wafDiagnostics;
+  }
 }

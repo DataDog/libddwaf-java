@@ -16,49 +16,52 @@ import static org.hamcrest.Matchers.is
 
 class ByteBufferSerializerTestsBase implements WafTrait {
 
-    @Lazy
-    ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
+  @Lazy
+  ByteBufferSerializer serializer = new ByteBufferSerializer(limits)
 
-    ByteBufferSerializer.ArenaLease lease
+  ByteBufferSerializer.ArenaLease lease
 
-    WafMetrics metrics
+  WafMetrics metrics
 
-    @Before
-    void before() {
-        metrics = new WafMetrics()
-    }
+  @Before
+  @Override
+  void setup() {
+    WafTrait.super.setup()
+    metrics = new WafMetrics()
+  }
 
-    @After
-    @Override
-    void after() {
-        lease?.close()
-        lease = null
-    }
+  @After
+  @Override
+  void after() {
+    WafTrait.super.after()
+    lease?.close()
+    lease = null
+  }
 
-    protected static String p(String s) {
-        s.stripIndent()[1..-1]
-    }
+  protected static String p(String s) {
+    s.stripIndent()[1..-1]
+  }
 
-    protected void assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
-        assertThat(metrics.truncatedStringTooLongCount, is(countStringTooLong))
-        assertThat(metrics.truncatedListMapTooLargeCount, is(countListMapTooLarge))
-        assertThat(metrics.truncatedObjectTooDeepCount, is(countObjectTooDeep))
-    }
+  protected void assertMetrics(Long countStringTooLong, Long countListMapTooLarge, Long countObjectTooDeep) {
+    assertThat(metrics.truncatedStringTooLongCount, is(countStringTooLong))
+    assertThat(metrics.truncatedListMapTooLargeCount, is(countListMapTooLarge))
+    assertThat(metrics.truncatedObjectTooDeepCount, is(countObjectTooDeep))
+  }
 
-    protected void assertSerializeValue(Object value, String expected) {
-        lease = serializer.serialize([key: value], metrics)
-        try {
-            String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
-            def exp = p"""
+  protected void assertSerializeValue(Object value, String expected) {
+    lease = serializer.serialize([key: value], metrics)
+    try {
+      String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+      def exp = p"""
             <MAP>
               key: $expected
             """
-            assertThat res, is(exp)
-            assertMetrics(0, 0, 0)
-            lease.close()
-        } finally {
-            lease?.close()
-            lease = null
-        }
+      assertThat res, is(exp)
+      assertMetrics(0, 0, 0)
+      lease.close()
+    } finally {
+      lease?.close()
+      lease = null
     }
+  }
 }

@@ -18,268 +18,278 @@ import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.containsInAnyOrder
 import static org.hamcrest.Matchers.hasItem
 import static org.hamcrest.Matchers.is
-import static org.hamcrest.Matchers.empty
 import static org.hamcrest.Matchers.notNullValue
 
 class BasicTests implements WafTrait {
 
-    @Test
-    void 'the version is correct'() {
-        assert Waf.version =~ Waf.LIB_VERSION
-    }
+  @Test
+  void 'the version is correct'() {
+    assert Waf.version =~ Waf.LIB_VERSION
+  }
 
-    @Test
-    void 'test running basic rule v1_0'() {
-        def ruleSet = ARACHNI_ATOM_V1_0
+  @Test
+  void 'test running basic rule v1_0'() {
+    def ruleSet = ARACHNI_ATOM_V1_0
 
-        ctx = Waf.createHandle('test', ruleSet)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    assert wafDiagnostics.rules.loaded == ['arachni_rule']
+    assert wafDiagnostics.numConfigOK == 1
+    assert wafDiagnostics.numConfigError == 0
+    assert wafDiagnostics.allErrors == [:]
+    assert wafDiagnostics.rulesetVersion == null
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
 
-        def json = slurper.parseText(awd.data)
+    def json = slurper.parseText(res.data)
 
-        assert json[0].rule.id == 'arachni_rule'
-        assert json[0].rule.name == 'Arachni'
-        assert json[0].rule.tags == [type: 'arachni_detection']
-        assert json[0].rule_matches[0]['operator'] == 'match_regex'
-        assert json[0].rule_matches[0]['operator_value'] == 'Arachni'
-        assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
-        assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
-        assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni'
-        assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni']
+    assert json[0].rule.id == 'arachni_rule'
+    assert json[0].rule.name == 'Arachni'
+    assert json[0].rule.tags == [type: 'arachni_detection']
+    assert json[0].rule_matches[0]['operator'] == 'match_regex'
+    assert json[0].rule_matches[0]['operator_value'] == 'Arachni'
+    assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
+    assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
+    assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni'
+    assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni']
+  }
 
-        def rsi = ctx.ruleSetInfo
-        assert rsi.rules.loaded == ['arachni_rule']
-        assert rsi.numRulesOK == 1
-        assert rsi.numRulesError == 0
-        assert rsi.errors == [:]
-        assert rsi.rulesetVersion == null
-    }
+  @Test
+  void 'test running basic rule v2_1'() {
+    def ruleSet = ARACHNI_ATOM_V2_1
 
-    @Test
-    void 'test running basic rule v2_1'() {
-        def ruleSet = ARACHNI_ATOM_V2_1
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    assert wafDiagnostics.numConfigOK == 1
+    assert wafDiagnostics.numConfigError == 0
+    assert wafDiagnostics.allErrors == [:]
+    assert wafDiagnostics.rulesetVersion == '1.2.6'
 
-        ctx = Waf.createHandle('test', ruleSet)
-        metrics = ctx.createMetrics()
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
+    def json = slurper.parseText(res.data)
 
-        def json = slurper.parseText(awd.data)
+    assert json[0].rule.id == 'arachni_rule'
+    assert json[0].rule.name == 'Arachni'
+    assert json[0].rule.tags == [category: 'attack_attempt', type: 'security_scanner']
+    assert json[0].rule_matches[0]['operator'] == 'match_regex'
+    assert json[0].rule_matches[0]['operator_value'] == '^Arachni\\/v'
+    assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
+    assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
+    assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
+    assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
 
-        assert json[0].rule.id == 'arachni_rule'
-        assert json[0].rule.name == 'Arachni'
-        assert json[0].rule.tags == [category: 'attack_attempt', type: 'security_scanner']
-        assert json[0].rule_matches[0]['operator'] == 'match_regex'
-        assert json[0].rule_matches[0]['operator_value'] == '^Arachni\\/v'
-        assert json[0].rule_matches[0]['parameters'][0].address == 'server.request.headers.no_cookies'
-        assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent']
-        assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1'
-        assert json[0].rule_matches[0]['parameters'][0].highlight == ['Arachni/v']
+    assert metrics.totalRunTimeNs > 0
+    assert metrics.totalDdwafRunTimeNs > 0
+    assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
+  }
 
-        def rsi = ctx.ruleSetInfo
-        assert rsi.numRulesOK == 1
-        assert rsi.numRulesError == 0
-        assert rsi.errors == [:]
-        assert rsi.rulesetVersion == '1.2.6'
+  @Test
+  void 'test blocking action'() {
+    def ruleSet = ARACHNI_ATOM_BLOCK
 
-        assert metrics.totalRunTimeNs > 0
-        assert metrics.totalDdwafRunTimeNs > 0
-        assert metrics.totalRunTimeNs >= metrics.totalDdwafRunTimeNs
-    }
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.size(), is(1)
+    assertThat res.actions.keySet(), hasItem('block_request')
+    assertThat res.actions.get('block_request').type, is('auto')
+    assertThat res.actions.get('block_request').status_code, is('403')
+    assertThat res.actions.get('block_request').grpc_status_code, is('10')
+  }
 
-    @Test
-    void 'test blocking action'() {
-        def ruleSet = ARACHNI_ATOM_BLOCK
+  @Test
+  void 'test built-in actions'() {
+    def ruleSet = ARACHNI_ATOM_V2_1
+    ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extract_schema']
 
-        ctx = Waf.createHandle('test', ruleSet)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.size(), is(3)
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-        assertThat awd.actions.size(), is(1)
-        assertThat awd.actions.keySet(), hasItem('block_request')
-        assertThat awd.actions.get('block_request').type, is('auto')
-        assertThat awd.actions.get('block_request').status_code, is('403')
-        assertThat awd.actions.get('block_request').grpc_status_code, is('10')
-    }
+    // block action
+    assertThat res.actions.keySet(), hasItem('block_request')
+    assertThat res.actions.get('block_request').type, is('auto')
+    assertThat res.actions.get('block_request').status_code, is('403')
+    assertThat res.actions.get('block_request').grpc_status_code, is('10')
 
-    @Test
-    void 'test built-in actions'() {
-        def ruleSet = ARACHNI_ATOM_V2_1
-        ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extract_schema']
+    // stack_trace action
+    assertThat res.actions.keySet(), hasItem('generate_stack')
+    assertThat res.actions.get('generate_stack').stack_id, is(notNullValue())
 
-        ctx = Waf.createHandle('test', ruleSet)
+    // extract_schema action
+    assertThat res.actions.keySet(), hasItem('generate_schema')
+  }
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-        assertThat awd.actions.size(), is(3)
+  @Test
+  void 'test multiple actions'() {
+    def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+    ruleSet.putAt('actions', [
+      [
+        id: 'aaaa',
+        parameters: [
+          status_code: '200',
+          type: 'auto',
+          grpc_status_code: '10',
+        ],
+        type: 'aaaa'
+      ],
+      [
+        id: 'bbbb',
+        parameters: [
+          status_code: '200',
+          type: 'auto',
+          grpc_status_code: '10',
+        ],
+        type: 'bbbb'
+      ]
+    ])
+    ruleSet['rules'][0]['on_match'] = ['aaaa', 'block', 'bbbb']
 
-        // block action
-        assertThat awd.actions.keySet(), hasItem('block_request')
-        assertThat awd.actions.get('block_request').type, is('auto')
-        assertThat awd.actions.get('block_request').status_code, is('403')
-        assertThat awd.actions.get('block_request').grpc_status_code, is('10')
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.keySet(), containsInAnyOrder('aaaa', 'block_request', 'bbbb')
+  }
 
-        // stack_trace action
-        assertThat awd.actions.keySet(), hasItem('generate_stack')
-        assertThat awd.actions.get('generate_stack').stack_id, is(notNullValue())
+  @Test
+  void 'test actions with various types'() {
+    def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+    ruleSet.putAt('actions', [
+      [
+        id: 'block',
+        parameters: [
+          status_code: 201,       // integer
+          type: 'auto',
+          grpc_status_code: '10', // string
+          enabled: true,          // boolean
+          test: 'false'           // string
+        ],
+        type: 'block_request'
+      ]
+    ])
+    ruleSet['rules'][0]['on_match'] = ['block']
 
-        // extract_schema action
-        assertThat awd.actions.keySet(), hasItem('generate_schema')
-    }
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.keySet(), contains('block_request')
 
-    @Test
-    void 'test multiple actions'() {
-        def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
-        ruleSet.putAt('actions', [
-            [
-                id: 'aaaa',
-                parameters: [
-                    status_code: '200',
-                    type: 'auto',
-                    grpc_status_code: '10',
-                ],
-                type: 'aaaa'
-            ],
-            [
-                id: 'bbbb',
-                parameters: [
-                    status_code: '200',
-                    type: 'auto',
-                    grpc_status_code: '10',
-                ],
-                type: 'bbbb'
-            ]
-        ])
-        ruleSet['rules'][0]['on_match'] = ['aaaa', 'block', 'bbbb']
+    assertThat res.actions.get('block_request').type, is('auto')
+    assertThat res.actions.get('block_request').status_code, is('201')
+    assertThat res.actions.get('block_request').grpc_status_code, is('10')
+    assertThat res.actions.get('block_request').enabled, is('true')
+    assertThat res.actions.get('block_request').test, is('false')
+  }
 
-        ctx = Waf.createHandle('test', ruleSet)
+  @Test
+  void 'test with array of string lists'() {
+    def ruleSet = ARACHNI_ATOM_V1_0
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    def data = [
+      attack: ['o:1:"ee":1:{}'],
+      PassWord: ['Arachni'],
+    ]
+    final params = ['server.request.headers.no_cookies': ['user-agent': data]]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-        assertThat awd.actions.keySet(), containsInAnyOrder('aaaa', 'block_request', 'bbbb')
-    }
+  @Test
+  void 'test with array'() {
+    def ruleSet = ARACHNI_ATOM_V1_0
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    def data = ['foo', 'Arachni'] as String[]
+    final params = ['server.request.headers.no_cookies': ['user-agent': data]]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 
-    @Test
-    void 'test actions with various types'() {
-        def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
-        ruleSet.putAt('actions', [
-                [
-                        id: 'block',
-                        parameters: [
-                                status_code: 201,       // integer
-                                type: 'auto',
-                                grpc_status_code: '10', // string
-                                enabled: true,          // boolean
-                                test: 'false'           // string
-                        ],
-                        type: 'block_request'
-                ]
-        ])
-        ruleSet['rules'][0]['on_match'] = ['block']
+  @Test
+  void 'test null argument'() {
+    def ruleSet = ARACHNI_ATOM_V1_0
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    def data = [null, 'Arachni']
+    final params = ['server.request.headers.no_cookies': ['user-agent': data]]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 
-        ctx = Waf.createHandle('test', ruleSet)
+  @Test
+  void 'test boolean arguments'() {
+    def ruleSet = ARACHNI_ATOM_V1_0
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    def data = [true, false, 'Arachni']
+    final params = ['server.request.headers.no_cookies': ['user-agent': data]]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-        assertThat awd.actions.keySet(), contains('block_request')
+  @SuppressWarnings('EmptyClass')
+  static class MyClass { }
 
-        assertThat awd.actions.get('block_request').type, is('auto')
-        assertThat awd.actions.get('block_request').status_code, is('201')
-        assertThat awd.actions.get('block_request').grpc_status_code, is('10')
-        assertThat awd.actions.get('block_request').enabled, is('true')
-        assertThat awd.actions.get('block_request').test, is('false')
-    }
+  @Test
+  void 'test unencodable arguments'() {
+    def ruleSet = ARACHNI_ATOM_V1_0
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    def data = [new MyClass(), 'Arachni']
+    final params = ['server.request.headers.no_cookies': ['user-agent': data]]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 
-    @Test
-    void 'test with array of string lists'() {
-        def ruleSet = ARACHNI_ATOM_V1_0
+  @Test
+  void 'can retrieve used addresses'() {
+    def ruleSet = ARACHNI_ATOM_V2_1
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    assertThat handle.knownAddresses as List, contains('server.request.headers.no_cookies')
+  }
 
-        ctx = Waf.createHandle('test', ruleSet)
+  @Test
+  void 'can retrieve used actions'() {
+    def ruleSet = ARACHNI_ATOM_BLOCK
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    assertThat handle.knownActions as List,
+      containsInAnyOrder('block_request', 'generate_stack', 'redirect_request')
+  }
 
-        def data = [
-            attack: ['o:1:"ee":1:{}'],
-            PassWord: ['Arachni'],
-        ]
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-    }
-
-    @Test
-    void 'test with array'() {
-        def ruleSet = ARACHNI_ATOM_V1_0
-
-        ctx = Waf.createHandle('test', ruleSet)
-
-        def data = ['foo', 'Arachni'] as String[]
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-    }
-
-    @Test
-    void 'test null argument'() {
-        def ruleSet = ARACHNI_ATOM_V1_0
-
-        ctx = Waf.createHandle('test', ruleSet)
-
-        def data = [null, 'Arachni']
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-    }
-
-    @Test
-    void 'test boolean arguments'() {
-        def ruleSet = ARACHNI_ATOM_V1_0
-
-        ctx = Waf.createHandle('test', ruleSet)
-
-        def data = [true, false, 'Arachni']
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-    }
-
-    @SuppressWarnings('EmptyClass')
-    static class MyClass { }
-
-    @Test
-    void 'test unencodable arguments'() {
-        def ruleSet = ARACHNI_ATOM_V1_0
-
-        ctx = Waf.createHandle('test', ruleSet)
-
-        def data = [new MyClass(), 'Arachni']
-        ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': data]], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-    }
-
-    @Test
-    void 'can retrieve used addresses'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_V2_1)
-        assertThat ctx.usedAddresses as List, contains('server.request.headers.no_cookies')
-    }
-
-    @Test
-    void 'can retrieve used actions'() {
-        ctx = Waf.createHandle('test', ARACHNI_ATOM_BLOCK)
-        assertThat ctx.usedActions as List, containsInAnyOrder('block_request', 'generate_stack', 'redirect_request')
-    }
-
-    @Test
-    void 'handles ruleset without addresses'() {
-        def ruleSet = new JsonSlurper().parseText '''
+  @Test
+  void 'handles ruleset without addresses'() {
+    def ruleSet = new JsonSlurper().parseText '''
             {
               "version": "1.0",
               "events": [
@@ -302,13 +312,19 @@ class BasicTests implements WafTrait {
                 }
               ]
             }'''
-        ctx = Waf.createHandle('test', ruleSet)
-        assertThat ctx.usedAddresses as List, is(empty())
-    }
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet as Map<String, Object>)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    assert handle.knownAddresses.length == 0
 
-    @Test
-    void 'update rule data'() {
-        def ruleSet = new JsonSlurper().parseText '''{
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.OK)
+  }
+
+  @Test
+  void 'update rule data'() {
+    def ruleSet = new JsonSlurper().parseText '''{
            "data" : "usr_data",
            "rules" : [
               {
@@ -356,52 +372,49 @@ class BasicTests implements WafTrait {
            ],
            "version" : "2.1"
       }'''
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    ResultWithData res = context.run(['http.client_ip': '1.2.3.4'], limits, metrics)
+    assertThat res.result, is(Waf.Result.OK)
 
-        ctx = Waf.createHandle('test', ruleSet)
+    res = context.run(['usr.id': 'paco'], limits, metrics)
+    assertThat res.result, is(Waf.Result.OK)
+    context.close()
+    handle.close()
 
-        ResultWithData res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
-        assertThat res.result, is(Waf.Result.OK)
+    def newData = [
+      [
+        id: 'ip_data',
+        type: 'ip_with_expiration',
+        data: [[
+            value: '1.2.3.4',
+            expiration: '0',
+          ]]
+      ],
+      [
+        id: 'usr_data',
+        type: 'data_with_expiration',
+        data: [[
+            value: 'paco',
+            expiration: '0',
+          ]]
 
-        res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
-        assertThat res.result, is(Waf.Result.OK)
+      ]
+    ]
+    wafDiagnostics = builder.addOrUpdateConfig('testX', [rules_data: newData])
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    res = context.run(['http.client_ip': '1.2.3.4'], limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
 
-        def newData = [
-                [
-                        id: 'ip_data',
-                        type: 'ip_with_expiration',
-                        data: [
-                                [
-                                        value: '1.2.3.4',
-                                        expiration: '0',
-                                ]
-                        ]
-                ],
-                [
-                        id: 'usr_data',
-                        type: 'data_with_expiration',
-                        data: [
-                                [
-                                        value: 'paco',
-                                        expiration: '0',
-                                ]
-                        ]
+    res = context.run(['usr.id': 'paco'], limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 
-                ]
-        ]
-        ctx.withCloseable {
-            ctx = ctx.update('test2', [rules_data: newData])
-        }
-
-        res = ctx.runRules(['http.client_ip': '1.2.3.4'], limits, metrics)
-        assertThat res.result, is(Waf.Result.MATCH)
-
-        res = ctx.runRules(['usr.id': 'paco'], limits, metrics)
-        assertThat res.result, is(Waf.Result.MATCH)
-    }
-
-    @Test
-    void 'input exclusion'() {
-        def ruleSet = new JsonSlurper().parseText '''{
+  @Test
+  void 'input exclusion'() {
+    def ruleSet = new JsonSlurper().parseText '''{
            "version": "2.2",
            "metadata": {
              "rules_version": "1.2.6"
@@ -466,153 +479,165 @@ class BasicTests implements WafTrait {
            ]
          }'''
 
-        ctx = Waf.createHandle('test', ruleSet)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    ResultWithData res = context.run(['server.request.query': [excluded_key: 'true']], limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    context.close()
 
-        ResultWithData res = ctx.runRules(['server.request.query': [excluded_key: 'true']], limits, metrics)
-        assertThat res.result, is(Waf.Result.MATCH)
+    context = new WafContext(handle)
+    res = context.run(
+      ['server.request.query': [excluded_key: 'true', activate_exclusion: 'false']], limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    context.close()
 
-        res = ctx.runRules(
-                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'false']], limits, metrics)
-        assertThat res.result, is(Waf.Result.MATCH)
+    context = new WafContext(handle)
+    res = context.run(
+      ['server.request.query': [excluded_key: 'true', activate_exclusion: 'true']], limits, metrics)
+    assertThat res.result, is(Waf.Result.OK)
+  }
 
-        res = ctx.runRules(
-                ['server.request.query': [excluded_key: 'true', activate_exclusion: 'true']], limits, metrics)
-        assertThat res.result, is(Waf.Result.OK)
-    }
+  @Test
+  void 'test exclusion data'() {
+    final suspiciousIp = '34.65.27.85'
+    final userAgent = 'Arachni/v1.5.1'
+    final ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_V2_1))
+    ruleSet.rules[0].remove('on_match') // other tests are modifying the rule
+    ruleSet.putAt('exclusions', [
+      [
+        id        : 'exc-000-001',
+        on_match  : 'block',
+        conditions: [
+          [
+            operator  : 'ip_match',
+            parameters: [
+              data  : 'suspicious_ips_data_id',
+              inputs: [[address: 'http.client_ip']]]
+          ]
+        ],
+      ]
+    ])
+    builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    ResultWithData res = context.run(
+      [
+        'http.client_ip'                   : suspiciousIp,
+        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
+      ],
+      limits,
+      metrics
+      )
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.size(), is(0)
+    context.close()
+    handle.close()
 
-    @Test
-    void 'test exclusion data'() {
-        final suspiciousIp = '34.65.27.85'
-        final userAgent = 'Arachni/v1.5.1'
-        final ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_V2_1))
-        ruleSet.rules[0].remove('on_match') // other tests are modifying the rule
-        ruleSet.putAt('exclusions', [
-                [
-                        id        : 'exc-000-001',
-                        on_match  : 'block',
-                        conditions: [
-                                [
-                                        operator  : 'ip_match',
-                                        parameters: [
-                                                data  : 'suspicious_ips_data_id',
-                                                inputs: [[address: 'http.client_ip']]]
-                                ]
-                        ],
-                ]
-        ])
+    def newData = [
+      [
+        id  : 'suspicious_ips_data_id',
+        type: 'ip_with_expiration',
+        data: [[value: suspiciousIp, expiration: 0]]
+      ]
+    ]
 
-        ctx = Waf.createHandle('test', ruleSet)
+    builder.addOrUpdateConfig('test2', [exclusion_data: newData])
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
 
-        ResultWithData res = ctx.runRules(
-                [
-                        'http.client_ip'                   : suspiciousIp,
-                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
-                ],
-                limits,
-                metrics
-        )
-        assertThat res.result, is(Waf.Result.MATCH)
-        assertThat res.actions.size(), is(0)
+    res = context.run(
+      [
+        'http.client_ip'                   : suspiciousIp,
+        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
+      ],
+      limits,
+      metrics
+      )
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.size(), is(1)
+    assertThat res.actions.get('block_request'), notNullValue()
+  }
 
-        def newData = [
-                [
-                        id  : 'suspicious_ips_data_id',
-                        type: 'ip_with_expiration',
-                        data: [
-                                [value: suspiciousIp, expiration: 0]
-                        ]
-                ]
+  @Test
+  void 'rule toggling'() {
+    def ruleSet = ARACHNI_ATOM_BLOCK
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+
+    Map<String, Object> overrideSpec = [
+      metadata: [
+        rules_version: '1.2.7'
+      ],
+      rules_override: [
+        [
+          rules_target: [[
+              rule_id: 'arachni_rule'
+            ]],
+          enabled: false
         ]
+      ]
+    ]
+    wafDiagnostics = builder.addOrUpdateConfig('testD', overrideSpec)
+    assertThat wafDiagnostics.rulesetVersion, is('1.2.7')
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    Waf.ResultWithData res = context.run(
+      ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+    assertThat res.result, is(Waf.Result.OK)
+    context.close()
+    handle.close()
 
-        ctx.withCloseable {
-            ctx = ctx.update('test2', [exclusion_data: newData])
-        }
+    overrideSpec['rules_override'][0]['enabled'] = true
+    wafDiagnostics = builder.addOrUpdateConfig('testD', overrideSpec)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    res = context.run(
+      ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 
-        res = ctx.runRules(
-                [
-                        'http.client_ip'                   : suspiciousIp,
-                        'server.request.headers.no_cookies': ['user-agent': [userAgent]]
+  @Test
+  void 'custom rules'() {
+    def ruleSet = ARACHNI_ATOM_BLOCK
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+
+    Map<String, Object> customRules = [
+      rules: [],
+      custom_rules: [
+        [
+          id: 'my rule',
+          name: 'My Rule',
+          tags: [
+            type: 'security_scanner',
+            category: 'attack_attempt'
+          ],
+          conditions: [
+            [
+              parameters: [
+                inputs: [
+                  [
+                    address: 'server.request.headers.no_cookies',
+                    key_path: ['user-agent']
+                  ]
                 ],
-                limits,
-                metrics
-        )
-        assertThat res.result, is(Waf.Result.MATCH)
-        assertThat res.actions.size(), is(1)
-        assertThat res.actions.get('block_request'), notNullValue()
-    }
+                regex: 'foobar'
+              ],
+              operator: 'match_regex'
+            ]
+          ]]
+      ]]
+    wafDiagnostics = builder.addOrUpdateConfig('test', customRules)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    def res = context.run(
+      ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
+    assertThat res.result, is(Waf.Result.OK)
+    context.close()
 
-    @Test
-    void 'rule toggling'() {
-        def ruleSet = ARACHNI_ATOM_BLOCK
-
-        ctx = Waf.createHandle('test', ruleSet)
-
-        Map<String, Object> overrideSpec = [
-                metadata: [
-                        rules_version: '1.2.7'
-                ],
-                rules_override: [
-                        [
-                                rules_target: [
-                                        [
-                                                rule_id: 'arachni_rule'
-                                        ]
-                                ],
-                                enabled: false
-                        ]
-                ]
-        ]
-        ctx.withCloseable {
-            ctx = ctx.update('test2', overrideSpec)
-            assertThat ctx.ruleSetInfo.rulesetVersion, is('1.2.7')
-        }
-        Waf.ResultWithData awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.OK)
-
-        overrideSpec['rules_override'][0]['enabled'] = true
-        ctx.withCloseable {
-            ctx = ctx.update('test3', overrideSpec)
-        }
-        awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-    }
-
-    @Test
-    void 'custom rules'() {
-        def ruleSet = ARACHNI_ATOM_BLOCK
-
-        ctx = Waf.createHandle('test', ruleSet)
-
-        Map<String, Object> customRules = [
-            rules: [],
-            custom_rules: [[
-                 id: 'my rule',
-                 name: 'My Rule',
-                 tags: [
-                        type: 'security_scanner',
-                        category: 'attack_attempt'
-                 ],
-                 conditions: [[
-                     parameters: [
-                            inputs: [
-                                [
-                                    address: 'server.request.headers.no_cookies',
-                                    key_path: ['user-agent']
-                                ]],
-                            regex: 'foobar'
-                     ],
-                     operator: 'match_regex'
-        ]]]]]
-        ctx.withCloseable {
-            ctx = ctx.update('test2', customRules)
-        }
-        def awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.OK)
-        awd = ctx.runRules(
-                ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, metrics)
-        assertThat awd.result, is(Waf.Result.MATCH)
-    }
+    context = new WafContext(handle)
+    res = context.run(
+      ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+  }
 }
+

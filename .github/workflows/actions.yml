@@ -11,8 +11,34 @@ defaults:
 env:
   buildType: RelWithDebInfo
   tempdir: ${{ github.workspace }}/build
-  libddwafVersion: 1.22.0
+  libddwafVersion: 1.24.1
 jobs:
+  Spotless:
+    name: spotless
+    runs-on: ubuntu-24.04
+    if: "!(contains(github.ref, 'refs/tags/v'))"
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+        with:
+          submodules: recursive
+          clean: true
+      - name: Spotless
+        run: |
+          ./gradlew spotlessCheck
+  ClangFormat:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    if: "!(contains(github.ref, 'refs/tags/v'))"
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+        with:
+          submodules: recursive
+          clean: true
+      - name: clang-format
+        run: |
+          clang-format-18 -n -Werror $(find src/main/c -type f)
   Coverage:
     runs-on: ubuntu-22.04
     if: "!(contains(github.ref, 'refs/tags/v'))"
@@ -166,7 +192,7 @@ jobs:
         shell: cmd
     env:
       generator: NMake Makefiles
-      shlib_prefix: 
+      shlib_prefix:
       shlib_ext: dll
       debug_ext: pdb
       artifactsuff: win-x86_64
@@ -265,7 +291,7 @@ jobs:
           name: jni_${{ env.artifactsuff }}
 
   Native_binaries_Stage_asan:
-    name: ASAN/static analyzer on Linux
+    name: ASAN on Linux
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout project
@@ -275,14 +301,29 @@ jobs:
     - name: Install GCC and clang
       run: |
         sudo apt-get update
-        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++ \
-          clang clang-tools ruby
+        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++
       shell: bash
     - name: Build and test (with ASAN)
       run: ./gradlew check -PwithASAN
+
+  Native_binaries_Stage_static_analyzer:
+    name: Static analyzer on Linux
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout project
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install GCC and clang
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libc++-dev libc++abi-dev libc++abi1 libstdc++-12-dev gcc g++ clang-19 clang-tools-19
+      shell: bash
+    - name: Build
+      run: ./gradlew buildLibddwafDebug
     - name: Run static analyzer
       run: |
-        ci/static_analysis
+        SCAN_BUILD=scan-build-19 ./ci/static_analysis
       shell: bash
 
   Dev_Tests:
@@ -307,6 +348,9 @@ jobs:
       with:
         java-version: 11
         distribution: temurin
+    - name: Setup recent Xcode
+      if: ${{ matrix.runs-on == 'macos-15' }}
+      run: xcodes select 16.2
     - name: Build and run tests
       run: ./gradlew check
 
@@ -336,6 +380,7 @@ jobs:
       - Native_binaries_Stage_windows_x86_64
       - Native_binaries_Stage_linux
       - Native_binaries_Stage_asan
+      - Native_binaries_Stage_static_analyzer
     steps:
     - name: Setup JDK 1.8
       uses: actions/setup-java@v4
@@ -394,7 +439,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
     - name: Build final JAR and debug symbols package
-      run: ./gradlew assemble
+      run: ./gradlew assemble -Prelease -PuseReleaseBinaries
     - name: Copy artifacts to the packages directory
       run: |
         set -ex
@@ -568,6 +613,7 @@ jobs:
       - Dev_Tests
       - Jmh_Build
       - Jar_File_Stage_build_jar
+      - Spotless
     runs-on: ubuntu-24.04
     steps:
     - name: Done
@@ -598,7 +644,7 @@ jobs:
         name: native_libs
         path: native_libs
     - name: Publish artifacts to S3
-      run: ./gradlew publish
+      run: ./gradlew publish -Prelease -PuseReleaseBinaries
       env:
         AWS_ACCESS_KEY_ID: AKIA5VR734GFSK4FR2PD
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

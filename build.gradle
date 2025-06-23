@@ -24,6 +24,7 @@ plugins {
     id 'codenarc'
     id 'me.champeau.jmh' version '0.7.2'
     id 'info.solidsoft.pitest' version '1.15.0'
+    id 'com.diffplug.spotless' version '6.13.0'
 }
 
 repositories {
@@ -35,7 +36,7 @@ repositories {
 }
 
 group 'io.sqreen'
-version '13.0.0'
+version '14.0.0'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -45,8 +46,32 @@ java {
     withSourcesJar()
 }
 
+spotless {
+    java {
+        toggleOffOn()
+        // This is the last Google Java Format version that supports Java 8
+        googleJavaFormat('1.7')
+        target 'src/**/*.java'
+    }
+    groovyGradle {
+        toggleOffOn()
+        target '*.gradle'
+    }
+    groovy {
+        toggleOffOn()
+        greclipse().configFile('gradle/spotless-groovy.properties')
+        target 'src/**/*.groovy'
+    }
+    format 'misc', {
+        target '*.md', '.gitattributes', '.gitignore', '.github/**', 'ci/**'
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
 def WINDOWS = org.gradle.internal.os.OperatingSystem.current().windows
 def MACOS = org.gradle.internal.os.OperatingSystem.current().macOsX
+def LINUX = org.gradle.internal.os.OperatingSystem.current().linux
 
 def libddwafDir = "$projectDir/libddwaf"
 def cmakeBuildSuffix = project.hasProperty('withASAN') ? "asan" : "debug"
@@ -352,7 +377,37 @@ tasks.register('fixS3Permissions') {
     publish.finalizedBy it
 }
 
-tasks.register('copyNativeLibs', Copy) {
+String getArch() {
+    final arch = System.getProperty('os.arch')
+    if (['x86_64', 'amd64'].contains(arch)) {
+        return 'x86_64'
+    } else if (['aarch64', 'arm64'].contains(arch)) {
+        return 'aarch64'
+    } else {
+        throw new GradleException("Unsupported architecture: $arch")
+    }
+}
+
+def getOs = () -> {
+    if (WINDOWS) {
+        return 'windows'
+    } else if (MACOS) {
+        return 'macos'
+    } else {
+        return 'linux'
+    }
+}
+
+def getLibc = () -> {
+    if (WINDOWS || MACOS) {
+        return ''
+    } else {
+        // XXX: We'll assume that developers are using glibc
+        return 'glibc'
+    }
+}
+
+tasks.register('copyNativeLibsRelease', Copy) {
     def existsLib = { filename ->
         def fileObj = file("$nativeLibsDir/${filename}")
         if (!fileObj.exists()) {
@@ -386,10 +441,45 @@ tasks.register('copyNativeLibs', Copy) {
     dependsOn checkForNativeLibs
 }
 
-tasks.withType(JavaCompile).configureEach {
-    mustRunAfter copyNativeLibs
+tasks.register('copyLibddwafDebug', Copy) {
+    dependsOn 'buildLibddwafDebug'
+    final String targetLibddwafDir = "${getOs()}/${getArch()}"
+    from "$libddwafInstallPrefix/lib", {
+        include 'libddwaf.so'
+        include 'libddwaf.dylib'
+        include 'libddwaf.dll'
+    }
+    into "${sourceSets.main.output.resourcesDir}/native_libs/${targetLibddwafDir}"
 }
-jar.dependsOn copyNativeLibs
+
+tasks.register('copyNativeLibDebug', Copy) {
+    dependsOn 'buildNativeLibDebug'
+    final String targetLibddwafDir = "${getOs()}/${getArch()}"
+    // XXX:For Linux, we'll assume developer environment uses glibc
+    final String targetNativeLibDir = LINUX? "$targetLibddwafDir/glibc" : targetLibddwafDir
+    from buildNativeLibDebug.outputs.files.singleFile
+    into "${sourceSets.main.output.resourcesDir}/native_libs/${targetNativeLibDir}"
+}
+
+tasks.register('copyNativeLibsDebug', Copy) {
+    dependsOn 'copyLibddwafDebug'
+    dependsOn 'copyNativeLibDebug'
+}
+
+tasks.register('copyNativeLibs') {
+    if (project.hasProperty('useReleaseBinaries')) {
+        dependsOn copyNativeLibsRelease
+    } else {
+        dependsOn copyNativeLibsDebug
+    }
+}
+
+tasks.named('processResources').configure {
+    dependsOn copyNativeLibs
+}
+tasks.named('jar').configure {
+    dependsOn copyNativeLibs
+}
 
 tasks.register('testgc', Test) {
     description = 'Tests that the library can be unloaded'
@@ -428,15 +518,9 @@ tasks.withType(Test).configureEach {
         it.jvmArgs += ['-Xcheck:jni']
     }
 
-    it.jvmArgs += ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true']
-    if (project.hasProperty('useReleaseBinaries')) {
-        it.jvmArgs += ['-DuseReleaseBinaries=true']
-        it.dependsOn copyNativeLibs
-    } else {
-        def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
-        it.jvmArgs += ["-Djava.library.path=$javaLibPath"]
-        it.dependsOn buildNativeLibDebug
-    }
+    it.jvmArgs += ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DDD_APPSEC_DDWAF_EXIT_ON_LEAK=true']
+    it.jvmArgs += ['-DuseReleaseBinaries=true']
+    it.dependsOn copyNativeLibs
 
     // ByteBufferSerializerTest will fail in some locales because of float formatting (that's just for test code).
     it.environment.put('LC_ALL', 'C')
@@ -500,7 +584,7 @@ pitest {
     junit5PluginVersion = '1.2.1'
     targetClasses = ['io.sqreen.*']
     def javaLibPath = WINDOWS ? "$cmakeNativeLibDir\\Debug" : "$cmakeNativeLibDir"
-    jvmArgs = ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DPOWERWAF_EXIT_ON_LEAK=true', "-Djava.library.path=$javaLibPath"]
+    jvmArgs = ['-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG', '-DDD_APPSEC_DDWAF_EXIT_ON_LEAK=true', "-Djava.library.path=$javaLibPath"]
     threads = 8
     outputFormats = ['HTML']
     mutators = ['STRONGER']
@@ -513,6 +597,20 @@ tasks.named("pitest").configure {
 
 project.afterEvaluate {
     tasks.withType(PublishToMavenRepository).each { it.enabled = false }
+}
+
+tasks.register('clangFormat', Exec) {
+    def clangFormat = System.getenv('CLANG_FORMAT')
+    if (clangFormat == null) {
+        clangFormat = 'clang-format'
+    }
+    commandLine clangFormat, '-i'
+    args fileTree('src/main/c').include(['**/*.c', '**/*.h']).files.collect { it.absolutePath }
+}
+
+tasks.register('format') {
+    dependsOn 'clangFormat'
+    dependsOn 'spotlessApply'
 }
 
 // vim: set et ts=4 sw=4 list:

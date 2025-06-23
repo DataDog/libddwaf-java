@@ -8,20 +8,23 @@
 
 package com.datadog.ddwaf.exception;
 
+import com.datadog.ddwaf.WafErrorCode;
+
 public class UnclassifiedWafException extends AbstractWafException {
-    public UnclassifiedWafException(int errorCode) {
-        super("Unclassified Waf exception with error code " + errorCode, errorCode);
-    }
 
-    public UnclassifiedWafException(String message) {
-        super(message, Integer.MIN_VALUE);
-    }
+  public UnclassifiedWafException(int errorCode) {
+    super("Unclassified Waf exception with error code " + errorCode, errorCode);
+  }
 
-    public UnclassifiedWafException(String message, Throwable cause) {
-        super(message, Integer.MIN_VALUE, cause);
-    }
+  public UnclassifiedWafException(String message) {
+    super(message, WafErrorCode.BINDING_ERROR.getCode());
+  }
 
-    public UnclassifiedWafException(Throwable e) {
-        this(e.getMessage(), e);
-    }
+  public UnclassifiedWafException(String message, Throwable cause) {
+    super(message, WafErrorCode.BINDING_ERROR.getCode(), cause);
+  }
+
+  public UnclassifiedWafException(Throwable e) {
+    this(e.getMessage(), e);
+  }
 }

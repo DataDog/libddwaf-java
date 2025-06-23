@@ -8,63 +8,67 @@
 
 package com.datadog.ddwaf
 
+import com.datadog.ddwaf.exception.InvalidRuleSetException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
-import com.datadog.ddwaf.exception.AbstractWafException
-import com.datadog.ddwaf.exception.InvalidRuleSetException
 import org.junit.Test
 
 import static groovy.test.GroovyAssert.shouldFail
 
 class BadRuleTests implements WafTrait {
 
-    @Test(expected = AbstractWafException)
-    void 'no events'() {
-        ctx = Waf.createHandle('test', [version: '0.0', events: []])
+  @Test
+  void 'no events'() {
+    shouldFail(InvalidRuleSetException) {
+      wafDiagnostics = builder.addOrUpdateConfig('test', [version: '0.0', events: []])
     }
+  }
 
-    @Test
-    void 'rule without id'() {
-        def rules = copyMap(ARACHNI_ATOM_V2_1)
-        rules['rules'][0].remove('id')
-        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
-            ctx = Waf.createHandle('test', rules)
-        }
-
-        def rsi = exc.ruleSetInfo
-        assert rsi.numRulesOK == 0
-        assert rsi.numRulesError == 1
-        assert rsi.errors == ['missing key \'id\'':['index:0']]
+  @Test
+  void 'rule without id'() {
+    def rules = copyMap(ARACHNI_ATOM_V2_1)
+    rules['rules'][0].remove('id')
+    InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+      builder.addOrUpdateConfig('test', rules)
     }
+    wafDiagnostics = exc.wafDiagnostics
 
-    @Test
-    void 'rules have the wrong form'() {
-        def rules = copyMap(ARACHNI_ATOM_V2_1)
-        rules['rules'] = [:]
-        InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
-            ctx = Waf.createHandle('test', rules)
-        }
+    assert wafDiagnostics.numConfigOK == 0
+    assert wafDiagnostics.numConfigError == 1
+    assert wafDiagnostics.allErrors == ['missing key \'id\'':['index:0']]
+  }
 
-        def rsi = exc.ruleSetInfo
-        assert rsi.numRulesOK == 0
-        assert rsi.numRulesError == 0
-        assert rsi.rules.error == "bad cast, expected 'array', obtained 'map'"
+  @Test
+  void 'rules have the wrong form'() {
+    def rules = copyMap(ARACHNI_ATOM_V2_1)
+    rules['rules'] = [:]
+
+    InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+      builder.addOrUpdateConfig('test', rules)
     }
+    wafDiagnostics = exc.wafDiagnostics
 
-    @Test
-    void 'duplicated rule'() {
-        def rules = copyMap(ARACHNI_ATOM_V2_1)
-        rules['rules'] << rules['rules'][0]
-        ctx = Waf.createHandle('test', rules)
+    assert wafDiagnostics.numConfigOK == 0
+    assert wafDiagnostics.numConfigError == 1
+    assert wafDiagnostics.rules.error == "bad cast, expected 'array', obtained 'map'"
+  }
 
-        def rsi = ctx.ruleSetInfo
-        assert rsi.numRulesOK == 1
-        assert rsi.numRulesError == 1
-        assert rsi.errors == ['duplicate rule': ['arachni_rule'] as String[]]
-    }
+  @Test
+  void 'duplicated rule'() {
+    def rules = copyMap(ARACHNI_ATOM_V2_1)
+    rules['rules'] << rules['rules'][0]
+    wafDiagnostics = builder.addOrUpdateConfig('test', rules)
 
-    private Map copyMap(Map map) {
-        new JsonSlurper().parseText(JsonOutput.toJson(map))
-    }
+    assert wafDiagnostics.numConfigOK == 1
+    assert wafDiagnostics.numConfigError == 1
+    assert wafDiagnostics.allErrors == ['duplicate rule': ['arachni_rule'] as String[]]
 
+    handle = builder.buildWafHandleInstance()
+    assert handle != null
+  }
+
+  private Map copyMap(Map map) {
+    new JsonSlurper().parseText(JsonOutput.toJson(map))
+  }
 }
+

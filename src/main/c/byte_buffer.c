@@ -14,8 +14,8 @@
 
 JNIEXPORT jlong JNICALL
 Java_com_datadog_ddwaf_ByteBufferSerializer_getByteBufferAddress(JNIEnv *env,
-                                                                  jclass clazz,
-                                                                  jobject bb)
+                                                                 jclass clazz,
+                                                                 jobject bb)
 {
     (void) clazz;
     void *addr = JNI(GetDirectBufferAddress, bb);

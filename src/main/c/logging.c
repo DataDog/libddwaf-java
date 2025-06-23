@@ -20,9 +20,9 @@
 #include "compat.h"
 
 #ifdef _WIN32
-# define DIR_SEP '\\'
+#define DIR_SEP '\\'
 #else
-# define DIR_SEP '/'
+#define DIR_SEP '/'
 #endif
 
 #define LOGGER_NAME "ddwaf_native"
@@ -39,11 +39,13 @@ static int file_strip_idx;
 
 static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level);
 static void _waf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
-                                const char *file, unsigned line,
-                                const char *message, uint64_t message_len);
-static void _waf_logging_c_throwable(
-        DDWAF_LOG_LEVEL level, const char *function, const char *file, int line,
-        const char *message, uint64_t message_len, jthrowable throwable);
+                           const char *file, unsigned line, const char *message,
+                           uint64_t message_len);
+static void _waf_logging_c_throwable(DDWAF_LOG_LEVEL level,
+                                     const char *function, const char *file,
+                                     int line, const char *message,
+                                     uint64_t message_len,
+                                     jthrowable throwable);
 static const char *_remove_path(const char *path);
 static JNIEnv *_attach_vm(bool *attached);
 static void _detach_vm(void);
@@ -80,7 +82,7 @@ extern inline bool log_level_enabled(DDWAF_LOG_LEVEL);
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
     char *loc = memrchr(__FILE__, DIR_SEP, strlen(__FILE__));
-    file_strip_idx = loc ? (int)(loc - __FILE__ + 1) : 0;
+    file_strip_idx = loc ? (int) (loc - __FILE__ + 1) : 0;
 
     bool retval = false;
     struct j_method fact_get = {0};
@@ -115,22 +117,24 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-#define FETCH_FIELD(var, name) do { \
-        var = java_static_field_checked(env, level_cls, \
-                                        name, slf4j_active->level_descr); \
-        if (!var) { goto error; } \
+#define FETCH_FIELD(var, name)                                                 \
+    do {                                                                       \
+        var = java_static_field_checked(env, level_cls, name,                  \
+                                        slf4j_active->level_descr);            \
+        if (!var) {                                                            \
+            goto error;                                                        \
+        }                                                                      \
     } while (0)
 
     FETCH_FIELD(_trace, "TRACE");
     FETCH_FIELD(_debug, "DEBUG");
-    FETCH_FIELD(_info,  "INFO");
-    FETCH_FIELD(_warn,  "WARN");
+    FETCH_FIELD(_info, "INFO");
+    FETCH_FIELD(_warn, "WARN");
     FETCH_FIELD(_error, "ERROR");
 
-    if (!java_meth_init_checked(
-            env, &fact_get, slf4j_active->logger_factory,
-            "getLogger", slf4j_active->get_logger_descr,
-            JMETHOD_STATIC)) {
+    if (!java_meth_init_checked(env, &fact_get, slf4j_active->logger_factory,
+                                "getLogger", slf4j_active->get_logger_descr,
+                                JMETHOD_STATIC)) {
         goto error;
     }
 
@@ -179,10 +183,10 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &_is_loggable, "com/datadog/ddwaf/logging/InfoToDebugLogger",
-                "isLoggable", slf4j_active->is_loggable_descr,
-                JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &_is_loggable,
+                                "com/datadog/ddwaf/logging/InfoToDebugLogger",
+                                "isLoggable", slf4j_active->is_loggable_descr,
+                                JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
@@ -272,20 +276,21 @@ void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
         return;
     }
     _waf_logging_c_throwable(level, function, file + file_strip_idx, line,
-                                  message, (uint64_t)message_len, throwable);
+                             message, (uint64_t) message_len, throwable);
     free(message);
 }
 
 static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level)
 {
-#define TEST_LEVEL(jobj, pwl_level) do { \
-        if (JNI(CallBooleanMethod, _logger, _is_loggable.meth_id, jobj)) { \
-            *level = pwl_level; \
-            return true; \
-        } \
-        if (JNI(ExceptionCheck)) { \
-            return false; \
-        } \
+#define TEST_LEVEL(jobj, pwl_level)                                            \
+    do {                                                                       \
+        if (JNI(CallBooleanMethod, _logger, _is_loggable.meth_id, jobj)) {     \
+            *level = pwl_level;                                                \
+            return true;                                                       \
+        }                                                                      \
+        if (JNI(ExceptionCheck)) {                                             \
+            return false;                                                      \
+        }                                                                      \
     } while (0)
 
     TEST_LEVEL(_trace, DDWAF_LOG_TRACE);
@@ -313,15 +318,16 @@ static jobject _lvl_api_to_java(DDWAF_LOG_LEVEL api_lvl)
     return _debug;
 }
 static void _waf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
-                                const char *file, unsigned line,
-                                const char *message, uint64_t message_len)
+                           const char *file, unsigned line, const char *message,
+                           uint64_t message_len)
 {
     _waf_logging_c_throwable(level, function, file, (int) line, message,
-                                  message_len, NULL);
+                             message_len, NULL);
 }
-static void _waf_logging_c_throwable(
-        DDWAF_LOG_LEVEL level, const char *function, const char *file, int line,
-        const char *message, uint64_t message_len, jthrowable throwable)
+static void _waf_logging_c_throwable(DDWAF_LOG_LEVEL level,
+                                     const char *function, const char *file,
+                                     int line, const char *message,
+                                     uint64_t message_len, jthrowable throwable)
 {
     UNUSED(message_len);
 
@@ -368,11 +374,12 @@ static void _waf_logging_c_throwable(
     if (!args_arr) {
         goto error;
     }
-#define ADD_ARR_ELEM(idx, var) do { \
-        JNI(SetObjectArrayElement, args_arr, idx, var); \
-        if (JNI(ExceptionCheck)) { \
-            goto error; \
-        } \
+#define ADD_ARR_ELEM(idx, var)                                                 \
+    do {                                                                       \
+        JNI(SetObjectArrayElement, args_arr, idx, var);                        \
+        if (JNI(ExceptionCheck)) {                                             \
+            goto error;                                                        \
+        }                                                                      \
     } while (0)
     ADD_ARR_ELEM(0, message_jstr);
     ADD_ARR_ELEM(1, function_jstr);
@@ -380,9 +387,8 @@ static void _waf_logging_c_throwable(
     ADD_ARR_ELEM(3, line_jstr);
 
     jobject java_level = _lvl_api_to_java(level);
-    JNI(CallVoidMethod, _logger, _log_meth.meth_id,
-        java_level, throwable, _log_pattern,
-        args_arr);
+    JNI(CallVoidMethod, _logger, _log_meth.meth_id, java_level, throwable,
+        _log_pattern, args_arr);
 
 error:
     if (JNI(ExceptionCheck)) {
@@ -419,11 +425,11 @@ static JNIEnv *_attach_vm(bool *attached)
 {
     JNIEnv *env;
     *attached = false;
-    jint res = (*_vm)->GetEnv(_vm, (void**)&env, JNI_VERSION_1_6);
+    jint res = (*_vm)->GetEnv(_vm, (void **) &env, JNI_VERSION_1_6);
     if (res == JNI_OK) {
         return env;
     } else if (res == JNI_EDETACHED) {
-        if ((*_vm)->AttachCurrentThread(_vm, (void**)&env, NULL) == JNI_OK) {
+        if ((*_vm)->AttachCurrentThread(_vm, (void **) &env, NULL) == JNI_OK) {
             *attached = true;
             return env;
         } else {
@@ -438,9 +444,8 @@ static void _detach_vm(void)
     (*_vm)->DetachCurrentThread(_vm); // error ignored, nothing we can do
 }
 
-void _java_wrap_exc_relay(JNIEnv *env,
-        const char *format,
-        const char *file, const char *function, int line, ...)
+void _java_wrap_exc_relay(JNIEnv *env, const char *format, const char *file,
+                          const char *function, int line, ...)
 {
     char *epilog = NULL;
     char *user_msg = NULL;
@@ -457,9 +462,9 @@ void _java_wrap_exc_relay(JNIEnv *env,
         return;
     }
 
-    int size_epilog = asprintf(
-                &epilog, "during native function %s, file %s, line %d",
-                function, _remove_path(file), line);
+    int size_epilog =
+            asprintf(&epilog, "during native function %s, file %s, line %d",
+                     function, _remove_path(file), line);
     if (size_epilog < 0) {
         goto error;
     }
@@ -472,31 +477,31 @@ void _java_wrap_exc_relay(JNIEnv *env,
         goto error;
     }
 
-    final_msg = malloc((size_t)size_epilog + (size_t)size_user_msg + 2);
+    final_msg = malloc((size_t) size_epilog + (size_t) size_user_msg + 2);
     if (!final_msg) {
         goto error;
     }
 
     char *msg_write = final_msg;
-    memcpy(msg_write, user_msg, (size_t)size_user_msg);
+    memcpy(msg_write, user_msg, (size_t) size_user_msg);
     msg_write += size_user_msg;
     *(msg_write++) = ' ';
-    memcpy(msg_write, epilog, (size_t)size_epilog);
+    memcpy(msg_write, epilog, (size_t) size_epilog);
     msg_write += size_epilog;
     *msg_write = '\0';
 
     JNI(ExceptionClear);
 
     message_obj = java_utf8_to_jstring_checked(
-                env, final_msg, (size_t) (msg_write - final_msg));
+            env, final_msg, (size_t) (msg_write - final_msg));
     if (JNI(ExceptionCheck)) { // error in jstring creation; abort wrapping
         JNI(ExceptionClear);
         JNI(Throw, prev_throwable);
         goto error;
     }
 
-    new_throwable = JNI(NewObject, jcls_rte, rte_constr_cause,
-                        message_obj, prev_throwable);
+    new_throwable = JNI(NewObject, jcls_rte, rte_constr_cause, message_obj,
+                        prev_throwable);
     if (JNI(ExceptionCheck)) {
         JNI(ExceptionClear);
         JNI(Throw, prev_throwable);
@@ -524,7 +529,7 @@ static const char *_remove_path(const char *path)
 {
     const char *res = path;
     while (*path) {
-        if (*path ==  '/') {
+        if (*path == '/') {
             res = path + 1;
         }
         path++;

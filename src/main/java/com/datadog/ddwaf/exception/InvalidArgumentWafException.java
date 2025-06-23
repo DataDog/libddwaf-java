@@ -9,7 +9,7 @@
 package com.datadog.ddwaf.exception;
 
 public class InvalidArgumentWafException extends AbstractWafException {
-    public InvalidArgumentWafException() {
-        super("Invalid argument", -2);
-    }
+  public InvalidArgumentWafException(int errorCode) {
+    super("Invalid argument", errorCode);
+  }
 }

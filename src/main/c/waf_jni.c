@@ -9,6 +9,8 @@
 #include <jni.h>
 #include "jni/com_datadog_ddwaf_Waf.h"
 #include "jni/com_datadog_ddwaf_WafContext.h"
+#include "jni/com_datadog_ddwaf_WafBuilder.h"
+#include "jni/com_datadog_ddwaf_WafHandle.h"
 #include "common.h"
 #include "java_call.h"
 #include "json.h"
@@ -55,9 +57,9 @@ struct _init_or_update {
     jobject jspec;
     jobjectArray jrsi_arr;
 };
-static jobject _ddwaf_init_or_update_checked(JNIEnv *env, struct _init_or_update *s);
-static ddwaf_object _convert_checked(JNIEnv *env, jobject obj, struct _limits *limits, int rec_level);
-static ddwaf_object* _convert_buffer_checked(JNIEnv *env, jobject buffer);
+static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
+                                     struct _limits *limits, int rec_level);
+static ddwaf_object *_convert_buffer_checked(JNIEnv *env, jobject buffer);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
 struct char_buffer_info {
     jchar *nat_array;
@@ -66,26 +68,35 @@ struct char_buffer_info {
     int end;
     bool call_release;
 };
-static bool _get_char_buffer_data(JNIEnv *env, jobject obj, struct char_buffer_info *info);
-static ddwaf_context _get_waf_context_context_checked(JNIEnv *env, jobject waf_context_obj);
-static bool _set_waf_context_context_checked(JNIEnv *env, jobject waf_context_obj, ddwaf_context ctx);
+static bool _get_char_buffer_data(JNIEnv *env, jobject obj,
+                                  struct char_buffer_info *info);
+static ddwaf_context _get_waf_context_context_checked(JNIEnv *env,
+                                                      jobject waf_context_obj);
+static bool _set_waf_context_context_checked(JNIEnv *env,
+                                             jobject waf_context_obj,
+                                             ddwaf_context ctx);
 static bool _get_time_checked(JNIEnv *env, struct timespec *time);
 static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b);
 static int64_t _get_pw_run_timeout_checked(JNIEnv *env);
-static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limits);
-static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits);
+static size_t get_run_budget(int64_t rem_gen_budget_in_us,
+                             struct _limits *limits);
+static int64_t get_remaining_budget(struct timespec start, struct timespec end,
+                                    struct _limits *limits);
 static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
-static void _update_metrics(JNIEnv *env, jobject metrics_obj, const ddwaf_result *ret, struct timespec start);
-static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig, ddwaf_config *out_config);
+static void _update_metrics(JNIEnv *env, jobject metrics_obj,
+                            const ddwaf_result *ret);
+static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
+                                          ddwaf_config *out_config);
 static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
-static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code, const ddwaf_result *ret);
+static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
+                                      const ddwaf_result *ret);
 static inline bool _has_derivative(const ddwaf_result *res);
 
-#define MAX_DEPTH_UPPER_LIMIT ((uint32_t)32)
+#define MAX_DEPTH_UPPER_LIMIT ((uint32_t) 32)
 
 // don't use DDWAF_OBJ_INVALID, as that can't be added to arrays/maps
-static const ddwaf_object _pwinput_invalid = { .type = DDWAF_OBJ_MAP };
+static const ddwaf_object _pwinput_invalid = {.type = DDWAF_OBJ_MAP};
 
 jclass jcls_rte;
 jclass jcls_iae;
@@ -111,6 +122,7 @@ static jfieldID _config_key_regex;
 static jfieldID _config_value_regex;
 
 static jfieldID _waf_context_ptr;
+static jfieldID _builder_ptr;
 
 jclass charSequence_cls;
 struct j_method charSequence_length;
@@ -165,14 +177,14 @@ static int64_t pw_run_timeout;
 static bool _init_ok;
 
 #ifdef _MSC_VER
-# include <crtdbg.h>
-# define FULL_MEMORY_BARRIER _ReadWriteBarrier
+#include <crtdbg.h>
+#define FULL_MEMORY_BARRIER _ReadWriteBarrier
 _STATIC_ASSERT(sizeof(bool) == 1);
-# define COMPARE_AND_SWAP(ptr, old, new) \
+#define COMPARE_AND_SWAP(ptr, old, new)                                        \
     _InterlockedCompareExchange8(ptr, new, old)
 #else
-# define FULL_MEMORY_BARRIER __sync_synchronize
-# define COMPARE_AND_SWAP(ptr, old, new) \
+#define FULL_MEMORY_BARRIER __sync_synchronize
+#define COMPARE_AND_SWAP(ptr, old, new)                                        \
     __sync_bool_compare_and_swap(ptr, old, new)
 #endif
 
@@ -182,13 +194,14 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
     UNUSED(reserved);
 
     JNIEnv *env;
-    (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6);
+    (*vm)->GetEnv(vm, (void **) &env, JNI_VERSION_1_6);
 
     bool cache_ref_ok = _cache_references(env);
     if (!cache_ref_ok) {
         if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_rte, "Library initialization failed "
-                                    "(_cache_references)");
+            JNI(ThrowNew, jcls_rte,
+                "Library initialization failed "
+                "(_cache_references)");
         }
         goto error;
     }
@@ -214,8 +227,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
     bool log_ok = java_log_init(vm, env);
     if (!log_ok) {
         if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_rte, "Library initialization failed"
-                                    "(java_log_init)");
+            JNI(ThrowNew, jcls_rte,
+                "Library initialization failed"
+                "(java_log_init)");
         }
         goto error;
     }
@@ -223,8 +237,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
     bool metrics_ok = metrics_init(env);
     if (!metrics_ok) {
         if (!JNI(ExceptionCheck)) {
-            JNI(ThrowNew, jcls_rte, "Library initialization failed"
-                                    "(metrics_init)");
+            JNI(ThrowNew, jcls_rte,
+                "Library initialization failed"
+                "(metrics_init)");
         }
         goto error;
     }
@@ -255,7 +270,7 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved)
     UNUSED(reserved);
 
     JNIEnv *env;
-    (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6);
+    (*vm)->GetEnv(vm, (void **) &env, JNI_VERSION_1_6);
     _deinitialize(env);
 }
 
@@ -264,8 +279,8 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved)
  * Method:    deinitialize
  * Signature: ()V
  */
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_deinitialize(
-        JNIEnv *env, jclass clazz)
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_deinitialize(JNIEnv *env,
+                                                               jclass clazz)
 {
     UNUSED(clazz);
 
@@ -273,152 +288,13 @@ JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_deinitialize(
 }
 
 /*
- * Class:     com.datadog.ddwaf.Waf
- * Method:    addRules
- * Signature: (Ljava/util/Map;[Lcom/datadog/ddwaf/WafConfig;[Lcom/datadog/ddwaf/RuleSetInfo;)Lcom/datadog/ddwaf/NativeWafHandle;
- */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_addRules(
-        JNIEnv *env, jclass clazz,
-        jobject rule_def, jobject jconfig, jobjectArray rule_set_info_arr)
-{
-    UNUSED(clazz);
-
-    return _ddwaf_init_or_update_checked(env, &(struct _init_or_update){
-        .jconfig = jconfig,
-        .jspec = rule_def,
-        .jrsi_arr = rule_set_info_arr,
-    });
-}
-
-static jobject _ddwaf_init_or_update_checked(JNIEnv *env,
-                                             struct _init_or_update *s)
-{
-    if (!_check_init(env)) {
-        return NULL;
-    }
-
-    ddwaf_handle new_handle = NULL;
-
-    struct _limits limits = {
-            .max_depth = 20,
-            .max_elements = 1000000,
-            .max_string_size = 1000000,
-    };
-    ddwaf_object input = _convert_checked(env, s->jspec, &limits, 0);
-    jthrowable thr = JNI(ExceptionOccurred);
-    if (thr) {
-        JAVA_LOG_THR(DDWAF_LOG_ERROR, thr,
-                     "Exception encoding init/update rule specifications");
-        java_wrap_exc("%s",
-                      "Exception encoding init/update rule specification");
-        JNI(DeleteLocalRef, thr);
-        return NULL;
-    }
-
-    ddwaf_object *diagnostics = NULL;
-    // jump to error henceforth
-
-    bool has_rule_set_info = !JNI(IsSameObject, s->jrsi_arr, NULL) &&
-                             JNI(GetArrayLength, s->jrsi_arr) == 1;
-    if (JNI(ExceptionCheck)) {
-        goto error;
-    }
-    diagnostics = has_rule_set_info ? &(ddwaf_object){0} : NULL;
-
-    if (s->is_update) {
-        ddwaf_handle nat_handle;
-        if (!(nat_handle = get_pwaf_handle_checked(env, s->jold_handle))) {
-            goto error;
-        }
-        new_handle = ddwaf_update(nat_handle, &input, diagnostics);
-    } else {
-        ddwaf_config config;
-        if (!_convert_ddwaf_config_checked(env, s->jconfig, &config)) {
-            java_wrap_exc("%s", "Error converting WafConfig");
-            goto error;
-        }
-        new_handle = ddwaf_init(&input, &config, diagnostics);
-        _dispose_of_ddwaf_config(&config);
-    }
-
-    // even if ddwaf_update/init failed, we try to report ruleset info
-    if (diagnostics && memcmp(diagnostics, &(ddwaf_object){0},
-                                sizeof(*diagnostics)) != 0) {
-        jobject jrsi = output_convert_diagnostics_checked(env, diagnostics);
-
-        if (JNI(ExceptionCheck)) {
-            java_wrap_exc("Error converting rule info structure");
-            goto error;
-        }
-        JNI(SetObjectArrayElement, s->jrsi_arr, 0, jrsi);
-        JNI(DeleteLocalRef, jrsi);
-        if (JNI(ExceptionCheck)) {
-            java_wrap_exc("Error setting reference for RuleSetInfo");
-            goto error;
-        }
-    }
-
-    if (!new_handle) {
-        if (s->is_update) {
-            JAVA_LOG(DDWAF_LOG_WARN, "call to ddwaf_update failed");
-            JNI(ThrowNew, jcls_iae, "Call to ddwaf_update failed");
-        } else {
-            JAVA_LOG(DDWAF_LOG_WARN,
-                     "call to ddwaf_init failed (or no update)");
-            JNI(ThrowNew, jcls_iae, "Call to ddwaf_init failed (or no update)");
-        }
-        goto error;
-    } else {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "Successfully created ddwaf_handle");
-    }
-
-    ddwaf_object_free(&input);
-    if (diagnostics) {
-        ddwaf_object_free(diagnostics);
-    }
-    return java_meth_call(env, &_pwaf_handle_init, NULL,
-                          (jlong) (intptr_t) new_handle);
-
-error:
-    ddwaf_object_free(&input);
-    if (diagnostics) {
-        ddwaf_object_free(diagnostics);
-    }
-    if (new_handle) {
-        ddwaf_destroy(new_handle);
-    }
-    return NULL;
-}
-
-/*
- * Class:     com.datadog.ddwaf.Waf
- * Method:    clearRules
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)V
- */
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_Waf_clearRules(
-        JNIEnv *env, jclass clazz, jobject handle_obj)
-{
-    UNUSED(clazz);
-
-    if (!_check_init(env)) {
-        return;
-    }
-
-    ddwaf_handle nat_handle;
-    if (!(nat_handle = get_pwaf_handle_checked(env, handle_obj))) {
-        return;
-    }
-
-    ddwaf_destroy(nat_handle);
-}
-
-/*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    getKnownAddresses
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)[Ljava/lang/String;
+ * Signature: (Lcom/datadog/ddwaf/WafHandle;)[Ljava/lang/String;
  */
-JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownAddresses
-  (JNIEnv *env, jclass clazz, jobject handle_obj)
+JNIEXPORT jobjectArray JNICALL
+Java_com_datadog_ddwaf_WafHandle_getKnownAddresses(JNIEnv *env, jclass clazz,
+                                                   jobject handle_obj)
 {
     UNUSED(clazz);
 
@@ -432,7 +308,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownAddresses
     }
 
     uint32_t size;
-    const char* const* addresses = ddwaf_known_addresses(nat_handle, &size);
+    const char *const *addresses = ddwaf_known_addresses(nat_handle, &size);
     if (!addresses || size == 0 || size > INT_MAX /* jsize == int */) {
         JAVA_LOG(DDWAF_LOG_DEBUG, "Found no addresses in ruleset");
         jobject ret_jarr = JNI(NewObjectArray, 0, string_cls, NULL);
@@ -472,10 +348,10 @@ JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownAddresses
 /*
  * Class:     com_datadog_ddwaf_Waf
  * Method:    getKnownActions
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)[Ljava/lang/String;
+ * Signature: (Lcom/datadog/ddwaf/WafHandle;)[Ljava/lang/String;
  */
-JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownActions
-  (JNIEnv *env, jclass clazz, jobject handle_obj)
+JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_WafHandle_getKnownActions(
+        JNIEnv *env, jclass clazz, jobject handle_obj)
 {
     UNUSED(clazz);
 
@@ -489,7 +365,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownActions
     }
 
     uint32_t size;
-    const char* const* actions = ddwaf_known_actions(nat_handle, &size);
+    const char *const *actions = ddwaf_known_actions(nat_handle, &size);
     if (!actions || size == 0 || size > INT_MAX /* jsize == int */) {
         JAVA_LOG(DDWAF_LOG_DEBUG, "Found no actions in ruleset");
         jobject ret_jarr = JNI(NewObjectArray, 0, string_cls, NULL);
@@ -526,156 +402,25 @@ JNIEXPORT jobjectArray JNICALL Java_com_datadog_ddwaf_Waf_getKnownActions
     return ret_jarr;
 }
 
-// runRule overloads
-static jobject _run_rule_common(JNIEnv *env, jclass clazz,
-                                jobject handle_obj, jobject parameters,
-                                jobject limits_obj, jobject metrics_obj)
-{
-    UNUSED(clazz);
-    jobject result = NULL;
-    ddwaf_object input = _pwinput_invalid;
-    ddwaf_context ctx = NULL;
-    struct _limits limits;
-    ddwaf_result ret;
-    struct timespec start;
-
-    if (!_get_time_checked(env, &start)) {
-        return NULL;
-    }
-
-    if (!_check_init(env)) {
-        return NULL;
-    }
-
-    limits = _fetch_limits_checked(env, limits_obj);
-    if (JNI(ExceptionCheck)) {
-        return NULL;
-    }
-
-    ddwaf_handle pwhandle;
-    if (!(pwhandle = get_pwaf_handle_checked(env, handle_obj))) {
-        return NULL;
-    }
-
-    int64_t rem_gen_budget_in_us;
-    void *input_p = JNI(GetDirectBufferAddress, parameters);
-    if (!input_p) {
-        JNI(ThrowNew, jcls_iae, "Not a DirectBuffer passed");
-        goto end;
-    }
-    jlong capacity = JNI(GetDirectBufferCapacity, parameters);
-    if (capacity < (jlong) sizeof(input)) {
-        JNI(ThrowNew, jcls_iae, "Capacity of DirectBuffer is insufficient");
-        goto end;
-    }
-    memcpy(&input, input_p, sizeof input);
-    // let's pretend nothing we did till now took time
-    rem_gen_budget_in_us = limits.general_budget_in_us;
-
-    size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
-
-    ctx = ddwaf_context_init(pwhandle);
-    if (!ctx) {
-        JAVA_LOG(DDWAF_LOG_WARN, "Call to ddwaf_context_init failed");
-        _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
-        goto end;
-    }
-    DDWAF_RET_CODE ret_code = ddwaf_run(ctx, NULL, &input, &ret, run_budget);
-
-    if (log_level_enabled(DDWAF_LOG_DEBUG)) {
-            JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "ddwaf_run ran in %" PRId64 " microseconds. "
-                     "Result code: %d",
-                     ret.total_runtime, ret_code);
-    }
-
-    if (ret.timeout) {
-        _throw_pwaf_timeout_exception(env);
-        goto freeRet;
-    }
-
-    switch (ret_code) {
-        case DDWAF_OK:
-        case DDWAF_MATCH: {
-            result = _create_result_checked(env, ret_code, &ret);
-            goto freeRet;
-        }
-        case DDWAF_ERR_INTERNAL: {
-            JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
-                "Data may have leaked");
-            _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
-            goto freeRet;
-        }
-        case DDWAF_ERR_INVALID_ARGUMENT:
-            // break intentionally missing
-        default: {
-            // any errors or unknown statuses
-            _throw_pwaf_exception(env, (jint) ret_code);
-            goto freeRet;
-        }
-    }
-
-freeRet:
-    _update_metrics(env, metrics_obj, &ret, start);
-    ddwaf_result_free(&ret);
-end:
-    if (ctx) {
-        ddwaf_context_destroy(ctx);
-    }
-
-    return result;
-}
-
-/*
- * Class:     com_datadog_ddwaf_Waf
- * Method:    runRules
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;Ljava/nio/ByteBuffer;Lcom/datadog/ddwaf/Waf$Limits;Lcom/datadog/ddwaf/WafMetrics;)Lcom/datadog/ddwaf/Waf$ResultWithData;
- */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_runRules
-  (JNIEnv *env, jclass clazz, jobject handle_obj, jobject main_byte_buffer, jobject limits_obj, jobject metrics_obj)
-{
-    return _run_rule_common(env, clazz, handle_obj, main_byte_buffer, limits_obj, metrics_obj);
-}
-
-/*
- * Class:     com_datadog_ddwaf_Waf
- * Method:    update
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;Ljava/util/Map;[Lcom/datadog/ddwaf/RuleSetInfo;)Lcom/datadog/ddwaf/NativeWafHandle;
- */
-JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_Waf_update
-  (JNIEnv *env, jclass clazz, jobject jhandle, jobject jspec, jobjectArray jrsi_arr)
-{
-    UNUSED(clazz);
-
-    return _ddwaf_init_or_update_checked(env, &(struct _init_or_update){
-        .is_update = true,
-        .jold_handle = jhandle,
-        .jspec = jspec,
-        .jrsi_arr = jrsi_arr,
-    });
-}
-
 /*
  * Class:     com.datadog.ddwaf.Waf
  * Method:    getVersion
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_getVersion(
-        JNIEnv *env, jclass clazz)
+JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_getVersion(JNIEnv *env,
+                                                                jclass clazz)
 {
     UNUSED(env);
     UNUSED(clazz);
 
     const char *version = ddwaf_get_version();
-    jstring ret = java_utf8_to_jstring_checked(
-                env, version, strlen(version));
+    jstring ret = java_utf8_to_jstring_checked(env, version, strlen(version));
     return ret;
 }
 
 /*
  * Class:     com.datadog.ddwaf.WafContext
  * Method:    initWafContext
- * Signature: (Lcom/datadog/ddwaf/NativeWafHandle;)J
  */
 JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafContext_initWafContext(
         JNIEnv *env, jclass clazz, jobject handle_obj)
@@ -697,14 +442,15 @@ JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafContext_initWafContext(
 }
 
 static jobject _run_waf_context_common(JNIEnv *env, jobject this,
-                                    jobject persistent_data, jobject ephemeral_data,
-                                    jobject limits_obj, jobject metrics_obj)
+                                       jobject persistent_data,
+                                       jobject ephemeral_data,
+                                       jobject limits_obj, jobject metrics_obj)
 {
     jobject result = NULL;
     ddwaf_context context = NULL;
 
-    ddwaf_object * persistent_input_ptr = NULL;
-    ddwaf_object * ephemeral_input_ptr = NULL;
+    ddwaf_object *persistent_input_ptr = NULL;
+    ddwaf_object *ephemeral_input_ptr = NULL;
 
     struct _limits limits;
     ddwaf_result ret;
@@ -742,8 +488,10 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
     jthrowable thr = JNI(ExceptionOccurred);
     if (thr) {
         JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
-                     "Exception converting 'persistent' ByteBuffer into ddwaf_object");
-        java_wrap_exc("%s", "Exception converting 'persistent' ByteBuffer into ddwaf_object");
+                     "Exception converting 'persistent' ByteBuffer into "
+                     "ddwaf_object");
+        java_wrap_exc("%s", "Exception converting 'persistent' ByteBuffer into "
+                            "ddwaf_object");
         JNI(DeleteLocalRef, thr);
         return NULL;
     }
@@ -752,8 +500,10 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
     thr = JNI(ExceptionOccurred);
     if (thr) {
         JAVA_LOG_THR(DDWAF_LOG_INFO, thr,
-                     "Exception converting 'ephemeral' ByteBuffer into ddwaf_object");
-        java_wrap_exc("%s", "Exception converting 'ephemeral' ByteBuffer into ddwaf_object");
+                     "Exception converting 'ephemeral' ByteBuffer into "
+                     "ddwaf_object");
+        java_wrap_exc("%s", "Exception converting 'ephemeral' ByteBuffer into "
+                            "ddwaf_object");
         JNI(DeleteLocalRef, thr);
         return NULL;
     }
@@ -782,8 +532,8 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
-    DDWAF_RET_CODE ret_code =
-            ddwaf_run(context, persistent_input_ptr, ephemeral_input_ptr, &ret, run_budget);
+    DDWAF_RET_CODE ret_code = ddwaf_run(context, persistent_input_ptr,
+                                        ephemeral_input_ptr, &ret, run_budget);
 
     if (ret.timeout) {
         _throw_pwaf_timeout_exception(env);
@@ -791,27 +541,27 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
     }
 
     switch (ret_code) {
-        case DDWAF_OK:
-        case DDWAF_MATCH:
-            result = _create_result_checked(env, ret_code, &ret);
-            break;
-        case DDWAF_ERR_INTERNAL: {
-            JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
-                "Data may have leaked");
-            _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
-            goto freeRet;
-        }
-        case DDWAF_ERR_INVALID_ARGUMENT:
-            // break intentionally missing
-        default: {
-            // any errors or unknown statuses
-            _throw_pwaf_exception(env, (jint) ret_code);
-            goto freeRet;
-        }
+    case DDWAF_OK:
+    case DDWAF_MATCH:
+        result = _create_result_checked(env, ret_code, &ret);
+        break;
+    case DDWAF_ERR_INTERNAL: {
+        JAVA_LOG(DDWAF_LOG_ERROR, "libddwaf returned DDWAF_ERR_INTERNAL. "
+                                  "Data may have leaked");
+        _throw_pwaf_exception(env, DDWAF_ERR_INTERNAL);
+        goto freeRet;
+    }
+    case DDWAF_ERR_INVALID_ARGUMENT:
+        // break intentionally missing
+    default: {
+        // any errors or unknown statuses
+        _throw_pwaf_exception(env, (jint) ret_code);
+        goto freeRet;
+    }
     }
 
 freeRet:
-    _update_metrics(env, metrics_obj, &ret, start);
+    _update_metrics(env, metrics_obj, &ret);
     ddwaf_result_free(&ret);
 
     return result;
@@ -823,13 +573,15 @@ err:
 /*
  * Class:     com_datadog_ddwaf_WafContext
  * Method:    runWafContext
- * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Lcom/datadog/ddwaf/Waf$Limits;Lcom/datadog/ddwaf/WafMetrics;)Lcom/datadog/ddwaf/Waf$ResultWithData;
+ * Signature:
+ * (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Lcom/datadog/ddwaf/Waf$Limits;Lcom/datadog/ddwaf/WafMetrics;)Lcom/datadog/ddwaf/Waf$ResultWithData;
  */
 JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafContext_runWafContext(
-        JNIEnv *env, jobject this, jobject persistent_buffer, jobject ephemeral_buffer, jobject limits_obj,
-        jobject metrics_obj)
+        JNIEnv *env, jobject this, jobject persistent_buffer,
+        jobject ephemeral_buffer, jobject limits_obj, jobject metrics_obj)
 {
-    return _run_waf_context_common(env, this, persistent_buffer, ephemeral_buffer, limits_obj, metrics_obj);
+    return _run_waf_context_common(env, this, persistent_buffer,
+                                   ephemeral_buffer, limits_obj, metrics_obj);
 }
 
 /*
@@ -837,8 +589,9 @@ JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafContext_runWafContext(
  * Method:    clearWafContext
  * Signature: ()V
  */
-JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafContext_clearWafContext
-  (JNIEnv *env, jobject this) {
+JNIEXPORT void JNICALL
+Java_com_datadog_ddwaf_WafContext_clearWafContext(JNIEnv *env, jobject this)
+{
 
     ddwaf_context context = _get_waf_context_context_checked(env, this);
     if (!context) {
@@ -871,10 +624,10 @@ static void _deinitialize(JNIEnv *env)
     _dispose_of_cache_references(env);
 
     // do not delete reference to jcls_rte, as _check_init uses it
-//    if (jcls_rte) {
-//        JNI(DeleteGlobalRef, jcls_rte);
-//        jcls_rte = NULL;
-//    }
+    //    if (jcls_rte) {
+    //        JNI(DeleteGlobalRef, jcls_rte);
+    //        jcls_rte = NULL;
+    //    }
 
     output_shutdown(env);
 
@@ -931,9 +684,8 @@ static bool _fetch_result_with_data_fields(JNIEnv *env)
         goto error;
     }
 
-    _result_with_data_empty_map =
-            java_static_field_checked(env, result_with_data_jclass,
-                                      "EMPTY_ACTIONS", "Ljava/util/Map;");
+    _result_with_data_empty_map = java_static_field_checked(
+            env, result_with_data_jclass, "EMPTY_ACTIONS", "Ljava/util/Map;");
     if (!_result_with_data_empty_map) {
         goto error;
     }
@@ -963,8 +715,30 @@ static bool _fetch_waf_context_fields(JNIEnv *env)
     }
 
     ret = true;
-    error:
+error:
     JNI(DeleteLocalRef, waf_context_jclass);
+    return ret;
+}
+
+static bool _fetch_builder_fields(JNIEnv *env)
+{
+    bool ret = false;
+
+    jclass builder_jclass = JNI(FindClass, "com/datadog/ddwaf/WafBuilder");
+    if (!builder_jclass) {
+        goto error;
+    }
+
+    _builder_ptr = JNI(GetFieldID, builder_jclass, "ptr", "J");
+    if (!_builder_ptr) {
+        goto error;
+    }
+
+    ret = true;
+error:
+    if (builder_jclass) {
+        JNI(DeleteLocalRef, builder_jclass);
+    }
     return ret;
 }
 
@@ -985,7 +759,8 @@ static bool _fetch_limit_fields(JNIEnv *env)
     if (!_limit_max_elements) {
         goto error;
     }
-    _limit_max_string_size = JNI(GetFieldID, limits_jclass, "maxStringSize", "I");
+    _limit_max_string_size =
+            JNI(GetFieldID, limits_jclass, "maxStringSize", "I");
     if (!_limit_max_string_size) {
         goto error;
     }
@@ -1016,12 +791,12 @@ static bool _fetch_config_fields(JNIEnv *env)
     }
 
     _config_key_regex = JNI(GetFieldID, config_jclass, "obfuscatorKeyRegex",
-                           "Ljava/lang/String;");
+                            "Ljava/lang/String;");
     if (!_config_key_regex) {
         goto error;
     }
     _config_value_regex = JNI(GetFieldID, config_jclass, "obfuscatorValueRegex",
-                           "Ljava/lang/String;");
+                              "Ljava/lang/String;");
     if (!_config_value_regex) {
         goto error;
     }
@@ -1034,9 +809,9 @@ error:
 
 static bool _fetch_native_handle_field(JNIEnv *env)
 {
-    jclass cls = JNI(FindClass, "com/datadog/ddwaf/NativeWafHandle");
+    jclass cls = JNI(FindClass, "com/datadog/ddwaf/WafHandle");
     if (!cls) {
-        java_wrap_exc("Could not find class com.datadog.ddwaf.NativeWafHandle");
+        java_wrap_exc("Could not find class com.datadog.ddwaf.WafHandle");
         return false;
     }
 
@@ -1047,7 +822,8 @@ static bool _fetch_native_handle_field(JNIEnv *env)
     return ret;
 }
 
-static bool _fetch_native_order_obj(JNIEnv *env) {
+static bool _fetch_native_order_obj(JNIEnv *env)
+{
     struct j_method meth;
     if (!java_meth_init_checked(env, &meth, "java/nio/ByteOrder", "nativeOrder",
                                 "()Ljava/nio/ByteOrder;", JMETHOD_STATIC)) {
@@ -1090,9 +866,8 @@ static void _dispose_of_result_with_data_fields(JNIEnv *env)
     }
 }
 
-static bool _cache_single_class_weak(JNIEnv *env,
-                                const char *class_name,
-                                jclass *out)
+static bool _cache_single_class_weak(JNIEnv *env, const char *class_name,
+                                     jclass *out)
 {
     jclass cls_local = JNI(FindClass, class_name);
     if (!cls_local) {
@@ -1111,22 +886,206 @@ static bool _cache_single_class_weak(JNIEnv *env,
     return true;
 }
 
+static ddwaf_builder _get_builder_checked(JNIEnv *env, jclass clazz,
+                                          jobject builder_obj)
+{
+    UNUSED(clazz);
+
+    ddwaf_builder builder = (ddwaf_builder) (intptr_t) JNI(
+            GetLongField, builder_obj, _builder_ptr);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+
+    if (!builder) {
+        JNI(ThrowNew, jcls_rte, "The Builder has already been cleared");
+    }
+
+    return builder;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_datadog_ddwaf_WafBuilder_removeConfigNative(
+        JNIEnv *env, jclass clazz, jobject builder, jstring path)
+{
+    UNUSED(clazz);
+    UNUSED(env);
+    const char *path_string = NULL;
+    jboolean result = JNI_FALSE;
+    if (!builder) {
+        JNI(ThrowNew, jcls_rte, "builder is null");
+        return JNI_FALSE;
+    }
+    if (!path) {
+        JNI(ThrowNew, jcls_iae, "path is null");
+        return JNI_FALSE;
+    }
+
+    ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    int path_length = JNI(GetStringLength, path);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    path_string = JNI(GetStringUTFChars, path, NULL);
+    if (!path_string) {
+        goto error;
+    }
+
+    result = ddwaf_builder_remove_config(ddwaf_builder, path_string,
+                                         path_length);
+error:
+    if (path_string) {
+        JNI(ReleaseStringUTFChars, path, path_string);
+    }
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
+        JNIEnv *env, jclass clazz, jobject builder, jstring path,
+        jobject configuration, jobject diagnostics)
+{
+    jboolean result = JNI_FALSE;
+    const char *path_string = NULL;
+
+    if (!builder) {
+        JNI(ThrowNew, jcls_rte, "builder is null");
+        return JNI_FALSE;
+    }
+    if (!path) {
+        JNI(ThrowNew, jcls_iae, "path is null");
+        return JNI_FALSE;
+    }
+
+    jobject result_diagnostics = NULL;
+    ddwaf_object ddwaf_diagnostics;
+    ddwaf_object_invalid(&ddwaf_diagnostics);
+    struct _limits limits = {
+            .max_depth = 20,
+            .max_elements = 1000000,
+            .max_string_size = 1000000,
+    };
+    ddwaf_object ddwaf_configuration =
+            _convert_checked(env, configuration, &limits, 0);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    jsize path_length = JNI(GetStringLength, path);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+    path_string = JNI(GetStringUTFChars, path, NULL);
+    if (!path_string) {
+        goto error;
+    }
+    ddwaf_builder ddwaf_builder = _get_builder_checked(env, clazz, builder);
+    if (JNI(ExceptionCheck)) {
+        goto error;
+    }
+
+    result = ddwaf_builder_add_or_update_config(
+            ddwaf_builder, path_string, path_length, &ddwaf_configuration,
+            &ddwaf_diagnostics);
+
+    if (ddwaf_object_type(&ddwaf_diagnostics) != DDWAF_OBJ_INVALID) {
+        result_diagnostics =
+                output_convert_diagnostics_checked(env, &ddwaf_diagnostics);
+
+        if (JNI(ExceptionCheck)) {
+            java_wrap_exc("Error converting diagnostics structure");
+            goto error;
+        }
+        JNI(SetObjectArrayElement, diagnostics, 0, result_diagnostics);
+        if (JNI(ExceptionCheck)) {
+            java_wrap_exc("Error setting reference for WafDiagnostics");
+            goto error;
+        }
+    }
+
+error:
+    if (path_string) {
+        JNI(ReleaseStringUTFChars, path, path_string);
+    }
+    if (result_diagnostics) {
+        JNI(DeleteLocalRef, result_diagnostics);
+    }
+    ddwaf_object_free(&ddwaf_configuration);
+    ddwaf_object_free(&ddwaf_diagnostics);
+    return result;
+}
+
+JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafBuilder_initBuilder(
+        JNIEnv *env, jclass clazz, jobject config)
+{
+    UNUSED(clazz);
+    ddwaf_config ddwaf_configuration;
+    _convert_ddwaf_config_checked(env, config, &ddwaf_configuration);
+    if (JNI(ExceptionCheck)) {
+        JAVA_LOG(DDWAF_LOG_DEBUG, "config was not found in ddwaf");
+        return 0L;
+    }
+    ddwaf_builder builder = ddwaf_builder_init(&ddwaf_configuration);
+    _dispose_of_ddwaf_config(&ddwaf_configuration);
+    return (jlong) (intptr_t) builder;
+}
+
+JNIEXPORT jobject JNICALL Java_com_datadog_ddwaf_WafBuilder_buildInstance(
+        JNIEnv *env, jclass clazz, jobject builder_java)
+{
+    ddwaf_builder builder = _get_builder_checked(env, clazz, builder_java);
+    if (JNI(ExceptionCheck)) {
+        return NULL;
+    }
+    ddwaf_handle handle = ddwaf_builder_build_instance(builder);
+    if (!handle) {
+        JAVA_LOG(DDWAF_LOG_WARN, "call to ddwaf_builder_build_instance failed");
+        return NULL;
+    }
+    JAVA_LOG(DDWAF_LOG_DEBUG, "Successfully created ddwaf_handle");
+
+    jobject java_handle = java_meth_call(env, &_pwaf_handle_init, NULL,
+                                         (jlong) (intptr_t) handle);
+
+    if (JNI(ExceptionCheck) || !java_handle) {
+        JAVA_LOG(DDWAF_LOG_DEBUG,
+                 "Problem in converting ddwaf_handle to java handle");
+        ddwaf_destroy(handle);
+    }
+    return java_handle;
+}
+
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafHandle_destroyWafHandle(
+        JNIEnv *env, jclass clazz, jlong waf_handle)
+{
+    UNUSED(clazz);
+    ddwaf_destroy((ddwaf_handle) (intptr_t) waf_handle);
+}
+
+JNIEXPORT void JNICALL Java_com_datadog_ddwaf_WafBuilder_destroyBuilder(
+        JNIEnv *env, jclass clazz, jlong builder_ptr)
+{
+    UNUSED(clazz);
+    ddwaf_builder_destroy((ddwaf_builder) (intptr_t) builder_ptr);
+}
+
 static bool _cache_classes(JNIEnv *env)
 {
-  return _cache_single_class_weak(env, "java/lang/RuntimeException",
-                                  &jcls_rte) &&
-         _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
-                                  &jcls_iae) &&
-         _cache_single_class_weak(env, "java/lang/CharSequence",
-                                  &charSequence_cls) &&
-         _cache_single_class_weak(env, "java/nio/Buffer",
-                                  &buffer_cls) &&
-         _cache_single_class_weak(env, "java/nio/CharBuffer",
-                                  &charBuffer_cls) &&
-         _cache_single_class_weak(env, "java/lang/String", &string_cls) &&
-         _cache_single_class_weak(env, "java/lang/Double", &double_cls) &&
-         _cache_single_class_weak(env, "java/lang/Float", &float_cls) &&
-         _cache_single_class_weak(env, "java/math/BigDecimal", &bigdecimal_cls);
+    return _cache_single_class_weak(env, "java/lang/RuntimeException",
+                                    &jcls_rte) &&
+           _cache_single_class_weak(env, "java/lang/IllegalArgumentException",
+                                    &jcls_iae) &&
+           _cache_single_class_weak(env, "java/lang/CharSequence",
+                                    &charSequence_cls) &&
+           _cache_single_class_weak(env, "java/nio/Buffer", &buffer_cls) &&
+           _cache_single_class_weak(env, "java/nio/CharBuffer",
+                                    &charBuffer_cls) &&
+           _cache_single_class_weak(env, "java/lang/String", &string_cls) &&
+           _cache_single_class_weak(env, "java/lang/Double", &double_cls) &&
+           _cache_single_class_weak(env, "java/lang/Float", &float_cls) &&
+           _cache_single_class_weak(env, "java/math/BigDecimal",
+                                    &bigdecimal_cls);
 }
 
 static void _dispose_of_weak_classes(JNIEnv *env)
@@ -1168,8 +1127,8 @@ static bool _cache_methods(JNIEnv *env)
 
     if (!java_meth_init_checked(
                 env, &_timeout_exception_init,
-                "com/datadog/ddwaf/exception/TimeoutWafException",
-                "<init>", "()V", JMETHOD_CONSTRUCTOR)) {
+                "com/datadog/ddwaf/exception/TimeoutWafException", "<init>",
+                "()V", JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
 
@@ -1178,18 +1137,21 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(env, &charSequence_length, "java/lang/CharSequence", "length",
-                                "()I", JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &charSequence_length,
+                                "java/lang/CharSequence", "length", "()I",
+                                JMETHOD_VIRTUAL)) {
         goto error;
     }
 
-    if (!java_meth_init_checked(env, &charSequence_subSequence, "java/lang/CharSequence", "subSequence",
-                                "(II)Ljava/lang/CharSequence;", JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &charSequence_subSequence,
+                                "java/lang/CharSequence", "subSequence",
+                                "(II)Ljava/lang/CharSequence;",
+                                JMETHOD_VIRTUAL)) {
         goto error;
     }
 
-    if (!java_meth_init_checked(env, &buffer_position, "java/nio/Buffer", "position",
-                                "()I", JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &buffer_position, "java/nio/Buffer",
+                                "position", "()I", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
@@ -1198,13 +1160,14 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(env, &charBuffer_hasArray, "java/nio/CharBuffer", "hasArray",
-                                "()Z", JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &charBuffer_hasArray,
+                                "java/nio/CharBuffer", "hasArray", "()Z",
+                                JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
-    if (!java_meth_init_checked(env, &charBuffer_array, "java/nio/CharBuffer", "array",
-                                "()[C", JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &charBuffer_array, "java/nio/CharBuffer",
+                                "array", "()[C", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
@@ -1214,18 +1177,13 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &number_longValue,
-                "java/lang/Number", "longValue",
-                "()J",
-                JMETHOD_VIRTUAL_RETRIEVE_CLASS)) {
+    if (!java_meth_init_checked(env, &number_longValue, "java/lang/Number",
+                                "longValue", "()J",
+                                JMETHOD_VIRTUAL_RETRIEVE_CLASS)) {
         goto error;
     }
-    if (!java_meth_init_checked(
-                env, &number_doubleValue,
-                "java/lang/Number", "doubleValue",
-                "()D",
-                JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &number_doubleValue, "java/lang/Number",
+                                "doubleValue", "()D", JMETHOD_VIRTUAL)) {
         goto error;
     }
 
@@ -1235,31 +1193,31 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &result_with_data_init,
-                "com/datadog/ddwaf/Waf$ResultWithData", "<init>",
-                "(Lcom/datadog/ddwaf/Waf$Result;"
-                "Ljava/lang/String;"
-                "Ljava/util/Map;"
-                "Ljava/util/Map;)V",
-                JMETHOD_CONSTRUCTOR)) {
+    if (!java_meth_init_checked(env, &result_with_data_init,
+                                "com/datadog/ddwaf/Waf$ResultWithData",
+                                "<init>",
+                                "(Lcom/datadog/ddwaf/Waf$Result;"
+                                "Ljava/lang/String;"
+                                "Ljava/util/Map;"
+                                "Ljava/util/Map;)V",
+                                JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
 
     if (!java_meth_init_checked(env, &_pwaf_handle_init,
-                                "com/datadog/ddwaf/NativeWafHandle", "<init>",
-                                "(J)V", JMETHOD_CONSTRUCTOR)) {
+                                "com/datadog/ddwaf/WafHandle", "<init>", "(J)V",
+                                JMETHOD_CONSTRUCTOR)) {
         goto error;
     }
 
     if (!java_meth_init_checked(env, &map_entryset, "java/util/Map", "entrySet",
-                "()Ljava/util/Set;", JMETHOD_NON_VIRTUAL)) {
+                                "()Ljava/util/Set;", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
     map_entryset.type = JMETHOD_VIRTUAL;
 
-    if (!java_meth_init_checked(env, &map_size, "java/util/Map", "size",
-                                "()I", JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &map_size, "java/util/Map", "size", "()I",
+                                JMETHOD_VIRTUAL)) {
         goto error;
     }
 
@@ -1275,33 +1233,26 @@ static bool _cache_methods(JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &iterable_iterator,
-                "java/lang/Iterable", "iterator",
-                "()Ljava/util/Iterator;", JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &iterable_iterator, "java/lang/Iterable",
+                                "iterator", "()Ljava/util/Iterator;",
+                                JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
     iterable_iterator.type = JMETHOD_VIRTUAL;
 
-    if (!java_meth_init_checked(
-                env, &iterator_next,
-                "java/util/Iterator", "next",
-                "()Ljava/lang/Object;", JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &iterator_next, "java/util/Iterator",
+                                "next", "()Ljava/lang/Object;",
+                                JMETHOD_VIRTUAL)) {
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &iterator_hasNext,
-                "java/util/Iterator", "hasNext",
-                "()Z", JMETHOD_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &iterator_hasNext, "java/util/Iterator",
+                                "hasNext", "()Z", JMETHOD_VIRTUAL)) {
         goto error;
     }
 
-    if (!java_meth_init_checked(
-            env, &class_is_array,
-            "java/lang/Class", "isArray",
-            "()Z",
-            JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &class_is_array, "java/lang/Class",
+                                "isArray", "()Z", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
@@ -1318,9 +1269,9 @@ error:
 
 static void _dispose_of_cached_methods(JNIEnv *env)
 {
-#define DESTROY_METH(var) \
-    if ((var).type != JMETHOD_UNINITIALIZED) { \
-        java_meth_destroy(env, &(var)); \
+#define DESTROY_METH(var)                                                      \
+    if ((var).type != JMETHOD_UNINITIALIZED) {                                 \
+        java_meth_destroy(env, &(var));                                        \
     }
 
     DESTROY_METH(_create_exception)
@@ -1348,7 +1299,6 @@ static void _dispose_of_cached_methods(JNIEnv *env)
     DESTROY_METH(_class_get_name)
 }
 
-
 static bool _cache_references(JNIEnv *env)
 {
     if (!_cache_classes(env)) {
@@ -1356,7 +1306,7 @@ static bool _cache_references(JNIEnv *env)
     }
 
     rte_constr_cause = JNI(GetMethodID, jcls_rte, "<init>",
-        "(Ljava/lang/String;Ljava/lang/Throwable;)V");
+                           "(Ljava/lang/String;Ljava/lang/Throwable;)V");
     if (!rte_constr_cause) {
         goto error;
     }
@@ -1370,6 +1320,10 @@ static bool _cache_references(JNIEnv *env)
     }
 
     if (!_fetch_waf_context_fields(env)) {
+        goto error;
+    }
+
+    if (!_fetch_builder_fields(env)) {
         goto error;
     }
 
@@ -1399,7 +1353,7 @@ error:
     return false;
 }
 
-static void _dispose_of_cache_references(JNIEnv * env)
+static void _dispose_of_cache_references(JNIEnv *env)
 {
     _dispose_of_action_enums(env);
     _dispose_of_result_with_data_fields(env);
@@ -1411,19 +1365,24 @@ static void _dispose_of_cache_references(JNIEnv * env)
 static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                                      struct _limits *lims, int rec_level)
 {
-#define RET_IF_EXC() do { if (JNI(ExceptionCheck)) { goto error; } } while (0)
-#define JAVA_CALL(var, meth, recv) \
-    do { \
-        var = java_meth_call(env, &(meth), (recv)); \
-        RET_IF_EXC(); \
+#define RET_IF_EXC()                                                           \
+    do {                                                                       \
+        if (JNI(ExceptionCheck)) {                                             \
+            goto error;                                                        \
+        }                                                                      \
     } while (0)
-#define JAVA_CALL_ERR_MSG(var, meth, recv, err_msg, ...) \
-    do { \
-        var = java_meth_call(env, &(meth), (recv)); \
-        if (JNI(ExceptionCheck)) { \
-            java_wrap_exc(err_msg, ##__VA_ARGS__); \
-            goto error; \
-        } \
+#define JAVA_CALL(var, meth, recv)                                             \
+    do {                                                                       \
+        var = java_meth_call(env, &(meth), (recv));                            \
+        RET_IF_EXC();                                                          \
+    } while (0)
+#define JAVA_CALL_ERR_MSG(var, meth, recv, err_msg, ...)                       \
+    do {                                                                       \
+        var = java_meth_call(env, &(meth), (recv));                            \
+        if (JNI(ExceptionCheck)) {                                             \
+            java_wrap_exc(err_msg, ##__VA_ARGS__);                             \
+            goto error;                                                        \
+        }                                                                      \
     } while (0)
 
     lims->max_elements--;
@@ -1470,11 +1429,11 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
 
         jsize len = JNI(GetArrayLength, obj);
 
-        for (int i=0; i<len; i++) {
+        for (int i = 0; i < len; i++) {
 
             if (lims->max_elements <= 0) {
                 JAVA_LOG(DDWAF_LOG_INFO, "Interrupting iterating array due to "
-                                    "the max of elements being reached");
+                                         "the max of elements being reached");
                 break;
             }
 
@@ -1767,7 +1726,7 @@ error:
     return _pwinput_invalid;
 }
 
-static ddwaf_object * _convert_buffer_checked(JNIEnv *env, jobject buffer)
+static ddwaf_object *_convert_buffer_checked(JNIEnv *env, jobject buffer)
 {
     if (buffer == NULL) {
         return NULL;
@@ -1788,7 +1747,7 @@ static ddwaf_object * _convert_buffer_checked(JNIEnv *env, jobject buffer)
 
 // can return false with and without exception
 static bool _get_char_buffer_data(JNIEnv *env, jobject obj,
-                                   struct char_buffer_info *info)
+                                  struct char_buffer_info *info)
 {
     info->call_release = false;
     jboolean is_char_buffer = JNI(IsInstanceOf, obj, charBuffer_cls);
@@ -1858,11 +1817,11 @@ static bool _get_char_buffer_data(JNIEnv *env, jobject obj,
 }
 
 static ddwaf_context _get_waf_context_context_checked(JNIEnv *env,
-                                                   jobject waf_context_obj)
+                                                      jobject waf_context_obj)
 {
     ddwaf_context context = NULL;
-    context = (ddwaf_context)(intptr_t) JNI(GetLongField, waf_context_obj,
-                                            _waf_context_ptr);
+    context = (ddwaf_context) (intptr_t) JNI(GetLongField, waf_context_obj,
+                                             _waf_context_ptr);
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
@@ -1874,8 +1833,9 @@ static ddwaf_context _get_waf_context_context_checked(JNIEnv *env,
     return context;
 }
 
-static bool _set_waf_context_context_checked(JNIEnv *env, jobject waf_context_obj,
-                                          ddwaf_context ctx)
+static bool _set_waf_context_context_checked(JNIEnv *env,
+                                             jobject waf_context_obj,
+                                             ddwaf_context ctx)
 {
     jlong ctx_long;
     memcpy(&ctx_long, &ctx, sizeof ctx_long);
@@ -1907,19 +1867,16 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    jlong run_budget =
-            JNI(GetLongField, limits_obj, _limit_run_budget_in_us);
+    jlong run_budget = JNI(GetLongField, limits_obj, _limit_run_budget_in_us);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
-    // PW_RUN_TIMEOUT is in us
-    l.run_budget_in_us = run_budget > 0
-            ? (int64_t)run_budget
-            : pw_run_timeout;
+    // DD_APPSEC_WAF_TIMEOUT is in us
+    l.run_budget_in_us = run_budget > 0 ? (int64_t) run_budget : pw_run_timeout;
 
     return l;
 error:
-    return (struct _limits) {0};
+    return (struct _limits){0};
 }
 
 static bool _get_time_checked(JNIEnv *env, struct timespec *time)
@@ -1934,8 +1891,8 @@ static bool _get_time_checked(JNIEnv *env, struct timespec *time)
 
 static inline int64_t _timespec_diff_ns(struct timespec a, struct timespec b)
 {
-    return ((int64_t)a.tv_sec - (int64_t)b.tv_sec) * 1000000000L +
-            ((int64_t)a.tv_nsec - (int64_t)b.tv_nsec);
+    return ((int64_t) a.tv_sec - (int64_t) b.tv_sec) * 1000000000L +
+           ((int64_t) a.tv_nsec - (int64_t) b.tv_nsec);
 }
 
 static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
@@ -1952,8 +1909,8 @@ static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
         goto end;
     }
 
-    env_key = java_utf8_to_jstring_checked(
-                env, "PW_RUN_TIMEOUT", strlen("PW_RUN_TIMEOUT"));
+    env_key = java_utf8_to_jstring_checked(env, "DD_APPSEC_WAF_TIMEOUT",
+                                           strlen("DD_APPSEC_WAF_TIMEOUT"));
     if (!env_key) {
         goto end;
     }
@@ -1965,7 +1922,7 @@ static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
 
     if (JNI(IsSameObject, val_jstr, NULL)) {
         JAVA_LOG(DDWAF_LOG_DEBUG,
-                 "No property PW_RUN_TIMEOUT; using default %lld", val);
+                 "No property DD_APPSEC_WAF_TIMEOUT; using default %lld", val);
         goto end;
     }
 
@@ -1978,12 +1935,15 @@ static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
     char *end;
     val = strtoll(val_cstr, &end, 10);
     if (*end != '\0') {
-        JAVA_LOG(DDWAF_LOG_WARN, "Invalid value of system property "
-                           "PW_RUN_TIMEOUT: '%s'", val_cstr);
+        JAVA_LOG(DDWAF_LOG_WARN,
+                 "Invalid value of system property "
+                 "DD_APPSEC_WAF_TIMEOUT: '%s'",
+                 val_cstr);
         goto end;
     }
 
-    JAVA_LOG(DDWAF_LOG_INFO, "Using value %lld us for PW_RUN_TIMEOUT", val);
+    JAVA_LOG(DDWAF_LOG_INFO, "Using value %lld us for DD_APPSEC_WAF_TIMEOUT",
+             val);
 
 end:
     if (get_prop.class_glob) {
@@ -1999,29 +1959,34 @@ end:
     return val;
 }
 
-static int64_t get_remaining_budget(struct timespec start, struct timespec end, struct _limits *limits) {
+static int64_t get_remaining_budget(struct timespec start, struct timespec end,
+                                    struct _limits *limits)
+{
     int64_t diff_us = _timespec_diff_ns(end, start) / 1000LL;
     int64_t rem_gen_budget_in_us = limits->general_budget_in_us - diff_us;
     if (rem_gen_budget_in_us < 0) {
         rem_gen_budget_in_us = 0;
     }
-    JAVA_LOG(DDWAF_LOG_DEBUG, "Conversion of WAF arguments took %" PRId64
-            " us; remaining general budget is %" PRId64 " us",
+    JAVA_LOG(DDWAF_LOG_DEBUG,
+             "Conversion of WAF arguments took %" PRId64
+             " us; remaining general budget is %" PRId64 " us",
              diff_us, rem_gen_budget_in_us);
     return rem_gen_budget_in_us;
 }
 
-static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limits) {
+static size_t get_run_budget(int64_t rem_gen_budget_in_us,
+                             struct _limits *limits)
+{
 
     size_t run_budget;
     if (rem_gen_budget_in_us > limits->run_budget_in_us) {
         JAVA_LOG(DDWAF_LOG_DEBUG,
-                 "Using run budget of % " PRId64 " us instead of "
+                 "Using run budget of %" PRId64 " us instead of "
                  "remaining general budget of %" PRId64 " us",
                  limits->run_budget_in_us, rem_gen_budget_in_us);
-        run_budget = (size_t)limits->run_budget_in_us;
+        run_budget = (size_t) limits->run_budget_in_us;
     } else {
-        run_budget = (size_t)rem_gen_budget_in_us;
+        run_budget = (size_t) rem_gen_budget_in_us;
     }
 
     return run_budget;
@@ -2030,14 +1995,14 @@ static size_t get_run_budget(int64_t rem_gen_budget_in_us, struct _limits *limit
 ddwaf_handle get_pwaf_handle_checked(JNIEnv *env, jobject handle_obj)
 {
     if (JNI(IsSameObject, handle_obj, NULL)) {
-        JNI(ThrowNew, jcls_iae, "Passed null NativeWafHandle");
+        JNI(ThrowNew, jcls_iae, "Passed null to WafHandle");
         return NULL;
     }
 
-    ddwaf_handle handle = (ddwaf_handle)(intptr_t) JNI(
+    ddwaf_handle handle = (ddwaf_handle) (intptr_t) JNI(
             GetLongField, handle_obj, _pwaf_handle_native_handle);
     if (!handle) {
-        JNI(ThrowNew, jcls_iae, "Passed invalid (NULL) NativeWafHandle");
+        JNI(ThrowNew, jcls_iae, "Passed invalid (NULL) to WafHandle");
         return NULL;
     }
 
@@ -2061,8 +2026,7 @@ static void _throw_pwaf_timeout_exception(JNIEnv *env)
 }
 
 static void _update_metrics(JNIEnv *env, jobject metrics_obj,
-                            const ddwaf_result *ret,
-                            struct timespec start)
+                            const ddwaf_result *ret)
 {
     // save exception if any
     jthrowable earlier_exc = JNI(ExceptionOccurred);
@@ -2153,8 +2117,7 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
                             .value_regex = value_regex,
                     },
 
-            .free_fn = NULL
-    };
+            .free_fn = NULL};
 
     return true;
 }
@@ -2203,7 +2166,8 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
     jobject derivatives = NULL;
     if (ret->derivatives.type == DDWAF_OBJ_MAP &&
         ret->derivatives.nbEntries > 0) {
-        derivatives = output_convert_derivatives_checked(env, &ret->derivatives);
+        derivatives =
+                output_convert_derivatives_checked(env, &ret->derivatives);
         if (!derivatives) {
             java_wrap_exc("%s", "Failed encoding inferred derivatives");
             goto err;
@@ -2227,7 +2191,8 @@ err:
     return NULL;
 }
 
-static inline bool _has_derivative(const ddwaf_result *res) {
-    return res->derivatives.type == DDWAF_OBJ_MAP
-    && res->derivatives.nbEntries > 0;
+static inline bool _has_derivative(const ddwaf_result *res)
+{
+    return res->derivatives.type == DDWAF_OBJ_MAP &&
+           res->derivatives.nbEntries > 0;
 }

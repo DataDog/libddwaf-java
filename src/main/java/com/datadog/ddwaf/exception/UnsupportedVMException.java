@@ -9,7 +9,7 @@
 package com.datadog.ddwaf.exception;
 
 public class UnsupportedVMException extends Exception {
-    public UnsupportedVMException(String message) {
-        super(message);
-    }
+  public UnsupportedVMException(String message) {
+    super(message);
+  }
 }
