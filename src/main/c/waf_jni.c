@@ -2038,7 +2038,8 @@ static void _update_metrics(JNIEnv *env, jobject metrics_obj,
     // metrics update
     if (!JNI(IsSameObject, metrics_obj, NULL)) {
         // Get duration from the ddwaf_object structure
-        const ddwaf_object *duration_obj = ddwaf_object_find(ret, "duration", 8);
+        const ddwaf_object *duration_obj =
+                ddwaf_object_find(ret, "duration", 8);
         jlong duration = 0;
         if (duration_obj != NULL && duration_obj->type == DDWAF_OBJ_UNSIGNED) {
             duration = (jlong) ddwaf_object_get_unsigned(duration_obj);
@@ -2176,7 +2177,8 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
     }
 
     // Get attributes (formerly derivatives) from the new ddwaf_object structure
-    const ddwaf_object *attributes_obj = ddwaf_object_find(ret, "attributes", 10);
+    const ddwaf_object *attributes_obj =
+            ddwaf_object_find(ret, "attributes", 10);
     jobject derivatives = NULL;
     if (attributes_obj != NULL && attributes_obj->type == DDWAF_OBJ_MAP &&
         ddwaf_object_size(attributes_obj) > 0) {
@@ -2206,7 +2208,8 @@ err:
 
 static inline bool _has_derivative(const ddwaf_object *res)
 {
-    const ddwaf_object *attributes_obj = ddwaf_object_find(res, "attributes", 10);
+    const ddwaf_object *attributes_obj =
+            ddwaf_object_find(res, "attributes", 10);
     return attributes_obj != NULL && attributes_obj->type == DDWAF_OBJ_MAP &&
            ddwaf_object_size(attributes_obj) > 0;
 }
