@@ -186,7 +186,7 @@ jobs:
 
   Native_binaries_Stage_windows_x86_64:
     name: Windows x86_64
-    runs-on: windows-2019
+    runs-on: windows-2022
     defaults:
       run:
         shell: cmd
@@ -571,7 +571,7 @@ jobs:
             arch: aarch64
             jdk: temurin17
             java_home_var: JAVA_HOME_17_arm64
-          - runs-on: windows-2019
+          - runs-on: windows-2022
             os: windows
             arch: x86_64
             jdk: temurin8
@@ -643,9 +643,11 @@ jobs:
       with:
         name: native_libs
         path: native_libs
-    - name: Publish artifacts to S3
-      run: ./gradlew publish -Prelease -PuseReleaseBinaries
+    - name: Publish artifacts to sonatype
+      run: ./gradlew publishToSonatype -Prelease -PuseReleaseBinaries
       env:
-        AWS_ACCESS_KEY_ID: AKIA5VR734GFSK4FR2PD
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
       if: (success() && contains(github.ref, 'refs/tags/v'))

@@ -1,8 +1,3 @@
-import com.amazonaws.AmazonClientException
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
-import com.amazonaws.auth.profile.*
-import com.amazonaws.services.s3.*
-import com.amazonaws.services.s3.model.*
 import org.gradle.jvm.toolchain.internal.SpecificInstallationToolchainSpec
 
 buildscript {
@@ -19,24 +14,21 @@ plugins {
     id 'java'
     id 'groovy'
     id 'jacoco'
-    id 'ivy-publish'
     id 'maven-publish'
+    id 'signing'
     id 'codenarc'
     id 'me.champeau.jmh' version '0.7.2'
     id 'info.solidsoft.pitest' version '1.15.0'
     id 'com.diffplug.spotless' version '6.13.0'
+    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
 
 repositories {
     mavenCentral()
-    ivy {
-        artifactPattern 'http://sqreen-ci-java.s3-website-us-east-1.amazonaws.com/jars/[organisation]/[artifact]-[revision](-[classifier]).[ext]'
-        ivyPattern 'http://sqreen-ci-java.s3-website-us-east-1.amazonaws.com/jars/[organisation]/[module]-[revision].xml'
-    }
 }
 
 group 'io.sqreen'
-version '15.0.0'
+version '15.0.1'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -301,80 +293,79 @@ tasks.register('packageDebugSymbols', Zip) {
 
 assemble.dependsOn packageDebugSymbols
 
-def creds = null
-try {
-    //looks in AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY) and AWS_SECRET_KEY
-    // (or AWS_SECRET_ACCESS_KEY) environment variables.
-    creds = new EnvironmentVariableCredentialsProvider().credentials
-} catch (AmazonClientException e) {
-    logger.warn 'No AWS credentials in env variables'
-    try {
-        // creds can be in env variables or ~/.aws/{credentials,config}
-        creds = new ProfileCredentialsProvider('mfa').credentials
-    } catch (IllegalArgumentException ee) {
-        logger.warn 'No AWS credentials in ~/.aws/credentials'
-    } catch (NullPointerException npe) {
-        logger.warn 'No AWS credentials in ~/.aws/credentials'
+nexusPublishing {
+    repositories {
+        if (project.hasProperty('forceLocal')) {
+            local {
+                // For testing, use with https://hub.docker.com/r/sonatype/nexus
+                // docker run --rm -d -p 8081:8081 --name nexus sonatype/nexus:oss
+                // ./gradlew publishToLocal -PforceLocal
+                // Doesn't work for testing releases though... (due to staging)
+                nexusUrl = uri("http://localhost:8081/nexus/content/repositories/releases/")
+                snapshotRepositoryUrl = uri("http://localhost:8081/nexus/content/repositories/snapshots/")
+                username = "admin"
+                password = "admin123"
+                allowInsecureProtocol = true
+            }
+        } else {
+            // see https://github.com/gradle-nexus/publish-plugin#publishing-to-maven-central-via-sonatype-central
+            // For official documentation:
+            // staging repo publishing https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/#configuration
+            // snapshot publishing https://central.sonatype.org/publish/publish-portal-snapshots/#publishing-via-other-methods
+            sonatype {
+                nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+                snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
+                username = System.getenv("SONATYPE_USERNAME")
+                password = System.getenv("SONATYPE_PASSWORD")
+            }
+        }
     }
 }
 
 publishing {
-    repositories {
-        ivy {
-            artifactPattern 's3://sqreen-ci-java/jars/[organisation]/[artifact]-[revision](-[classifier]).[ext]'
-            ivyPattern 's3://sqreen-ci-java/jars/[organisation]/[module]-[revision].xml'
-
-            if (creds) {
-                credentials(AwsCredentials) {
-                    accessKey = creds.AWSAccessKeyId
-                    secretKey = creds.AWSSecretKey
-                    if (creds.hasProperty('sessionToken')) {
-                        sessionToken = creds.sessionToken
-                    }
-                }
-            }
-        }
-    }
     publications {
-        ivy(IvyPublication) {
+        mavenJava(MavenPublication) {
             from components.java
-            artifact(sourcesJar) {
-                type = 'sources'
-                conf = 'compile'
-            }
+
             artifact(packageDebugSymbols) {
                 classifier = 'dbgsym'
                 extension = 'zip'
             }
-            artifact(javadocJar) {
-                type = 'javadoc'
-                conf = 'compile'
-            }
-            descriptor.description {
-                text = description
-            }
-        }
 
-        // only publish to maven local for now
-        maven(MavenPublication) {
-            version = "${project.version}-SNAPSHOT"
-            from components.java
+            pom {
+                name = project.name
+                description = 'This project provides Java bindings for libddwaf through JNI'
+                url = 'https://github.com/DataDog/libddwaf-java'
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'datadog'
+                        name = 'Datadog'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/DataDog/libddwaf-java.git'
+                    developerConnection = 'scm:git:ssh://github.com:DataDog/libddwaf-java.git'
+                    url = 'https://github.com/DataDog/libddwaf-java'
+                }
+            }
         }
     }
 }
 
-tasks.register('fixS3Permissions') {
-    doLast {
-        def bucket = 'sqreen-ci-java'
-        def s3 = new AmazonS3Client(creds)
-        ObjectListing listing = s3.listObjects(bucket,
-                "jars/io.sqreen/libsqreen-${project.version}")
-        for (S3ObjectSummary summary: listing.objectSummaries) {
-            logger.info "Setting ACL for ${summary.key}"
-            s3.setObjectAcl(bucket, summary.key, CannedAccessControlList.PublicRead)
-        }
+if (!project.hasProperty('forceLocal')) {
+    signing {
+        useInMemoryPgpKeys(System.getenv("GPG_PRIVATE_KEY"), System.getenv("GPG_PASSWORD"))
+        sign(publishing.publications.mavenJava)
     }
-    publish.finalizedBy it
 }
 
 String getArch() {
@@ -593,10 +584,6 @@ pitest {
 
 tasks.named("pitest").configure {
     dependsOn buildNativeLibDebug
-}
-
-project.afterEvaluate {
-    tasks.withType(PublishToMavenRepository).each { it.enabled = false }
 }
 
 tasks.register('clangFormat', Exec) {
