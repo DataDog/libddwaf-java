@@ -98,8 +98,8 @@ class FingerprintTests implements WafTrait {
       metrics
       )
     assertThat res.result, is(Waf.Result.MATCH)
-    assertThat res.derivatives.keySet(), contains('_dd.appsec.fp.http.endpoint')
-    assertThat res.derivatives['_dd.appsec.fp.http.endpoint'], matchesPattern('http-get-.*')
+    assertThat res.attributes.keySet(), contains('_dd.appsec.fp.http.endpoint')
+    assertThat res.attributes['_dd.appsec.fp.http.endpoint'], matchesPattern('http-get-.*')
   }
 }
 
