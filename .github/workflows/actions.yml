@@ -203,7 +203,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         name: Setup x86_64 build
         with:
-          toolset: 14.3 # https://github.com/actions/runner-images/issues/6091
+          toolset: 14.41 # https://github.com/actions/runner-images/issues/6091
           arch: amd64
       - name: Prepare libddwaf
         run: |
