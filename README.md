@@ -68,7 +68,7 @@ You can run tests with ASAN with the `withASAN` property:
 To deploy the current bindings to your local Maven repository, use the following command:
 
 ```sh
-./gradlew publishToMavenLocal
+./gradlew publishToMavenLocal -PforceLocal
 ```
 
 This will publish the artifact with the `-SNAPSHOT` suffix, allowing for convenient local testing.
