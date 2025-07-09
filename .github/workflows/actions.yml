@@ -204,7 +204,7 @@ jobs:
         name: Setup x86_64 build
         with:
           vsversion: 2022
-          toolset: 14.44  # https://github.com/actions/runner-images/issues/6091
+          toolset: 14.44
           arch: amd64
       - name: Prepare libddwaf
         run: |
