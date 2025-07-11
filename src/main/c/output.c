@@ -34,6 +34,16 @@ static struct j_method _array_list_add;
 static struct j_method _linked_hm_init;
 static struct j_method _map_put;
 
+// Add numeric wrapper class references
+static jclass long_cls = NULL;
+static jclass double_cls = NULL;
+static jclass boolean_cls = NULL;
+
+// Add numeric wrapper constructor methods
+static struct j_method long_valueOf;
+static struct j_method double_valueOf;
+static struct j_method boolean_valueOf;
+
 static jstring _map_get_string_checked(JNIEnv *env, const ddwaf_object *obj,
                                        const char *str, size_t str_len);
 static jobject _convert_section_checked(JNIEnv *env, const ddwaf_object *root,
@@ -50,6 +60,21 @@ static bool _is_derivative(const ddwaf_object *entry, const char *prefix)
         return false;
     }
     return strncmp(prefix, entry->parameterName, prefix_size) == 0;
+}
+
+static bool _cache_single_class_weak(JNIEnv *env, const char *class_name,
+                                     jclass *out)
+{
+    jclass cls = JNI(FindClass, class_name);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+    *out = JNI(NewWeakGlobalRef, cls);
+    JNI(DeleteLocalRef, cls);
+    if (JNI(ExceptionCheck)) {
+        return false;
+    }
+    return true;
 }
 
 jobject output_convert_diagnostics_checked(JNIEnv *env, const ddwaf_object *obj)
@@ -197,6 +222,33 @@ void output_init_checked(JNIEnv *env)
         goto err;
     }
 
+    // Initialize numeric wrapper classes
+    if (!_cache_single_class_weak(env, "java/lang/Long", &long_cls)) {
+        goto err;
+    }
+    if (!_cache_single_class_weak(env, "java/lang/Double", &double_cls)) {
+        goto err;
+    }
+    if (!_cache_single_class_weak(env, "java/lang/Boolean", &boolean_cls)) {
+        goto err;
+    }
+
+    // Initialize numeric wrapper valueOf methods
+    if (!java_meth_init_checked(env, &long_valueOf, "java/lang/Long", "valueOf",
+                                "(J)Ljava/lang/Long;", JMETHOD_STATIC)) {
+        goto err;
+    }
+    if (!java_meth_init_checked(env, &double_valueOf, "java/lang/Double",
+                                "valueOf", "(D)Ljava/lang/Double;",
+                                JMETHOD_STATIC)) {
+        goto err;
+    }
+    if (!java_meth_init_checked(env, &boolean_valueOf, "java/lang/Boolean",
+                                "valueOf", "(Z)Ljava/lang/Boolean;",
+                                JMETHOD_STATIC)) {
+        goto err;
+    }
+
     return;
 err:
     output_shutdown(env);
@@ -211,6 +263,25 @@ void output_shutdown(JNIEnv *env)
     java_meth_destroy(env, &_array_list_add);
     java_meth_destroy(env, &_linked_hm_init);
     java_meth_destroy(env, &_map_put);
+
+    // Clean up numeric wrapper methods
+    java_meth_destroy(env, &long_valueOf);
+    java_meth_destroy(env, &double_valueOf);
+    java_meth_destroy(env, &boolean_valueOf);
+
+    // Clean up numeric wrapper classes
+    if (long_cls) {
+        JNI(DeleteWeakGlobalRef, long_cls);
+        long_cls = NULL;
+    }
+    if (double_cls) {
+        JNI(DeleteWeakGlobalRef, double_cls);
+        double_cls = NULL;
+    }
+    if (boolean_cls) {
+        JNI(DeleteWeakGlobalRef, boolean_cls);
+        boolean_cls = NULL;
+    }
 }
 
 static const ddwaf_object *_map_get_object_checked(JNIEnv *env,
@@ -629,7 +700,7 @@ static jstring _encode_json_gzip_base64_checked(JNIEnv *env,
     return ret;
 }
 
-jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
+jobject output_convert_attributes_checked(JNIEnv *env, const ddwaf_object *obj)
 {
     assert(obj->type == DDWAF_OBJ_MAP);
 
@@ -646,7 +717,7 @@ jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
             goto error;
         }
 
-        jstring value = NULL;
+        jobject value = NULL;
         if (_is_derivative(entry, "_dd.appsec.s.")) {
             // json schemas are json that has to be gzipped and encoded in
             // base64
@@ -655,6 +726,41 @@ jobject output_convert_derivatives_checked(JNIEnv *env, const ddwaf_object *obj)
             // fingerprints are simple strings
             value = java_utf8_to_jstring_checked(env, entry->stringValue,
                                                  entry->nbEntries);
+        } else if (entry->type == DDWAF_OBJ_STRING) {
+            // general string attributes
+            value = java_utf8_to_jstring_checked(env, entry->stringValue,
+                                                 entry->nbEntries);
+        } else if (entry->type == DDWAF_OBJ_SIGNED) {
+            // signed integer attributes
+            value = java_meth_call(env, &long_valueOf, long_cls,
+                                   (jlong) entry->intValue);
+        } else if (entry->type == DDWAF_OBJ_UNSIGNED) {
+            // unsigned integer attributes
+            value = java_meth_call(env, &long_valueOf, long_cls,
+                                   (jlong) entry->uintValue);
+        } else if (entry->type == DDWAF_OBJ_FLOAT) {
+            // float/double attributes
+            value = java_meth_call(env, &double_valueOf, double_cls,
+                                   (jdouble) entry->f64);
+        } else if (entry->type == DDWAF_OBJ_BOOL) {
+            // boolean attributes
+            value = java_meth_call(env, &boolean_valueOf, boolean_cls,
+                                   (jboolean) entry->boolean);
+        } else if (entry->type == DDWAF_OBJ_MAP) {
+            // map-type attributes (like trace tagging objects)
+            jobject map_value = convert_ddwaf_object_to_jobject(env, entry);
+            if (JNI(ExceptionCheck)) {
+                JNI(DeleteLocalRef, key);
+                goto error;
+            }
+            java_meth_call(env, &_map_put, ret, key, map_value);
+            JNI(DeleteLocalRef, key);
+            JNI(DeleteLocalRef, map_value);
+            if (JNI(ExceptionCheck)) {
+                goto error;
+            }
+            continue; // Skip the normal value handling since we already added
+                      // to map
         }
 
         if (JNI(ExceptionCheck)) {
@@ -686,14 +792,21 @@ error:
 jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
 {
     switch (obj->type) {
-    // TODO: Implement missing types, when needed
     case DDWAF_OBJ_INVALID:
-    case DDWAF_OBJ_SIGNED:
-    case DDWAF_OBJ_UNSIGNED:
-    case DDWAF_OBJ_FLOAT:
-    case DDWAF_OBJ_BOOL:
         JNI(ThrowNew, jcls_rte, "Unsupported ddwaf object type");
         return NULL;
+    case DDWAF_OBJ_SIGNED:
+        return java_meth_call(env, &long_valueOf, long_cls,
+                              (jlong) obj->intValue);
+    case DDWAF_OBJ_UNSIGNED:
+        return java_meth_call(env, &long_valueOf, long_cls,
+                              (jlong) obj->uintValue);
+    case DDWAF_OBJ_FLOAT:
+        return java_meth_call(env, &double_valueOf, double_cls,
+                              (jdouble) obj->f64);
+    case DDWAF_OBJ_BOOL:
+        return java_meth_call(env, &boolean_valueOf, boolean_cls,
+                              (jboolean) obj->boolean);
     case DDWAF_OBJ_STRING:
         return java_utf8_to_jstring_checked(env, obj->stringValue,
                                             obj->nbEntries);

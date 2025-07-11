@@ -146,9 +146,9 @@ class SchemaTests implements WafTrait {
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
     Waf.ResultWithData awd = context.run(data, limits, metrics)
-    assertThat awd.derivatives, isA(Map)
+    assertThat awd.attributes, isA(Map)
 
-    def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.derivatives['_dd.appsec.s.req.body']))
+    def schema = new JsonSlurper().parseText(decodeGzipBase64(awd.attributes['_dd.appsec.s.req.body']))
     assert deepSortLists(schema) == [
       [
         'a':[8],
