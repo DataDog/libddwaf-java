@@ -869,6 +869,21 @@ static void _dispose_of_result_with_data_fields(JNIEnv *env)
     }
 }
 
+/*
+     * Caches a Java class reference as a weak global reference using JNI.
+     *
+     * Parameters:
+     *   env        - JNI environment pointer
+     *   class_name - fully qualified name of the Java class
+     *   out        - pointer to store the resulting weak global reference
+     *
+     * Returns:
+     *   true if the class reference was successfully cached, false otherwise.
+     *
+     * This function finds the specified Java class, creates a weak global reference
+     * to it (so it does not prevent garbage collection), stores it in 'out', and
+     * deletes the local reference. Used to efficiently cache class references across JNI calls.
+*/
 static bool _cache_single_class_weak(JNIEnv *env, const char *class_name,
                                      jclass *out)
 {
@@ -2162,23 +2177,22 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
     const ddwaf_object *events_obj =
             ddwaf_object_find(ddwaf_result, "events", 6);
     jstring data_obj = NULL;
-    if (events_obj != NULL && events_obj->type == DDWAF_OBJ_ARRAY) {
-        if (ddwaf_object_size(events_obj) > 0) {
-            struct json_segment *seg = output_convert_json(events_obj);
-            if (!seg) {
-                JNI(ThrowNew, jcls_iae,
-                    "failed converting events array to json");
-                goto err;
-            }
+    if (events_obj != NULL && events_obj->type == DDWAF_OBJ_ARRAY && ddwaf_object_size(events_obj) > 0) {
+        struct json_segment *seg = output_convert_json(events_obj);
+        if (!seg) {
+            JNI(ThrowNew, jcls_iae,
+                "failed converting events array to json");
+            goto err;
+        }
 
-            data_obj = java_json_to_jstring_checked(env, seg);
-            json_seg_free(seg);
-            if (JNI(ExceptionCheck)) {
-                java_wrap_exc("%s", "Failed converting json to Java string");
-                goto err;
-            }
+        data_obj = java_json_to_jstring_checked(env, seg);
+        json_seg_free(seg);
+        if (JNI(ExceptionCheck)) {
+            java_wrap_exc("%s", "Failed converting json to Java string");
+            goto err;
         }
     }
+
 
     // Get attributes (formerly derivatives) from the new ddwaf_object structure
     const ddwaf_object *attributes_obj =
