@@ -94,6 +94,9 @@ class WafContextTest implements WafTrait {
     def result = context.run([:], limits, metrics)
     assert result != null
     assert result.result == Waf.Result.OK
+    assert result.keep instanceof Boolean
+    assert result.duration instanceof Long
+    assert result.duration >= 0
   }
 
   @Test
@@ -104,6 +107,9 @@ class WafContextTest implements WafTrait {
 
     def result = context.run(['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']], limits, metrics)
     assert result.result == Waf.Result.MATCH
+    assert result.keep instanceof Boolean
+    assert result.duration instanceof Long
+    assert result.duration > 0
   }
 
   @Test
