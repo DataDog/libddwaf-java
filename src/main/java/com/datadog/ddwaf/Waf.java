@@ -98,31 +98,42 @@ public final class Waf {
 
     // reuse this from JNI when there is no actions or data
     public static final ResultWithData OK_NULL =
-        new ResultWithData(Result.OK, null, EMPTY_ACTIONS, null);
+        new ResultWithData(Result.OK, null, EMPTY_ACTIONS, null, false, 0, false);
 
     public final Result result;
     public final String data;
     public final Map<String, Map<String, Object>> actions;
-    public final Map<String, String> derivatives;
+    public final Map<String, Object> attributes;
+    public final boolean keep;
+    public final long duration; // in nanoseconds
+    public final boolean events;
 
     public ResultWithData(
         Result result,
         String data,
         Map<String, Map<String, Object>> actions,
-        Map<String, String> derivatives) {
+        Map<String, Object> attributes,
+        boolean keep,
+        long duration,
+        boolean events) {
       this.result = result;
       this.data = data;
       this.actions = actions;
-      this.derivatives = derivatives;
+      this.attributes = attributes;
+      this.keep = keep;
+      this.duration = duration;
+      this.events = events;
     }
 
     @Override
     public String toString() {
       final StringBuilder sb = new StringBuilder("ResultWithData{");
       sb.append("result=").append(result);
+      sb.append(", keep=").append(keep);
       sb.append(", data='").append(data).append('\'');
       sb.append(", actions='").append(Arrays.asList(actions)).append('\'');
-      sb.append(", derivatives='").append(derivatives).append('\'');
+      sb.append(", attributes='").append(attributes).append('\'');
+      sb.append(", events=").append(events);
       sb.append('}');
       return sb.toString();
     }
