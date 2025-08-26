@@ -92,6 +92,7 @@ static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
                                       const ddwaf_object *ddwaf_result);
 static inline bool _has_events(const ddwaf_object *res);
+static void consume_json_and_free(const ddwaf_object *obj);
 
 #define MAX_DEPTH_UPPER_LIMIT ((uint32_t) 32)
 
@@ -2198,36 +2199,9 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
     const ddwaf_object *attributes_obj =
             ddwaf_object_find(ddwaf_result, "attributes", 10);
     jobject attributes = NULL;
-    {
-        struct json_segment *ret_json = output_convert_json(ddwaf_result);
-        if (ret_json) {
-            size_t ret_json_len = json_length(ret_json);
-            char *ret_json_str = malloc(ret_json_len + 1);
-            if (ret_json_str) {
-                struct json_iterator it = {.seg = ret_json, .pos = 0};
-                size_t read = json_it_read(&it, ret_json_str, ret_json_len);
-                ret_json_str[read] = '\0';
-                free(ret_json_str);
-            }
-            json_seg_free(ret_json);
-        }
-        if (attributes_obj) {
-            struct json_segment *attr_json =
-                    output_convert_json(attributes_obj);
-            if (attr_json) {
-                size_t attr_json_len = json_length(attr_json);
-                char *attr_json_str = malloc(attr_json_len + 1);
-                if (attr_json_str) {
-                    struct json_iterator it = {.seg = attr_json, .pos = 0};
-                    size_t read =
-                            json_it_read(&it, attr_json_str, attr_json_len);
-                    attr_json_str[read] = '\0';
-                    free(attr_json_str);
-                }
-                json_seg_free(attr_json);
-            }
-        }
-    }
+
+    consume_json_and_free(ddwaf_result);
+    consume_json_and_free(attributes_obj);
     if (attributes_obj != NULL && attributes_obj->type == DDWAF_OBJ_MAP &&
         ddwaf_object_size(attributes_obj) > 0) {
         attributes = output_convert_attributes_checked(env, attributes_obj);
@@ -2273,4 +2247,23 @@ static inline bool _has_events(const ddwaf_object *res)
     const ddwaf_object *events_obj = ddwaf_object_find(res, "event", 5);
     return events_obj == NULL || (events_obj->type == DDWAF_OBJ_BOOL &&
                                   ddwaf_object_get_bool(events_obj));
+}
+
+static void consume_json_and_free(const ddwaf_object *obj)
+{
+    if (!obj)
+        return;
+    struct json_segment *seg = output_convert_json(obj);
+    if (!seg)
+        return;
+
+    size_t len = json_length(seg);
+    char *str = malloc(len + 1);
+    if (str) {
+        struct json_iterator it = {.seg = seg, .pos = 0};
+        size_t read = json_it_read(&it, str, len);
+        str[read] = '\0';
+        free(str);
+    }
+    json_seg_free(seg);
 }

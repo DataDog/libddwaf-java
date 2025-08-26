@@ -62,14 +62,14 @@ static bool _is_derivative(const ddwaf_object *entry, const char *prefix)
     return strncmp(prefix, entry->parameterName, prefix_size) == 0;
 }
 
-static bool _cache_single_class_weak(JNIEnv *env, const char *class_name,
-                                     jclass *out)
+static bool _cache_single_class_strong(JNIEnv *env, const char *class_name,
+                                       jclass *out)
 {
     jclass cls = JNI(FindClass, class_name);
     if (JNI(ExceptionCheck)) {
         return false;
     }
-    *out = JNI(NewWeakGlobalRef, cls);
+    *out = JNI(NewGlobalRef, cls);
     JNI(DeleteLocalRef, cls);
     if (JNI(ExceptionCheck)) {
         return false;
@@ -223,13 +223,13 @@ void output_init_checked(JNIEnv *env)
     }
 
     // Initialize numeric wrapper classes
-    if (!_cache_single_class_weak(env, "java/lang/Long", &long_cls)) {
+    if (!_cache_single_class_strong(env, "java/lang/Long", &long_cls)) {
         goto err;
     }
-    if (!_cache_single_class_weak(env, "java/lang/Double", &double_cls)) {
+    if (!_cache_single_class_strong(env, "java/lang/Double", &double_cls)) {
         goto err;
     }
-    if (!_cache_single_class_weak(env, "java/lang/Boolean", &boolean_cls)) {
+    if (!_cache_single_class_strong(env, "java/lang/Boolean", &boolean_cls)) {
         goto err;
     }
 
@@ -271,15 +271,15 @@ void output_shutdown(JNIEnv *env)
 
     // Clean up numeric wrapper classes
     if (long_cls) {
-        JNI(DeleteWeakGlobalRef, long_cls);
+        JNI(DeleteGlobalRef, long_cls);
         long_cls = NULL;
     }
     if (double_cls) {
-        JNI(DeleteWeakGlobalRef, double_cls);
+        JNI(DeleteGlobalRef, double_cls);
         double_cls = NULL;
     }
     if (boolean_cls) {
-        JNI(DeleteWeakGlobalRef, boolean_cls);
+        JNI(DeleteGlobalRef, boolean_cls);
         boolean_cls = NULL;
     }
 }
