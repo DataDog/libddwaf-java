@@ -284,7 +284,7 @@ class BasicTests implements WafTrait {
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
     assertThat handle.knownActions as List,
-      containsInAnyOrder('block_request', 'generate_stack', 'redirect_request')
+      containsInAnyOrder('block_request', 'generate_stack', 'redirect_request', 'extended_data_collection')
   }
 
   @Test
@@ -513,7 +513,8 @@ class BasicTests implements WafTrait {
             operator  : 'ip_match',
             parameters: [
               data  : 'suspicious_ips_data_id',
-              inputs: [[address: 'http.client_ip']]]
+              inputs: [[address: 'http.client_ip']]
+            ]
           ]
         ],
       ]
@@ -639,5 +640,74 @@ class BasicTests implements WafTrait {
       ['server.request.headers.no_cookies': ['user-agent': 'foobar']], limits, metrics)
     assertThat res.result, is(Waf.Result.MATCH)
   }
-}
 
+  @Test
+  void 'test extended_data_collection action'() {
+    def ruleSet = ARACHNI_ATOM_V2_1
+    ruleSet['rules'][0]['on_match'] = ['extended_data_collection']
+
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.size(), is(1)
+
+    // extended_data_collection action
+    assertThat res.actions.keySet(), hasItem('extended_data_collection')
+  }
+
+  @Test
+  void 'test extended_data_collection action with parameters'() {
+    def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+    ruleSet.putAt('actions', [
+      [
+        id: 'extended_data',
+        parameters: [
+          redaction: true,
+          max_collected_headers: 10
+        ],
+        type: 'extended_data_collection'
+      ]
+    ])
+    ruleSet['rules'][0]['on_match'] = ['extended_data']
+
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.keySet(), hasItem('extended_data_collection')
+    assertThat res.actions.get('extended_data_collection').redaction, is('true')
+    assertThat res.actions.get('extended_data_collection').max_collected_headers, is('10')
+  }
+
+  @Test
+  void 'test multiple actions with extended_data_collection'() {
+    def ruleSet = ARACHNI_ATOM_V2_1
+    ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extended_data_collection']
+
+    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
+    ResultWithData res = context.run(params, limits, metrics)
+    assertThat res.result, is(Waf.Result.MATCH)
+    assertThat res.actions.size(), is(3)
+
+    // block action
+    assertThat res.actions.keySet(), hasItem('block_request')
+    assertThat res.actions.get('block_request').type, is('auto')
+    assertThat res.actions.get('block_request').status_code, is('403')
+    assertThat res.actions.get('block_request').grpc_status_code, is('10')
+
+    // stack_trace action
+    assertThat res.actions.keySet(), hasItem('generate_stack')
+    assertThat res.actions.get('generate_stack').stack_id, is(notNullValue())
+
+    // extended_data_collection action
+    assertThat res.actions.keySet(), hasItem('extended_data_collection')
+  }
+}

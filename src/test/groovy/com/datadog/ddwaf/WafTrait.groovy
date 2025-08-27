@@ -108,6 +108,14 @@ trait WafTrait extends JNITrait {
                 "status_code": 400,
                 "location": "https://example3.com/"
               }
+            },
+            {
+              "id": "extended_data",
+              "type": "extended_data_collection",
+              "parameters": {
+                "redaction": true,
+                "max_collected_headers": 5
+              }
             }
           ],
           "rules": [
@@ -158,7 +166,7 @@ trait WafTrait extends JNITrait {
                         "operator": "match_regex"
                     }
                 ],
-                "on_match": ["stack_trace", "redirect2"]
+                "on_match": ["stack_trace", "redirect2", "extended_data"]
             }
           ]
         }''')
@@ -249,4 +257,3 @@ trait WafTrait extends JNITrait {
     ] as Map<String, Object>, limits, metrics)
   }
 }
-
