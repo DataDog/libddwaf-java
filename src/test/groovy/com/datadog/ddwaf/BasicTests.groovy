@@ -665,7 +665,7 @@ class BasicTests implements WafTrait {
       [
         id: 'extended_data',
         parameters: [
-          redaction: true,
+          headers_redaction: true,
           max_collected_headers: 10
         ],
         type: 'extended_data_collection'
@@ -680,7 +680,7 @@ class BasicTests implements WafTrait {
     ResultWithData res = context.run(params, limits, metrics)
     assertThat res.result, is(Waf.Result.MATCH)
     assertThat res.actions.keySet(), hasItem('extended_data_collection')
-    assertThat res.actions.get('extended_data_collection').redaction, is('true')
+    assertThat res.actions.get('extended_data_collection').headers_redaction, is('true')
     assertThat res.actions.get('extended_data_collection').max_collected_headers, is('10')
   }
 

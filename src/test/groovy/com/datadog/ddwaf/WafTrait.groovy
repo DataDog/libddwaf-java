@@ -113,7 +113,7 @@ trait WafTrait extends JNITrait {
               "id": "extended_data",
               "type": "extended_data_collection",
               "parameters": {
-                "redaction": true,
+                "headers_redaction": true,
                 "max_collected_headers": 5
               }
             }
