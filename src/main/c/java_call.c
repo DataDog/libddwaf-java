@@ -53,7 +53,7 @@ bool java_meth_init_checked(JNIEnv *env, struct j_method *jmeth,
         goto end;
     }
 
-    *jmeth = (struct j_method){
+    *jmeth = (struct j_method) {
             .type = type != JMETHOD_VIRTUAL_RETRIEVE_CLASS ? type
                                                            : JMETHOD_VIRTUAL,
             .class_glob = class_global,

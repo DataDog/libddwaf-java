@@ -1877,7 +1877,7 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
 
     return l;
 error:
-    return (struct _limits){0};
+    return (struct _limits) {0};
 }
 
 static bool _get_time_checked(JNIEnv *env, struct timespec *time)
@@ -2081,7 +2081,7 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
     }
     if (!JNI(IsSameObject, key_regex_jstr, NULL)) {
         key_regex = java_to_utf8_checked(env, (jstring) key_regex_jstr,
-                                         &(size_t){0});
+                                         &(size_t) {0});
         if (!key_regex) {
             return false;
         }
@@ -2097,7 +2097,7 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
     }
     if (!JNI(IsSameObject, value_regex_jstr, NULL)) {
         value_regex = java_to_utf8_checked(env, (jstring) value_regex_jstr,
-                                           &(size_t){0});
+                                           &(size_t) {0});
         if (!value_regex) {
             free(key_regex);
             return false;
@@ -2108,7 +2108,7 @@ static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
         }
     }
 
-    *out_config = (ddwaf_config){
+    *out_config = (ddwaf_config) {
             // disable these checks. We also have our own
             // limits given at rule run time
             .limits =
