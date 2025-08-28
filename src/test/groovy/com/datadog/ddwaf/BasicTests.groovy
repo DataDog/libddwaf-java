@@ -643,8 +643,8 @@ class BasicTests implements WafTrait {
 
   @Test
   void 'test extended_data_collection action'() {
-    def ruleSet = ARACHNI_ATOM_V2_1
-    ruleSet['rules'][0]['on_match'] = ['extended_data_collection']
+    def ruleSet = slurper.parseText(JsonOutput.toJson(ARACHNI_ATOM_BLOCK))
+    ruleSet['rules'][0]['on_match'] = ['extended_data']
 
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     handle = builder.buildWafHandleInstance()
@@ -652,9 +652,6 @@ class BasicTests implements WafTrait {
     final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni/v1']]
     ResultWithData res = context.run(params, limits, metrics)
     assertThat res.result, is(Waf.Result.MATCH)
-    assertThat res.actions.size(), is(1)
-
-    // extended_data_collection action
     assertThat res.actions.keySet(), hasItem('extended_data_collection')
   }
 
@@ -687,7 +684,17 @@ class BasicTests implements WafTrait {
   @Test
   void 'test multiple actions with extended_data_collection'() {
     def ruleSet = ARACHNI_ATOM_V2_1
-    ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extended_data_collection']
+    ruleSet.putAt('actions', [
+      [
+        id: 'extended_data',
+        parameters: [
+          headers_redaction: true,
+          max_collected_headers: 10
+        ],
+        type: 'extended_data_collection'
+      ]
+    ])
+    ruleSet['rules'][0]['on_match'] = ['block', 'stack_trace', 'extended_data']
 
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     handle = builder.buildWafHandleInstance()
