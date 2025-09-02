@@ -104,8 +104,8 @@ class BasicTests implements WafTrait {
     assertThat res.actions.size(), is(1)
     assertThat res.actions.keySet(), hasItem('block_request')
     assertThat res.actions.get('block_request').type, is('auto')
-    assertThat res.actions.get('block_request').status_code, is('403')
-    assertThat res.actions.get('block_request').grpc_status_code, is('10')
+    assertThat res.actions.get('block_request').status_code, is(403L)
+    assertThat res.actions.get('block_request').grpc_status_code, is(10L)
   }
 
   @Test
@@ -124,8 +124,8 @@ class BasicTests implements WafTrait {
     // block action
     assertThat res.actions.keySet(), hasItem('block_request')
     assertThat res.actions.get('block_request').type, is('auto')
-    assertThat res.actions.get('block_request').status_code, is('403')
-    assertThat res.actions.get('block_request').grpc_status_code, is('10')
+    assertThat res.actions.get('block_request').status_code, is(403L)
+    assertThat res.actions.get('block_request').grpc_status_code, is(10L)
 
     // stack_trace action
     assertThat res.actions.keySet(), hasItem('generate_stack')
@@ -196,9 +196,9 @@ class BasicTests implements WafTrait {
     assertThat res.actions.keySet(), contains('block_request')
 
     assertThat res.actions.get('block_request').type, is('auto')
-    assertThat res.actions.get('block_request').status_code, is('201')
-    assertThat res.actions.get('block_request').grpc_status_code, is('10')
-    assertThat res.actions.get('block_request').enabled, is('true')
+    assertThat res.actions.get('block_request').status_code, is(201L)
+    assertThat res.actions.get('block_request').grpc_status_code, is(10L)
+    assertThat res.actions.get('block_request').enabled, is(true)
     assertThat res.actions.get('block_request').test, is('false')
   }
 
