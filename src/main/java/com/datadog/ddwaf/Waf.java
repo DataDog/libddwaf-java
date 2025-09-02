@@ -20,7 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class Waf {
-  public static final String LIB_VERSION = "1.26.0";
+  public static final String LIB_VERSION = "1.28.0";
 
   private static final Logger LOGGER = LoggerFactory.getLogger(Waf.class);
   static final boolean EXIT_ON_LEAK;
