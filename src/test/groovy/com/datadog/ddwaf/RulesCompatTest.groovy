@@ -641,6 +641,50 @@ class RulesCompatTest implements WafTrait {
   }
 
   @Test
+  void 'test trace tagging rule with attributes, no keep and event'() {
+    def rulesetWithTraceTaggingEvent = TRACE_TAGGING_EVENT_RULESET
+
+    wafDiagnostics = builder.addOrUpdateConfig('test', rulesetWithTraceTaggingEvent)
+
+    // Check if configuration was accepted
+    assert wafDiagnostics.numConfigOK == 1, "WAF configuration was not accepted. numConfigOK = ${wafDiagnostics?.numConfigOK}"
+
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+
+    // Test with input that should match the rule
+    def params = [
+      'server.request.headers.no_cookies': [
+        'user-agent': 'TraceTagging/v4'
+      ]
+    ]
+
+    def result = context.run(params, limits, metrics)
+    assert result.result == Waf.Result.MATCH
+
+    // Since the rule has event: true, result.data should contain event information
+    assert result.data != null
+
+    // Parse the event data
+    def jsonResult = new JsonSlurper().parseText(result.data)
+    assert jsonResult.any { it.rule?.id == 'ttr-000-004' }
+
+    // Assert that both attributes are present
+    assert result.attributes.containsKey('_dd.appsec.trace.integer'), 'Missing _dd.appsec.trace.integer attribute'
+    assert result.attributes.containsKey('_dd.appsec.trace.agent'), 'Missing _dd.appsec.trace.agent attribute'
+
+    // Assert the values
+    assert result.attributes['_dd.appsec.trace.integer'] == 1729L
+    assert result.attributes['_dd.appsec.trace.agent'] == 'TraceTagging/v4'
+
+    // Assert that keep is false (should not have USER_KEEP sampling priority)
+    assert !result.keep
+
+    // Assert that events flag is true
+    assert result.events
+  }
+
+  @Test
   void 'test waf should block but returns ok instead of match'() {
     def rulesetWithBlockingRule = [
       version: '2.1',
@@ -1211,6 +1255,76 @@ class RulesCompatTest implements WafTrait {
             ],
             '_dd.appsec.trace.agent': [
               value: 'TraceTagging/v1'
+            ]
+          ]
+        ],
+        on_match: []
+      ]
+    ]
+  ]
+
+  private static final Map TRACE_TAGGING_EVENT_RULESET = [
+    version: '2.1',
+    metadata: [
+      rules_version: '1.2.7'
+    ],
+    rules: [
+      [
+        id: 'arachni_rule',
+        name: 'Arachni',
+        tags: [
+          type: 'security_scanner',
+          category: 'attack_attempt'
+        ],
+        conditions: [
+          [
+            parameters: [
+              inputs: [
+                [
+                  address: 'server.request.headers.no_cookies',
+                  key_path: ['user-agent']
+                ]
+              ],
+              regex: '^Arachni\\/v'
+            ],
+            operator: 'match_regex'
+          ]
+        ],
+        transformers: [],
+        on_match: ['block']
+      ]
+    ],
+    rules_compat: [
+      [
+        id: 'ttr-000-004',
+        name: 'Trace Tagging Rule: Attributes, No Keep, Event',
+        tags: [
+          type: 'security_scanner',
+          category: 'attack_attempt'
+        ],
+        conditions: [
+          [
+            parameters: [
+              inputs: [
+                [
+                  address: 'server.request.headers.no_cookies',
+                  key_path: ['user-agent']
+                ]
+              ],
+              regex: '^TraceTagging\\/v4'
+            ],
+            operator: 'match_regex'
+          ]
+        ],
+        output: [
+          event: true,
+          keep: false,
+          attributes: [
+            '_dd.appsec.trace.integer': [
+              value: 1729
+            ],
+            '_dd.appsec.trace.agent': [
+                    value: 'TraceTagging/v4'
             ]
           ]
         ],
