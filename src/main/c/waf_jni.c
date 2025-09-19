@@ -1220,7 +1220,7 @@ static bool _cache_methods(JNIEnv *env)
                                 "Ljava/lang/String;"
                                 "Ljava/util/Map;"
                                 "Ljava/util/Map;"
-                                "ZJ"
+                                "Ljava/lang/Boolean;J"
                                 "Z)V",
                                 JMETHOD_CONSTRUCTOR)) {
         goto error;
@@ -2213,9 +2213,14 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
 
     // Get keep and duration from the ddwaf_object structure
     const ddwaf_object *keep_obj = ddwaf_object_find(ddwaf_result, "keep", 4);
-    jboolean keep = JNI_TRUE; // Default to true when NULL/missing
+    jobject keep = NULL; // Default to NULL
     if (keep_obj != NULL && keep_obj->type == DDWAF_OBJ_BOOL) {
-        keep = (jboolean) ddwaf_object_get_bool(keep_obj);
+        jboolean keep_value = (jboolean) ddwaf_object_get_bool(keep_obj);
+        jclass boolean_class = JNI(FindClass, "java/lang/Boolean");
+        jmethodID boolean_valueOf = JNI(GetStaticMethodID, boolean_class,
+                                        "valueOf", "(Z)Ljava/lang/Boolean;");
+        keep = JNI(CallStaticObjectMethod, boolean_class, boolean_valueOf,
+                   keep_value);
     }
 
     const ddwaf_object *duration_obj =

@@ -104,7 +104,7 @@ public final class Waf {
     public final String data;
     public final Map<String, Map<String, Object>> actions;
     public final Map<String, Object> attributes;
-    public final boolean keep;
+    public final Boolean keep;
     public final long duration; // in nanoseconds
     public final boolean events;
 
@@ -113,7 +113,7 @@ public final class Waf {
         String data,
         Map<String, Map<String, Object>> actions,
         Map<String, Object> attributes,
-        boolean keep,
+        Boolean keep,
         long duration,
         boolean events) {
       this.result = result;
