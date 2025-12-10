@@ -72,7 +72,7 @@ jobs:
           files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
   Native_binaries_Stage_macos_x86_64:
     name: MacOS x86_64
-    runs-on: macos-13
+    runs-on: macos-14.2.1
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
@@ -129,7 +129,7 @@ jobs:
 
   Native_binaries_Stage_macos_aarch64:
     name: MacOS aarch64
-    runs-on: macos-13
+    runs-on: macos-14.2.1
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
@@ -532,7 +532,7 @@ jobs:
             arch: aarch64
             docker_image: alpine-stock8
             test_java_home_var: JAVA_8_HOME
-          - runs-on: macos-13
+          - runs-on: macos-14.2.1
             os: macos
             arch: x86_64
             jdk: temurin8
@@ -542,7 +542,7 @@ jobs:
             arch: x86_64
             jdk: temurin8
             java_home_var: JAVA_HOME_8_X64
-          - runs-on: macos-13-xlarge
+          - runs-on: macos-14.2.1-xlarge
             os: macos
             arch: aarch64
             jdk: temurin11
@@ -562,7 +562,7 @@ jobs:
             arch: aarch64
             jdk: temurin11
             java_home_var: JAVA_HOME_11_arm64
-          - runs-on: macos-13
+          - runs-on: macos-14.2.1
             os: macos
             arch: x86_64
             jdk: temurin17
