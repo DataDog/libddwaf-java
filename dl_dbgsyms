@@ -9,7 +9,7 @@ function fn {
 function dl_zip {
   local readonly version=$1
   local readonly zip=$(fn $version)
-  local readonly url=https://s3.amazonaws.com/sqreen-ci-java/jars/io.sqreen/libsqreen-$version-dbgsym.zip
+  local readonly url=https://repo1.maven.org/maven2/io/sqreen/libsqreen/$version/libsqreen-$version-dbgsym.zip
 
   if [[ -f $zip ]]; then
     return
