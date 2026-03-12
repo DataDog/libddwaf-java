@@ -70,6 +70,14 @@ jobs:
           flags: helper
           verbose: true
           files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
+      - name: Upload coverage to Datadog
+        if: always()
+        continue-on-error: true
+        uses: DataDog/coverage-upload-github-action@v1
+        with:
+          api_key: ${{ secrets.DD_API_KEY }}
+          files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
+          flags: helper
   Native_binaries_Stage_macos_x86_64:
     name: MacOS x86_64
     runs-on: macos-13
