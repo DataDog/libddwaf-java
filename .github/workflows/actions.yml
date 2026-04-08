@@ -86,8 +86,9 @@ jobs:
         uses: DataDog/coverage-upload-github-action@d2cf302a39c05e0ad22063360a2bf6ce0cc4906c # v1
         with:
           api_key: ${{ steps.dd-sts.outputs.api_key }}
-          files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
+          files: build/coverage.xml
           flags: helper
+          extra-args: build/reports/jacoco/test/jacocoTestReport.xml
   Native_binaries_Stage_macos_x86_64:
     name: MacOS x86_64
     runs-on: macos-13
