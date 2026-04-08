@@ -80,21 +80,13 @@ jobs:
         uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
         with:
           policy: libddwaf-java
-      - name: Upload coverage to Datadog (native)
-        if: always() && steps.dd-sts.outputs.api_key != ''
+      - name: Upload coverage to Datadog
+        if: steps.dd-sts.outputs.api_key != ''
         continue-on-error: true
         uses: DataDog/coverage-upload-github-action@d2cf302a39c05e0ad22063360a2bf6ce0cc4906c # v1
         with:
           api_key: ${{ steps.dd-sts.outputs.api_key }}
-          files: ${{ github.workspace }}/build/coverage.xml
-          flags: helper
-      - name: Upload coverage to Datadog (Java)
-        if: always() && steps.dd-sts.outputs.api_key != ''
-        continue-on-error: true
-        uses: DataDog/coverage-upload-github-action@d2cf302a39c05e0ad22063360a2bf6ce0cc4906c # v1
-        with:
-          api_key: ${{ steps.dd-sts.outputs.api_key }}
-          files: ${{ github.workspace }}/build/reports/jacoco/test/jacocoTestReport.xml
+          files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
           flags: helper
   Native_binaries_Stage_macos_x86_64:
     name: MacOS x86_64
