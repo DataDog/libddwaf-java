@@ -12,6 +12,7 @@ import com.datadog.ddwaf.exception.AbstractWafException;
 import com.datadog.ddwaf.exception.TimeoutWafException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
 import java.io.Closeable;
+import java.lang.ref.Reference;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -119,6 +120,15 @@ public class WafContext implements Closeable {
           }
 
           result = runWafContext(persistentBuffer, ephemeralBuffer, newLimits, metrics);
+          // Ensure the Arena's StringsSegment DirectByteBuffers (which ddwaf_run reads via
+          // native pointers) are not prematurely freed by concurrent GC (e.g. ZGC Generational
+          // in JDK 21.0.8+ / JDK 25). The JIT may elide references to this.lease and
+          // ephemeralLease if it determines no Java code accesses them after runWafContext()
+          // returns, allowing the GC Cleaner to free the underlying native memory while
+          // ddwaf_run is still executing. reachabilityFence pins the objects as strongly
+          // reachable until this point. See: APPSEC-62784
+          Reference.reachabilityFence(this.lease);
+          Reference.reachabilityFence(ephemeralLease);
         } finally {
           if (ephemeralLease != null) {
             ephemeralLease.close();
