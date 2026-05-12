@@ -120,16 +120,16 @@ public class WafContext implements Closeable {
           }
 
           result = runWafContext(persistentBuffer, ephemeralBuffer, newLimits, metrics);
+        } finally {
           // Ensure the Arena's StringsSegment DirectByteBuffers (which ddwaf_run reads via
           // native pointers) are not prematurely freed by concurrent GC (e.g. ZGC Generational
           // in JDK 21.0.8+ / JDK 25). The JIT may elide references to this.lease and
-          // ephemeralLease if it determines no Java code accesses them after runWafContext()
-          // returns, allowing the GC Cleaner to free the underlying native memory while
-          // ddwaf_run is still executing. reachabilityFence pins the objects as strongly
-          // reachable until this point. See: APPSEC-62784
+          // ephemeralLease after the last Java-visible use, allowing the GC Cleaner to free
+          // the underlying native memory while ddwaf_run is still executing.
+          // Fences are placed in the finally block so they run on both normal and exceptional
+          // returns from runWafContext (e.g. TimeoutWafException). See: APPSEC-62784
           Reference.reachabilityFence(this.lease);
           Reference.reachabilityFence(ephemeralLease);
-        } finally {
           if (ephemeralLease != null) {
             ephemeralLease.close();
           }
