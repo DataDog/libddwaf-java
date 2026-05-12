@@ -12,7 +12,6 @@ import com.datadog.ddwaf.exception.AbstractWafException;
 import com.datadog.ddwaf.exception.TimeoutWafException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
 import java.io.Closeable;
-import java.lang.ref.Reference;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -29,6 +28,12 @@ import org.slf4j.LoggerFactory;
  */
 public class WafContext implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger(WafContext.class);
+
+  // Java-8 compatible reachability fence: a volatile write is a memory barrier
+  // the JIT cannot elide, keeping the written object strongly reachable until
+  // this point. Equivalent to Reference.reachabilityFence(obj) on JDK 9+.
+  @SuppressWarnings("unused")
+  private static volatile Object leaseFenceSink;
 
   private final ByteBufferSerializer.ArenaLease lease;
   private final LeakDetection.PhantomRefWithName<Object> selfRef;
@@ -121,15 +126,14 @@ public class WafContext implements Closeable {
 
           result = runWafContext(persistentBuffer, ephemeralBuffer, newLimits, metrics);
         } finally {
-          // Ensure the Arena's StringsSegment DirectByteBuffers (which ddwaf_run reads via
-          // native pointers) are not prematurely freed by concurrent GC (e.g. ZGC Generational
-          // in JDK 21.0.8+ / JDK 25). The JIT may elide references to this.lease and
-          // ephemeralLease after the last Java-visible use, allowing the GC Cleaner to free
-          // the underlying native memory while ddwaf_run is still executing.
-          // Fences are placed in the finally block so they run on both normal and exceptional
-          // returns from runWafContext (e.g. TimeoutWafException). See: APPSEC-62784
-          Reference.reachabilityFence(this.lease);
-          Reference.reachabilityFence(ephemeralLease);
+          // Keep lease/ephemeralLease strongly reachable past the ddwaf_run JNI boundary.
+          // The JIT may elide references to this.lease and ephemeralLease after the last
+          // Java-visible use, letting the GC Cleaner free the underlying native memory while
+          // ddwaf_run is still executing (observed on ZGC Generational, JDK 21.0.8+/JDK 25).
+          // Volatile writes are memory barriers the JIT cannot remove. Placed in finally so
+          // they run on both normal and exceptional returns. See: APPSEC-62784
+          leaseFenceSink = this.lease;
+          leaseFenceSink = ephemeralLease;
           if (ephemeralLease != null) {
             ephemeralLease.close();
           }
