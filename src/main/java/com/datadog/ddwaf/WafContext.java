@@ -20,8 +20,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Originally intended to be a {@code final} class to enforce immutability and usage constraints.
- * The {@code final} modifier was intentionally removed to improve testability—specifically to allow
- * mocking in unit tests
+ * The {@code final} modifier was intentionally removed to improve testability - specifically to
+ * allow mocking in unit tests
  *
  * <p>This class should still be treated as final in spirit: it is not designed for extension , and
  * should only be subclassed or mocked in test environments.

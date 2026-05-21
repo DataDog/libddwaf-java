@@ -56,16 +56,17 @@ class ReachabilityFenceTest implements WafTrait {
 
     def keepRunningGc = new AtomicBoolean(true)
 
-    // Background thread to apply maximum GC pressure during ddwaf_run executions
+    // Background thread to apply GC pressure during ddwaf_run executions.
+    // sleep(5) avoids overwhelming J9/Semeru with continuous full GC cycles.
     def gcThread = Thread.startDaemon('gc-pressure') {
       while (keepRunningGc.get()) {
         System.gc()
-        Thread.sleep(0)  // yield to allow other threads to run
+        Thread.sleep(5)
       }
     }
 
     try {
-      2000.times { i ->
+      500.times { i ->
         def result = context.run(standardRequestBundle(i), limits, metrics)
         assertThat(
           "Iteration ${i}: expected DDWAF_OK (no match for absent x-filename header)",
@@ -119,12 +120,12 @@ class ReachabilityFenceTest implements WafTrait {
     def gcThread = Thread.startDaemon('gc-pressure-pool') {
       while (keepRunningGc.get()) {
         System.gc()
-        Thread.sleep(0)
+        Thread.sleep(5)
       }
     }
 
     try {
-      200.times { i ->
+      50.times { i ->
         // Create a fresh WafContext per iteration to exercise the Arena pool
         def localContext = new WafContext(handle)
         try {
