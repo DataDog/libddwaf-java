@@ -13,5 +13,5 @@ RUN keytool -importkeystore \
       -destkeystore "$JAVA_HOME/jre/lib/security/cacerts" \
       -srcstorepass  changeit \
       -deststorepass changeit \
-      -noprompt 2>/dev/null; \
+      -noprompt 2>/dev/null && \
     rm /tmp/temurin-cacerts
