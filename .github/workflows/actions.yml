@@ -541,6 +541,19 @@ jobs:
             arch: x86_64
             docker_image: centos6-stock8
             test_java_home_var: JAVA_8_HOME
+          # Alpine (musl libc) + JDK 21/25: the exact environment where APPSEC-62784
+          # SIGSEGV crashes were observed in production. These entries verify that
+          # ReachabilityFenceTest passes on the affected platform/JDK combinations.
+          - runs-on: ubuntu-24.04
+            os: linux
+            arch: x86_64
+            docker_image: alpine-temurin21
+            test_java_home_var: JAVA_21_HOME
+          - runs-on: ubuntu-24.04
+            os: linux
+            arch: x86_64
+            docker_image: alpine-temurin25
+            test_java_home_var: JAVA_25_HOME
           - runs-on: arm-4core-linux-ubuntu24.04
             os: linux
             arch: aarch64
