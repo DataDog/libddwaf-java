@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     if: "!(contains(github.ref, 'refs/tags/v'))"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         name: Checkout
         with:
           submodules: recursive
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
     if: "!(contains(github.ref, 'refs/tags/v'))"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         name: Checkout
         with:
           submodules: recursive
@@ -46,7 +46,7 @@ jobs:
       contents: read
       id-token: write # needed for dd-sts OIDC token exchange
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         name: Checkout
         with:
           submodules: recursive
@@ -100,7 +100,7 @@ jobs:
       artifactsuff: macos-x86_64
       libdir: macos/x86_64
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       name: Checkout
     - name: Select Xcode version
       # Matches libddwaf https://github.com/DataDog/libddwaf/blob/6aabaa97fb224c251dacc70e427a4c1d7d985af4/.github/workflows/build.yml#L68-L69
@@ -157,7 +157,7 @@ jobs:
       artifactsuff: macos-aarch64
       libdir: macos/aarch64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         name: Checkout
       - name: Select Xcode version
         # Matches libddwaf https://github.com/DataDog/libddwaf/blob/6aabaa97fb224c251dacc70e427a4c1d7d985af4/.github/workflows/build.yml#L68-L69
@@ -217,7 +217,7 @@ jobs:
       artifactsuff: win-x86_64
       libdir: windows/x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         name: Checkout
       - uses: ilammy/msvc-dev-cmd@v1
         name: Setup x86_64 build
@@ -281,7 +281,7 @@ jobs:
       libdir: linux/${{ matrix.arch }}/${{ matrix.libc }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Prepare libddwaf
         run: |
           wget https://github.com/DataDog/libddwaf/releases/download/${{ env.libddwafVersion }}/libddwaf-${{ env.libddwafVersion }}-${{ matrix.arch }}-linux-musl.tar.gz
@@ -315,7 +315,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout project
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
     - name: Install GCC and clang
@@ -331,7 +331,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout project
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
     - name: Install GCC and clang
@@ -359,7 +359,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
         clean: true
@@ -379,7 +379,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
         clean: true
@@ -407,7 +407,7 @@ jobs:
       with:
         java-version: 8
         distribution: temurin
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       name: Checkout
       with:
         submodules: recursive
@@ -603,7 +603,7 @@ jobs:
             java_home_var: JAVA_HOME_8_X64
     runs-on: ${{ matrix.runs-on }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       name: Checkout
     - name: Download artifacts
       uses: actions/download-artifact@v4
@@ -649,7 +649,7 @@ jobs:
     if: contains(github.ref, 'refs/tags/v')
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
         clean: true
