@@ -91,7 +91,7 @@ jobs:
           extra-args: build/reports/jacoco/test/jacocoTestReport.xml
   Native_binaries_Stage_macos_x86_64:
     name: MacOS x86_64
-    runs-on: macos-14
+    runs-on: macos-14-large
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
