@@ -550,11 +550,6 @@ jobs:
             arch: x86_64
             jdk: temurin8
             java_home_var: JAVA_HOME_8_X64
-          - runs-on: macos-14-large
-            os: macos
-            arch: x86_64
-            jdk: temurin8
-            java_home_var: JAVA_HOME_8_X64
           - runs-on: macos-14
             os: macos
             arch: aarch64
@@ -565,11 +560,6 @@ jobs:
             arch: x86_64
             jdk: temurin11
             java_home_var: JAVA_HOME_11_X64
-          - runs-on: macos-14
-            os: macos
-            arch: aarch64
-            jdk: temurin11
-            java_home_var: JAVA_HOME_11_arm64
           - runs-on: macos-15
             os: macos
             arch: aarch64
