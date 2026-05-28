@@ -91,7 +91,7 @@ jobs:
           extra-args: build/reports/jacoco/test/jacocoTestReport.xml
   Native_binaries_Stage_macos_x86_64:
     name: MacOS x86_64
-    runs-on: macos-13
+    runs-on: macos-14-large
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
@@ -102,9 +102,6 @@ jobs:
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       name: Checkout
-    - name: Select Xcode version
-      # Matches libddwaf https://github.com/DataDog/libddwaf/blob/6aabaa97fb224c251dacc70e427a4c1d7d985af4/.github/workflows/build.yml#L68-L69
-      run: sudo xcode-select --switch /Applications/Xcode_14.3.1.app
     - name: Prepare libddwaf
       run: |
         # Get sha256sum
@@ -148,7 +145,7 @@ jobs:
 
   Native_binaries_Stage_macos_aarch64:
     name: MacOS aarch64
-    runs-on: macos-13
+    runs-on: macos-14
     env:
       generator: Unix Makefiles
       shlib_prefix: lib
@@ -159,9 +156,6 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         name: Checkout
-      - name: Select Xcode version
-        # Matches libddwaf https://github.com/DataDog/libddwaf/blob/6aabaa97fb224c251dacc70e427a4c1d7d985af4/.github/workflows/build.yml#L68-L69
-        run: sudo xcode-select --switch /Applications/Xcode_14.3.1.app
       - name: Prepare libddwaf
         run: |
           # Get sha256sum
@@ -551,17 +545,12 @@ jobs:
             arch: aarch64
             docker_image: alpine-stock8
             test_java_home_var: JAVA_8_HOME
-          - runs-on: macos-13
-            os: macos
-            arch: x86_64
-            jdk: temurin8
-            java_home_var: JAVA_HOME_8_X64
           - runs-on: macos-14-large
             os: macos
             arch: x86_64
             jdk: temurin8
             java_home_var: JAVA_HOME_8_X64
-          - runs-on: macos-13-xlarge
+          - runs-on: macos-14
             os: macos
             arch: aarch64
             jdk: temurin11
@@ -571,17 +560,12 @@ jobs:
             arch: x86_64
             jdk: temurin11
             java_home_var: JAVA_HOME_11_X64
-          - runs-on: macos-14
-            os: macos
-            arch: aarch64
-            jdk: temurin11
-            java_home_var: JAVA_HOME_11_arm64
           - runs-on: macos-15
             os: macos
             arch: aarch64
             jdk: temurin11
             java_home_var: JAVA_HOME_11_arm64
-          - runs-on: macos-13
+          - runs-on: macos-14-large
             os: macos
             arch: x86_64
             jdk: temurin17
