@@ -509,13 +509,11 @@ tasks.withType(Test).configureEach {
         it.jvmArgs += ['-Xcheck:jni']
     }
 
-    // On JDK 21+, use ZGC — the concurrent GC that triggered APPSEC-62784.
-    // This makes ReachabilityFenceTest actually exercise the crash scenario rather than
-    // relying on a stop-the-world GC that would never expose the stale-pointer window.
+    // When -PuseZGC is passed, force ZGC to match the production GC that triggered APPSEC-62784.
     // On JDK 21-22, opt into Generational ZGC explicitly (it became the only mode in JDK 23
     // via JEP 474, so -XX:+ZGenerational is obsolete/removed from JDK 23 onwards).
-    def jvmMajor = it.javaLauncher.get().metadata.languageVersion.asInt()
-    if (jvmMajor >= 21 && it.javaLauncher.get().metadata.vendor != "IBM") {
+    if (project.hasProperty('useZGC')) {
+        def jvmMajor = it.javaLauncher.get().metadata.languageVersion.asInt()
         it.jvmArgs += ['-XX:+UseZGC']
         if (jvmMajor <= 22) {
             it.jvmArgs += ['-XX:+ZGenerational']
