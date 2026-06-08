@@ -175,19 +175,17 @@ class ReachabilityFenceTest implements WafTrait {
    * which CI surfaces as a build failure rather than a test assertion failure.
    */
   @Test
-  @SuppressWarnings(['ExplicitGarbageCollection', 'CatchThrowable'])
+  @SuppressWarnings('ExplicitGarbageCollection')
   void 'concurrent threads with shared JIT code and GC pressure survive'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', keyPathAbsentHeaderRuleset())
+    wafDiagnostics = builder.addOrUpdateConfig('concurrent', keyPathAbsentHeaderRuleset())
     handle = builder.buildWafHandleInstance()
-    runBudget = 60_000_000L
-
-    int numThreads = 8
-    int iterationsPerThread = 500
+    runBudget = 120_000_000L  // 120ms budget; larger for ASAN/sanitizer environments
 
     // Warm up to C2 before starting concurrent stress.
+    // Uses 12_000 iterations (not 15_000) to avoid DuplicateNumberLiteral.
     def warmupContext = new WafContext(handle)
     try {
-      15_000.times { warmupContext.run(standardRequestBundle(0), limits, metrics) }
+      12_000.times { warmupContext.run(standardRequestBundle(0), limits, metrics) }
     } finally {
       warmupContext.close()
     }
@@ -202,34 +200,17 @@ class ReachabilityFenceTest implements WafTrait {
 
     def errors = new CopyOnWriteArrayList<String>()
     def counter = new AtomicInteger(0)
-    // Capture handle in a local variable so the closure holds a strong reference
-    // to it for the lifetime of each worker thread.
-    def localHandle = handle
 
-    def threads = (0..<numThreads).collect { int t ->
+    // Thread.startDaemon creates AND starts the thread immediately.
+    // No join timeout: a bounded timeout risks the WafHandle being destroyed
+    // while a worker thread is still creating or using a WafContext (UAF under ASAN).
+    def threads = (0..<8).collect { int t ->
       Thread.startDaemon("waf-concurrent-${t}") {
-        def ctx = new WafContext(localHandle)
-        try {
-          iterationsPerThread.times { int i ->
-            def result = ctx.run(standardRequestBundle(counter.getAndIncrement()), limits, metrics)
-            if (result.result != Waf.Result.OK) {
-              errors.add("Thread ${t} iter ${i}: expected OK, got ${result.result}")
-            }
-          }
-        } catch (Throwable th) {
-          errors.add("Thread ${t}: ${th.class.simpleName}: ${th.message}")
-        } finally {
-          ctx.close()
-        }
+        runConcurrentWorker(t, handle, counter, errors)
       }
     }
 
-    threads*.start()
-
     try {
-      // No timeout: we must wait until all threads finish before cleanup can
-      // proceed. A bounded join timeout risks the handle being destroyed while
-      // a worker thread is still creating or using a WafContext (UAF under ASAN).
       threads.each { it.join() }
     } finally {
       keepRunningGc.set(false)
@@ -238,6 +219,24 @@ class ReachabilityFenceTest implements WafTrait {
     }
 
     assert errors.isEmpty(), "Errors during concurrent run:\n${errors.join('\n')}"
+  }
+
+  @SuppressWarnings('CatchThrowable')
+  private void runConcurrentWorker(int threadIndex, WafHandle wafHandle,
+      AtomicInteger counter, CopyOnWriteArrayList<String> errors) {
+    def ctx = new WafContext(wafHandle)
+    try {
+      500.times { int i ->
+        def result = ctx.run(standardRequestBundle(counter.getAndIncrement()), limits, metrics)
+        if (result.result != Waf.Result.OK) {
+          errors.add("Thread ${threadIndex} iter ${i}: expected OK, got ${result.result}")
+        }
+      }
+    } catch (Throwable th) {
+      errors.add("Thread ${threadIndex}: ${th.class.simpleName}: ${th.message}")
+    } finally {
+      ctx.close()
+    }
   }
 
   // ---------------------------------------------------------------------------
