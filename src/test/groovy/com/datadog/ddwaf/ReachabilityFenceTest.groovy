@@ -221,24 +221,6 @@ class ReachabilityFenceTest implements WafTrait {
     assert errors.isEmpty(), "Errors during concurrent run:\n${errors.join('\n')}"
   }
 
-  @SuppressWarnings('CatchThrowable')
-  private void runConcurrentWorker(int threadIndex, WafHandle wafHandle,
-      AtomicInteger counter, CopyOnWriteArrayList<String> errors) {
-    def ctx = new WafContext(wafHandle)
-    try {
-      500.times { int i ->
-        def result = ctx.run(standardRequestBundle(counter.getAndIncrement()), limits, metrics)
-        if (result.result != Waf.Result.OK) {
-          errors.add("Thread ${threadIndex} iter ${i}: expected OK, got ${result.result}")
-        }
-      }
-    } catch (Throwable th) {
-      errors.add("Thread ${threadIndex}: ${th.class.simpleName}: ${th.message}")
-    } finally {
-      ctx.close()
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
@@ -325,5 +307,23 @@ class ReachabilityFenceTest implements WafTrait {
       'server.request.client_ip'    : '1.2.3.4',
       'server.request.client_port'  : 443,
     ]
+  }
+
+  @SuppressWarnings('CatchThrowable')
+  private void runConcurrentWorker(int threadIndex, WafHandle wafHandle,
+    AtomicInteger counter, CopyOnWriteArrayList<String> errors) {
+    def ctx = new WafContext(wafHandle)
+    try {
+      500.times { int i ->
+        def result = ctx.run(standardRequestBundle(counter.getAndIncrement()), limits, metrics)
+        if (result.result != Waf.Result.OK) {
+          errors.add("Thread ${threadIndex} iter ${i}: expected OK, got ${result.result}")
+        }
+      }
+    } catch (Throwable th) {
+      errors.add("Thread ${threadIndex}: ${th.class.simpleName}: ${th.message}")
+    } finally {
+      ctx.close()
+    }
   }
 }
