@@ -34,8 +34,13 @@ import static org.hamcrest.Matchers.is
 class ReachabilityFenceTest implements WafTrait {
 
   /**
-   * Core regression test: run WAF evaluation 2000 times with a concurrent GC thread
-   * hammering System.gc() to maximise the chance of exposing the stale-pointer bug.
+   * Core regression test: warm up WafContext.run() to C2 JIT compilation level, then
+   * hammer it with concurrent GC pressure to expose the stale-pointer bug.
+   *
+   * Why warmup matters: the reference elision that opens the use-after-free window only
+   * occurs in C2-compiled code. TieredCompilation reaches C2 (Tier 4) at ~15000
+   * invocations; without prior warmup the test passes even without the fix because the
+   * JIT never elides the lease reference.
    *
    * Without the reachabilityFence fix, this test will crash the JVM with SIGSEGV
    * on JDK 21.0.8+ or JDK 25 with ZGC Generational.
@@ -53,6 +58,9 @@ class ReachabilityFenceTest implements WafTrait {
     // Allow enough per-run budget for sanitizer (ASAN) environments where native
     // operations are significantly slower than on a standard build.
     runBudget = 60_000_000L
+
+    // Warm up WafContext.run() to C2 JIT level before starting GC pressure.
+    15_000.times { context.run(standardRequestBundle(0), limits, metrics) }
 
     def keepRunningGc = new AtomicBoolean(true)
 
@@ -115,6 +123,14 @@ class ReachabilityFenceTest implements WafTrait {
 
     // Allow enough per-run budget for sanitizer (ASAN) environments.
     runBudget = 60_000_000L
+
+    // Warm up WafContext.run() to C2 JIT level before starting GC pressure.
+    def warmupContext = new WafContext(handle)
+    try {
+      15_000.times { warmupContext.run(standardRequestBundle(0), limits, metrics) }
+    } finally {
+      warmupContext.close()
+    }
 
     def keepRunningGc = new AtomicBoolean(true)
     def gcThread = Thread.startDaemon('gc-pressure-pool') {
