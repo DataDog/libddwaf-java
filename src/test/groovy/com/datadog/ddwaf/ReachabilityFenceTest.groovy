@@ -175,7 +175,7 @@ class ReachabilityFenceTest implements WafTrait {
    * which CI surfaces as a build failure rather than a test assertion failure.
    */
   @Test
-  @SuppressWarnings('ExplicitGarbageCollection')
+  @SuppressWarnings(['ExplicitGarbageCollection', 'CatchThrowable'])
   void 'concurrent threads with shared JIT code and GC pressure survive'() {
     wafDiagnostics = builder.addOrUpdateConfig('test', keyPathAbsentHeaderRuleset())
     handle = builder.buildWafHandleInstance()
@@ -202,10 +202,13 @@ class ReachabilityFenceTest implements WafTrait {
 
     def errors = new CopyOnWriteArrayList<String>()
     def counter = new AtomicInteger(0)
+    // Capture handle in a local variable so the closure holds a strong reference
+    // to it for the lifetime of each worker thread.
+    def localHandle = handle
 
     def threads = (0..<numThreads).collect { int t ->
       Thread.startDaemon("waf-concurrent-${t}") {
-        def ctx = new WafContext(handle)
+        def ctx = new WafContext(localHandle)
         try {
           iterationsPerThread.times { int i ->
             def result = ctx.run(standardRequestBundle(counter.getAndIncrement()), limits, metrics)
@@ -224,7 +227,10 @@ class ReachabilityFenceTest implements WafTrait {
     threads*.start()
 
     try {
-      threads.each { it.join(60_000) }
+      // No timeout: we must wait until all threads finish before cleanup can
+      // proceed. A bounded join timeout risks the handle being destroyed while
+      // a worker thread is still creating or using a WafContext (UAF under ASAN).
+      threads.each { it.join() }
     } finally {
       keepRunningGc.set(false)
       gcThread.join(1000)
