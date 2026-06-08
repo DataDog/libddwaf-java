@@ -482,6 +482,26 @@ tasks.register('testgc', Test) {
 }
 check.dependsOn testgc
 
+// Dedicated task for the GC race regression (APPSEC-62784).
+// Must run without the Jacoco coverage agent: the agent instruments WafContext.run()
+// bytecode in a way that keeps DirectByteBuffer references alive past the JNI boundary,
+// preventing the reference elision the test is designed to detect.
+// Only wired into 'check' when -PuseZGC is set (alpine-temurin21/25 CI matrix entries).
+tasks.register('testGCRace', Test) {
+    description = 'GC race regression test without coverage instrumentation (ZGC builds only)'
+    group = 'verification'
+    useJUnit()
+    filter {
+        includeTestsMatching 'com.datadog.ddwaf.ReachabilityFenceTest'
+    }
+}
+tasks.named('testGCRace') {
+    jacoco.enabled = false
+}
+if (project.hasProperty('useZGC')) {
+    check.dependsOn 'testGCRace'
+}
+
 tasks.withType(Test).configureEach {
     if (System.getenv('TEST_EXECUTABLE')) {
         it.executable System.getenv('TEST_EXECUTABLE')
