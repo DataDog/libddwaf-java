@@ -10,7 +10,9 @@ package com.datadog.ddwaf
 
 import org.junit.Test
 
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.is
@@ -158,6 +160,78 @@ class ReachabilityFenceTest implements WafTrait {
       gcThread.join(1000)
       context = null  // prevent WafTrait.after() from closing a null-already-closed context
     }
+  }
+
+  /**
+   * Concurrent-thread variant: N threads each hold a live WafContext and hammer
+   * WafContext.run() in a tight loop while a GC-pressure thread runs continuously.
+   *
+   * This multiplies the race surface: N DirectByteBuffer-backed ArenaLeases are
+   * concurrently eligible for GC collection, and the JIT-compiled run() code is
+   * shared across all N instances. In production, crashes were observed with 10+
+   * concurrent Tomcat threads — this test replicates that topology.
+   *
+   * Without the reachabilityFence fix the JVM crashes with SIGSEGV (process killed),
+   * which CI surfaces as a build failure rather than a test assertion failure.
+   */
+  @Test
+  @SuppressWarnings('ExplicitGarbageCollection')
+  void 'concurrent threads with shared JIT code and GC pressure survive'() {
+    wafDiagnostics = builder.addOrUpdateConfig('test', keyPathAbsentHeaderRuleset())
+    handle = builder.buildWafHandleInstance()
+    runBudget = 60_000_000L
+
+    int numThreads = 8
+    int iterationsPerThread = 500
+
+    // Warm up to C2 before starting concurrent stress.
+    def warmupContext = new WafContext(handle)
+    try {
+      15_000.times { warmupContext.run(standardRequestBundle(0), limits, metrics) }
+    } finally {
+      warmupContext.close()
+    }
+
+    def keepRunningGc = new AtomicBoolean(true)
+    def gcThread = Thread.startDaemon('gc-pressure-concurrent') {
+      while (keepRunningGc.get()) {
+        System.gc()
+        Thread.sleep(2)
+      }
+    }
+
+    def errors = new CopyOnWriteArrayList<String>()
+    def counter = new AtomicInteger(0)
+
+    def threads = (0..<numThreads).collect { int t ->
+      Thread.startDaemon("waf-concurrent-${t}") {
+        def ctx = new WafContext(handle)
+        try {
+          iterationsPerThread.times { int i ->
+            def result = ctx.run(standardRequestBundle(counter.getAndIncrement()), limits, metrics)
+            if (result.result != Waf.Result.OK) {
+              errors.add("Thread ${t} iter ${i}: expected OK, got ${result.result}")
+            }
+          }
+        } catch (Throwable th) {
+          errors.add("Thread ${t}: ${th.class.simpleName}: ${th.message}")
+        } finally {
+          ctx.close()
+        }
+      }
+    }
+
+    threads*.start()
+
+    try {
+      threads.each { it.join(60_000) }
+    } finally {
+      keepRunningGc.set(false)
+      gcThread.join(1000)
+      context = null  // prevent WafTrait.after() from double-closing
+    }
+
+    assert errors.isEmpty(), "Errors during concurrent run:\n${errors.join('\n')}"
   }
 
   // ---------------------------------------------------------------------------
