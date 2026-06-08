@@ -216,9 +216,13 @@ class ReachabilityFenceTest implements WafTrait {
       keepRunningGc.set(false)
       gcThread.join(1000)
       context = null  // prevent WafTrait.after() from double-closing
+      // Discard pool arenas that carry stale bytes from the heavy serialization above.
+      // Without this, ArenaPool entries with non-zero bytes at positions beyond the
+      // freshly-written region can cause subsequent tests to see unexpected native results.
+      ByteBufferSerializer.ArenaPool.INSTANCE.arenas.clear()
     }
 
-    assert errors.isEmpty(), "Errors during concurrent run:\n${errors.join('\n')}"
+    assert errors.empty, "Errors during concurrent run:\n${errors.join('\n')}"
   }
 
   // ---------------------------------------------------------------------------
@@ -309,9 +313,9 @@ class ReachabilityFenceTest implements WafTrait {
     ]
   }
 
-  @SuppressWarnings('CatchThrowable')
+  @SuppressWarnings(['CatchThrowable', 'UnnecessaryGetter'])
   private void runConcurrentWorker(int threadIndex, WafHandle wafHandle,
-    AtomicInteger counter, CopyOnWriteArrayList<String> errors) {
+    AtomicInteger counter, List<String> errors) {
     def ctx = new WafContext(wafHandle)
     try {
       500.times { int i ->
