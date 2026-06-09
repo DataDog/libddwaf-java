@@ -491,6 +491,9 @@ tasks.register('testGCRace', Test) {
     description = 'GC race regression test without coverage instrumentation (ZGC builds only)'
     group = 'verification'
     useJUnit()
+    // ZGC + aggressive JIT (-XX:-TieredCompilation -XX:CompileThreshold=1) consume more
+    // native and heap memory than the default Gradle test worker allocation (512m).
+    maxHeapSize = '1g'
     filter {
         includeTestsMatching 'com.datadog.ddwaf.ReachabilityFenceTest'
     }
