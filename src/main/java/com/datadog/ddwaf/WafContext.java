@@ -132,10 +132,8 @@ public class WafContext implements Closeable {
           // ddwaf_run is still executing (observed on ZGC Generational, JDK 21.0.8+/JDK 25).
           // Volatile writes are memory barriers the JIT cannot remove. Placed in finally so
           // they run on both normal and exceptional returns. See: APPSEC-62784
-          // leaseFenceSink = this.lease;      // APPSEC-62784 fix -- temporarily disabled to verify
-          // crash
-          // leaseFenceSink = ephemeralLease;  // APPSEC-62784 fix -- temporarily disabled to verify
-          // crash
+          leaseFenceSink = this.lease;
+          leaseFenceSink = ephemeralLease;
           if (ephemeralLease != null) {
             ephemeralLease.close();
           }
