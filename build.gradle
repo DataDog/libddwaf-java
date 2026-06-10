@@ -493,7 +493,7 @@ tasks.register('testGCRace', Test) {
     useJUnit()
     // ZGC + aggressive JIT (-XX:-TieredCompilation -XX:CompileThreshold=1) consume more
     // native and heap memory than the default Gradle test worker allocation (512m).
-    maxHeapSize = '1g'
+    maxHeapSize = '2g'
     filter {
         includeTestsMatching 'com.datadog.ddwaf.ReachabilityFenceTest'
     }
