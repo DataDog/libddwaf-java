@@ -66,17 +66,20 @@ class ReachabilityFenceTest implements WafTrait {
 
     def keepRunningGc = new AtomicBoolean(true)
 
-    // Background thread to apply GC pressure during ddwaf_run executions.
-    // sleep(5) avoids overwhelming J9/Semeru with continuous full GC cycles.
-    def gcThread = Thread.startDaemon('gc-pressure') {
-      while (keepRunningGc.get()) {
-        System.gc()
-        Thread.sleep(5)
+    // Three concurrent GC threads to maximise ZGC concurrent cycle frequency.
+    // sleep(1) is a short yield to avoid busy-spinning; the real GC pressure
+    // comes from the three threads firing concurrently every ~1ms.
+    def gcThreads = (0..<3).collect { int n ->
+      Thread.startDaemon("gc-pressure-${n}") {
+        while (keepRunningGc.get()) {
+          System.gc()
+          Thread.sleep(1)
+        }
       }
     }
 
     try {
-      500.times { i ->
+      2000.times { i ->
         def result = context.run(standardRequestBundle(i), limits, metrics)
         assertThat(
           "Iteration ${i}: expected DDWAF_OK (no match for absent x-filename header)",
@@ -85,7 +88,7 @@ class ReachabilityFenceTest implements WafTrait {
       }
     } finally {
       keepRunningGc.set(false)
-      gcThread.join(1000)
+      gcThreads.each { it.join(1000) }
     }
   }
 
@@ -135,15 +138,17 @@ class ReachabilityFenceTest implements WafTrait {
     }
 
     def keepRunningGc = new AtomicBoolean(true)
-    def gcThread = Thread.startDaemon('gc-pressure-pool') {
-      while (keepRunningGc.get()) {
-        System.gc()
-        Thread.sleep(5)
+    def gcThreads2 = (0..<3).collect { int n ->
+      Thread.startDaemon("gc-pressure-pool-${n}") {
+        while (keepRunningGc.get()) {
+          System.gc()
+          Thread.sleep(1)
+        }
       }
     }
 
     try {
-      50.times { i ->
+      100.times { i ->
         // Create a fresh WafContext per iteration to exercise the Arena pool
         def localContext = new WafContext(handle)
         try {
@@ -157,7 +162,7 @@ class ReachabilityFenceTest implements WafTrait {
       }
     } finally {
       keepRunningGc.set(false)
-      gcThread.join(1000)
+      gcThreads2.each { it.join(1000) }
       context = null  // prevent WafTrait.after() from closing a null-already-closed context
     }
   }
@@ -191,10 +196,12 @@ class ReachabilityFenceTest implements WafTrait {
     }
 
     def keepRunningGc = new AtomicBoolean(true)
-    def gcThread = Thread.startDaemon('gc-pressure-concurrent') {
-      while (keepRunningGc.get()) {
-        System.gc()
-        Thread.sleep(2)
+    def gcThreads3 = (0..<3).collect { int n ->
+      Thread.startDaemon("gc-pressure-concurrent-${n}") {
+        while (keepRunningGc.get()) {
+          System.gc()
+          Thread.sleep(1)
+        }
       }
     }
 
@@ -204,7 +211,7 @@ class ReachabilityFenceTest implements WafTrait {
     // Thread.startDaemon creates AND starts the thread immediately.
     // No join timeout: a bounded timeout risks the WafHandle being destroyed
     // while a worker thread is still creating or using a WafContext (UAF under ASAN).
-    def threads = (0..<8).collect { int t ->
+    def threads = (0..<16).collect { int t ->
       Thread.startDaemon("waf-concurrent-${t}") {
         runConcurrentWorker(t, handle, counter, errors)
       }
@@ -214,7 +221,7 @@ class ReachabilityFenceTest implements WafTrait {
       threads.each { it.join() }
     } finally {
       keepRunningGc.set(false)
-      gcThread.join(1000)
+      gcThreads3.each { it.join(1000) }
       context = null  // prevent WafTrait.after() from double-closing
       // Discard pool arenas that carry stale bytes from the heavy serialization above.
       // Without this, ArenaPool entries with non-zero bytes at positions beyond the
@@ -318,7 +325,7 @@ class ReachabilityFenceTest implements WafTrait {
     AtomicInteger counter, List<String> errors) {
     def ctx = new WafContext(wafHandle)
     try {
-      500.times { int i ->
+      1000.times { int i ->
         def result = ctx.run(standardRequestBundle(counter.getAndIncrement()), limits, metrics)
         if (result.result != Waf.Result.OK) {
           errors.add("Thread ${threadIndex} iter ${i}: expected OK, got ${result.result}")

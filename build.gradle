@@ -503,7 +503,11 @@ tasks.named('testGCRace') {
     // Force immediate C2 compilation: disables tiered compilation and compiles
     // methods after 1 invocation, ensuring reference elision happens from the
     // first GC stress iteration without needing a warmup run.
-    jvmArgs '-XX:-TieredCompilation', '-XX:CompileThreshold=1'
+    // ExplicitGCInvokesConcurrent: makes System.gc() trigger ZGC concurrent
+    // cycles (instead of a potential stop-the-world), maximising the chance
+    // of a collection running concurrently with ddwaf_run().
+    jvmArgs '-XX:-TieredCompilation', '-XX:CompileThreshold=1',
+            '-XX:+ExplicitGCInvokesConcurrent'
 }
 if (project.hasProperty('useZGC')) {
     check.dependsOn 'testGCRace'
