@@ -512,6 +512,11 @@ tasks.named('testGCRace') {
 if (project.hasProperty('useZGC')) {
     check.dependsOn 'testGCRace'
 }
+// ReachabilityFenceTest contains long warmup loops and concurrent GC pressure
+// threads designed for ZGC+C2. Running it in the standard :test task (ASAN,
+// coverage, dev builds) makes those jobs take hours. Exclude it here; it runs
+// exclusively via testGCRace when -PuseZGC is set.
+test.filter.excludeTestsMatching 'com.datadog.ddwaf.ReachabilityFenceTest'
 
 tasks.withType(Test).configureEach {
     if (System.getenv('TEST_EXECUTABLE')) {
