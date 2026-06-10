@@ -507,7 +507,12 @@ tasks.named('testGCRace') {
     // cycles (instead of a potential stop-the-world), maximising the chance
     // of a collection running concurrently with ddwaf_run().
     jvmArgs '-XX:-TieredCompilation', '-XX:CompileThreshold=1',
-            '-XX:+ExplicitGCInvokesConcurrent'
+            '-XX:+ExplicitGCInvokesConcurrent',
+            // Suppress per-call DEBUG logging from ddwaf_native: each ddwaf_run()
+            // emits ~25 lines at DEBUG level. With 16 threads x 1000 iterations the
+            // log buffer alone exhausts the 1g worker heap and triggers GC overhead
+            // limit. WARN is sufficient; the test asserts on return values, not logs.
+            '-Dorg.slf4j.simpleLogger.defaultLogLevel=WARN'
 }
 if (project.hasProperty('useZGC')) {
     check.dependsOn 'testGCRace'
