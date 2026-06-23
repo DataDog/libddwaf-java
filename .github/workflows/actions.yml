@@ -67,12 +67,6 @@ jobs:
         run: |
           sudo apt-get install -y gcovr
           gcovr -f '.*src/main/c/.*' -x -d -o build/coverage.xml
-      - name: Submit coverage
-        uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b # v2.1.0
-        with:
-          flags: helper
-          verbose: true
-          files: build/coverage.xml,build/reports/jacoco/test/jacocoTestReport.xml
       - name: Get Datadog credentials
         id: dd-sts
         if: always()
