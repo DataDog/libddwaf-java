@@ -246,49 +246,62 @@ class ReachabilityFenceTest implements WafTrait {
    * raw pointers into them.
    *
    * Distinct from APPSEC-62784 (StringsSegment freed via run()) but same root cause and fix.
+   *
+   * Requires testGCRace task: relies on -XX:-TieredCompilation -XX:CompileThreshold=1 so
+   * WafContext.run() reaches C2 immediately without a warmup phase.
    */
   @Test
-  @SuppressWarnings(['ExplicitGarbageCollection', 'BusyWait'])
+  @SuppressWarnings('ExplicitGarbageCollection')
   void 'ephemeral arena with nested map survives concurrent GC (APPSEC-68682)'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V2_1)
+    wafDiagnostics = builder.addOrUpdateConfig('test', serverResponseBodyRuleset())
+    assert wafDiagnostics.numConfigOK == 1, "Rule must load: ${wafDiagnostics.allErrors}"
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
     runBudget = 60_000_000L
 
     // Simulate ObjectIntrospection.convert() output for a streaming SSE response POJO.
     // Nested structure forces multiple PWArgsSegment allocations in the ephemeral arena.
-    Map<String, Object> ephemeralData = (Map<String, Object>) [
-      'server.response.body': (Map<String, Object>) [
-        field1: (Map<String, Object>) [
+    // match_regex on server.response.body triggers eval_rules() which traverses all nested
+    // MAP entries, reading the PWArgsSegments that are freed without the leaseFenceSink fix.
+    def ephemeralData = [
+      'server.response.body': [
+        field1: [
           subA: 'value1',
           subB: null,
-          subC: (Map<String, Object>) [deepA: 'deep1', deepB: null, deepC: 'deep3'],
+          subC: [deepA: 'deep1', deepB: null, deepC: 'deep3'],
         ],
         field2: null,
-        field3: (Map<String, Object>) [
+        field3: [
           subD: 'value2',
-          subE: (Map<String, Object>) [x: '1', y: '2', z: '3'],
+          subE: [x: '1', y: '2', z: '3'],
         ],
         field4: 'scalar',
-        field5: (Map<String, Object>) [nestedA: 'a', nestedB: 'b'],
+        field5: [nestedA: 'a', nestedB: 'b'],
       ],
     ]
 
     def keepRunningGc = new AtomicBoolean(true)
-    def gcThread = Thread.startDaemon('gc-pressure-ephemeral') {
-      while (keepRunningGc.get()) {
-        System.gc()
-        Thread.sleep(1)
+    def gcThreads4 = (0..<3).collect { int n ->
+      Thread.startDaemon("gc-pressure-ephemeral-${n}") {
+        while (keepRunningGc.get()) {
+          System.gc()
+          Thread.sleep(1)
+        }
       }
     }
 
     try {
-      500.times {
-        context.runEphemeral(ephemeralData, limits, metrics)
+      500.times { int i ->
+        def result = context.runEphemeral(ephemeralData, limits, metrics)
+        assertThat(
+          "Iteration ${i}: expected DDWAF_OK (regex never matches response body)",
+          result.result,
+          is(Waf.Result.OK))
       }
     } finally {
       keepRunningGc.set(false)
-      gcThread.join(1000)
+      gcThreads4.each { it.join(1000) }
+      ByteBufferSerializer.ArenaPool.INSTANCE.arenas.clear()
     }
   }
 
@@ -345,6 +358,36 @@ class ReachabilityFenceTest implements WafTrait {
                 ],
                 regex  : '[a-zA-Z0-9]+[.][a-zA-Z0-9]{2,5}[.][a-zA-Z0-9]{2,5}$',
                 options: [case_sensitive: true, min_length: 6],
+              ],
+            ]
+          ],
+          transformers: [],
+        ],
+      ],
+    ]
+  }
+
+  /**
+   * Minimal ruleset targeting server.response.body with a match_regex that never matches.
+   * The rule evaluator traverses all nested MAP entries at server.response.body, reading
+   * the ephemeral PWArgsSegments that are freed without the leaseFenceSink fix (APPSEC-68682).
+   */
+  static Map serverResponseBodyRuleset() {
+    [
+      version : '2.1',
+      metadata: [rules_version: '1.0.0'],
+      rules   : [
+        [
+          id        : 'test-appsec-68682-body-inspection',
+          name      : 'Response body inspection (APPSEC-68682 regression)',
+          tags      : [type: 'test', category: 'test', module: 'waf'],
+          conditions: [
+            [
+              operator  : 'match_regex',
+              parameters: [
+                inputs : [[address: 'server.response.body']],
+                regex  : 'IMPOSSIBLE_APPSEC68682_MARKER',
+                options: [case_sensitive: true, min_length: 30],
               ],
             ]
           ],
