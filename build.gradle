@@ -482,6 +482,50 @@ tasks.register('testgc', Test) {
 }
 check.dependsOn testgc
 
+// Dedicated task for the GC race regression (APPSEC-62784).
+// Must run without the Jacoco coverage agent: the agent instruments WafContext.run()
+// bytecode in a way that keeps DirectByteBuffer references alive past the JNI boundary,
+// preventing the reference elision the test is designed to detect.
+// Only wired into 'check' when -PuseZGC is set (alpine-temurin21/25 CI matrix entries).
+tasks.register('testGCRace', Test) {
+    description = 'GC race regression test without coverage instrumentation (ZGC builds only)'
+    group = 'verification'
+    useJUnit()
+    // ZGC + aggressive JIT (-XX:-TieredCompilation -XX:CompileThreshold=1) consume more
+    // native and heap memory than the default Gradle test worker allocation (512m).
+    maxHeapSize = '2g'
+    filter {
+        includeTestsMatching 'com.datadog.ddwaf.ReachabilityFenceTest'
+    }
+}
+tasks.named('testGCRace') {
+    jacoco.enabled = false
+    // Force immediate C2 compilation: disables tiered compilation and compiles
+    // methods after 1 invocation, ensuring reference elision happens from the
+    // first GC stress iteration without needing a warmup run.
+    // ExplicitGCInvokesConcurrent: makes System.gc() trigger ZGC concurrent
+    // cycles (instead of a potential stop-the-world), maximising the chance
+    // of a collection running concurrently with ddwaf_run().
+    jvmArgs '-XX:-TieredCompilation', '-XX:CompileThreshold=1',
+            '-XX:+ExplicitGCInvokesConcurrent'
+    // tasks.withType(Test).configureEach appends -Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG
+    // after this block runs (JVM takes the last -D value for a given property, so DEBUG would win).
+    // doFirst executes at task-execution time, after all configuration actions have been applied,
+    // giving us reliable last-write semantics.
+    doFirst {
+        jvmArgs = jvmArgs.findAll { !it.startsWith('-Dorg.slf4j.simpleLogger.defaultLogLevel=') } +
+                  ['-Dorg.slf4j.simpleLogger.defaultLogLevel=WARN']
+    }
+}
+if (project.hasProperty('useZGC')) {
+    check.dependsOn 'testGCRace'
+}
+// ReachabilityFenceTest contains long warmup loops and concurrent GC pressure
+// threads designed for ZGC+C2. Running it in the standard :test task (ASAN,
+// coverage, dev builds) makes those jobs take hours. Exclude it here; it runs
+// exclusively via testGCRace when -PuseZGC is set.
+test.filter.excludeTestsMatching 'com.datadog.ddwaf.ReachabilityFenceTest'
+
 tasks.withType(Test).configureEach {
     if (System.getenv('TEST_EXECUTABLE')) {
         it.executable System.getenv('TEST_EXECUTABLE')
