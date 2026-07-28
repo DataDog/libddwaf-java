@@ -109,8 +109,13 @@ version bump just because it looks like one in the diff — verify against
 1. Create a branch named `<you>/update-to-<version>` (or
    `<you>/<TICKET>-libddwaf-update-<version>` if there's a tracking ticket).
 2. Move the submodule to the exact release tag (libddwaf tags have **no**
-   `v` prefix, e.g. `1.30.0` not `v1.30.0`):
+   `v` prefix, e.g. `1.30.0` not `v1.30.0`). If `libddwaf/` was never
+   initialized (e.g. a fresh clone without `--recurse-submodules`), it's an
+   empty directory, not a git repo — running `cd libddwaf` and then `git`
+   commands there would silently operate on the outer superproject instead.
+   Initialize it first:
    ```bash
+   git submodule update --init libddwaf
    cd libddwaf
    git fetch --tags
    git checkout <new-version>
