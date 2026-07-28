@@ -1,7 +1,6 @@
 # AGENTS.md
 
-Guidance for coding agents working in this repository, in particular for the
-recurring task of **updating the bundled libddwaf version**.
+Guidance for coding agents working in this repository.
 
 ## Project shape
 
@@ -12,9 +11,45 @@ recurring task of **updating the bundled libddwaf version**.
 - `src/main/c/` is the JNI bridge in C (`waf_jni.c` is the core). Headers
   under `src/main/c/jni/*.h` are generated but checked in.
 - `src/main/java/com/datadog/ddwaf/` is the public Java API.
+- `src/test/groovy/com/datadog/ddwaf/` holds the JUnit4/Groovy test suite.
 - `.github/workflows/actions.yml` is the single CI workflow. It builds and
   tests native binaries for Linux (glibc/musl, x86_64/aarch64), macOS
   (x86_64/aarch64), and Windows (x86_64).
+
+## Build, format, test
+
+Requirements: JDK 8+, CMake 3.15+.
+
+```bash
+./gradlew check                # full build: compiles libddwaf from the submodule + JNI + runs all tests
+./gradlew check -PwithASAN     # optional, mirrors the CI ASan job
+./gradlew spotlessCheck        # Java/Groovy formatting check
+./gradlew format               # auto-fix Java/Groovy formatting
+clang-format-18 -n -Werror $(find src/main/c -type f)   # C formatting check
+```
+
+To build the native JNI lib against a separately-built libddwaf without
+touching the submodule checkout, use
+`./gradlew buildNativeLibDebug -PlibddwafConfig=/path/to/dir/of/libddwaf-config-debug.cmake`
+(the `README.md` currently says `-PlibddwafDir`; that property name is
+stale — `-PlibddwafConfig` is what `build.gradle` actually implements. If
+you fix one, fix the other.).
+
+CI (`.github/workflows/actions.yml`, "Build Native Libraries") is the source
+of truth for what must pass: the `TestsPass` job fans in native-binary
+builds per platform, the `Test` matrix, `Coverage`, ASan, static analysis,
+and `Spotless`/`ClangFormat`. Reproduce the relevant job locally before
+opening a PR rather than guessing from the workflow file alone.
+
+## Conventions
+
+- Branch naming: `<you>/<short-description>`, or
+  `<you>/<TICKET>-<short-description>` when there's a tracking ticket.
+- For feature work (not a mechanical version bump), open an issue to
+  discuss the approach before submitting a PR (see `CONTRIBUTING.md`).
+- When a doc (this file, `README.md`, Confluence) and the actual code
+  disagree, the code wins — but fix the stale doc in the same PR instead of
+  just working around it silently.
 
 ## Task: bump the libddwaf version
 
@@ -23,7 +58,9 @@ references and known pitfalls at:
 <https://datadoghq.atlassian.net/wiki/spaces/SAAL/pages/5678497795/Upgrade+libddwaf+version+in+libddwaf-java>
 (Datadog-internal Confluence; not reachable outside the corporate network).
 If you can reach it, read it before starting. If you cannot, the checklist
-below covers the same ground.
+below covers the same ground. Note the guide can drift from the code over
+time — if you find a discrepancy, trust the code and consider fixing the
+guide.
 
 ### Before touching any file
 
@@ -66,36 +103,29 @@ version bump just because it looks like one in the diff — verify against
    ```
    Verify `git -C libddwaf rev-parse HEAD` matches the tag commit exactly —
    never leave it pointing at an arbitrary `master` commit.
-3. Update `libddwafVersion` in `.github/workflows/actions.yml` (currently
-   line 14). This is a **second, independent** source of truth from the
-   submodule: it controls which precompiled release tarballs CI downloads
-   for the native-binary jobs. It must always match the submodule version —
-   nothing enforces this automatically.
-4. Update `LIB_VERSION` in `src/main/java/com/datadog/ddwaf/Waf.java`
-   (currently line 23).
-5. Bump the artifact `version` in `build.gradle` (currently line 31). A
-   libddwaf minor bump conventionally maps to a Java artifact minor bump.
-   **Do not bump the Java artifact's major version just because libddwaf
-   did** — the two version schemes are unrelated; only bump major on an
-   actual Java-facing API break in this project.
+3. Update the `libddwafVersion` env var, near the top of
+   `.github/workflows/actions.yml` (`grep -n "libddwafVersion:" .github/workflows/actions.yml`
+   to find its current line). This is a **second, independent** source of
+   truth from the submodule: it controls which precompiled release tarballs
+   CI downloads for the native-binary jobs. It must always match the
+   submodule version — nothing enforces this automatically.
+4. Update the `LIB_VERSION` constant in
+   `src/main/java/com/datadog/ddwaf/Waf.java`
+   (`grep -n "LIB_VERSION" src/main/java/com/datadog/ddwaf/Waf.java`).
+5. Bump the artifact `version` at the top of `build.gradle`
+   (`grep -n "^version" build.gradle`). A libddwaf minor bump conventionally
+   maps to a Java artifact minor bump. **Do not bump the Java artifact's
+   major version just because libddwaf did** — the two version schemes are
+   unrelated; only bump major on an actual Java-facing API break in this
+   project.
 6. Verify the new libddwaf release actually publishes all 4 tarballs the
    workflow expects (each with a `.sha256`):
    `libddwaf-<v>-darwin-x86_64.tar.gz`, `-darwin-arm64.tar.gz`,
    `-windows-x64.tar.gz`, and `-{x86_64,aarch64}-linux-musl.tar.gz`. Note
    that all Linux jobs, including glibc ones, consume the `-linux-musl`
    asset (a static build).
-7. Build and test locally:
-   ```bash
-   ./gradlew check                # builds libddwaf from the submodule + JNI + all tests
-   ./gradlew check -PwithASAN     # optional, mirrors the CI ASAN job
-   ./gradlew spotlessCheck
-   clang-format-18 -n -Werror $(find src/main/c -type f)
-   ```
-   To build against a separately-built libddwaf without touching the
-   submodule checkout, use
-   `./gradlew buildNativeLibDebug -PlibddwafConfig=/path/to/dir/of/libddwaf-config-debug.cmake`
-   (the `README.md` currently says `-PlibddwafDir`; that property name is
-   stale — `-PlibddwafConfig` is what `build.gradle` actually implements).
+7. Build and test locally (see "Build, format, test" above): at minimum
+   `./gradlew check`, plus `-PwithASAN` if you touched the C bridge.
 8. Only if you changed a `native` method signature in Java (not needed for
    a plain version bump): regenerate JNI headers with
    `./gradlew generateJniHeaders`, copy the result from
@@ -113,8 +143,8 @@ version bump just because it looks like one in the diff — verify against
 
 ### Sanity checks before considering the work done
 
-- `libddwaf` submodule commit and `.github/workflows/actions.yml`
-  `libddwafVersion` refer to the exact same version.
+- `libddwaf` submodule commit and the `libddwafVersion` env var in
+  `.github/workflows/actions.yml` refer to the exact same version.
 - `Waf.LIB_VERSION` matches both of the above.
 - `./gradlew check` passes locally, including
   `BasicTests.groovy`'s `assert Waf.version =~ Waf.LIB_VERSION` (this is a
@@ -123,13 +153,3 @@ version bump just because it looks like one in the diff — verify against
 - You checked whether a newer libddwaf patch release already exists before
   opening the PR (patch releases often land within hours to days of a
   release).
-
-## General conventions
-
-- Formatting: `./gradlew spotlessCheck` (Java/Groovy) and
-  `clang-format-18 -n -Werror` (C), matching `CONTRIBUTING.md`.
-- CI is a single workflow, `.github/workflows/actions.yml` ("Build Native
-  Libraries"); the `TestsPass` job is the merge gate and fans in the native
-  binary, test, coverage, ASan and static-analyzer jobs.
-- For feature work beyond a version bump, open an issue to discuss the
-  approach before submitting a PR (see `CONTRIBUTING.md`).
