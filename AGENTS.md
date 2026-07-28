@@ -30,16 +30,22 @@ clang-format-18 -n -Werror $(find src/main/c -type f)   # C formatting check
 
 To build the native JNI lib against a separately-built libddwaf without
 touching the submodule checkout, use
-`./gradlew buildNativeLibDebug -PlibddwafConfig=/path/to/dir/of/libddwaf-config-debug.cmake`
+`./gradlew buildNativeLibDebug -PlibddwafConfig=/path/to/libddwaf/out/share/cmake/libddwaf`
+— this must be the **directory** containing `libddwaf-config-debug.cmake`
+(the default is `$libddwafInstallPrefix/share/cmake/libddwaf`, see the
+`cmakeNativeLibDebug` task in `build.gradle`), not the `.cmake` file itself.
 (the `README.md` currently says `-PlibddwafDir`; that property name is
 stale — `-PlibddwafConfig` is what `build.gradle` actually implements. If
 you fix one, fix the other.).
 
 CI (`.github/workflows/actions.yml`, "Build Native Libraries") is the source
-of truth for what must pass: the `TestsPass` job fans in native-binary
-builds per platform, the `Test` matrix, `Coverage`, ASan, static analysis,
-and `Spotless`/`ClangFormat`. Reproduce the relevant job locally before
-opening a PR rather than guessing from the workflow file alone.
+of truth for what must pass. The `TestsPass` job (the branch-protection gate)
+fans in `Test`, `Dev_Tests`, `Jmh_Build`, `Spotless`, and
+`Jar_File_Stage_build_jar` (which itself needs every `Native_binaries_Stage_*`
+job, including ASan and the static analyzer). `Coverage` and `ClangFormat`
+run as independent checks and are **not** part of that fan-in — a green
+`TestsPass` does not imply they passed. Reproduce the relevant job locally
+before opening a PR rather than guessing from the workflow file alone.
 
 ## Conventions
 
