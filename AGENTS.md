@@ -21,12 +21,22 @@ Guidance for coding agents working in this repository.
 Requirements: JDK 8+, CMake 3.15+.
 
 ```bash
-./gradlew check                # full build: compiles libddwaf from the submodule + JNI + runs all tests
+./gradlew check                # standard suite: compiles libddwaf from the submodule + JNI + runs tests
 ./gradlew check -PwithASAN     # optional, mirrors the CI ASan job
+./gradlew check -PuseZGC       # required to also run the GC race regression, see below
 ./gradlew spotlessCheck        # Java/Groovy formatting check
 ./gradlew format               # auto-fix Java/Groovy formatting
 clang-format-18 -n -Werror $(find src/main/c -type f)   # C formatting check
 ```
+
+Plain `./gradlew check` does **not** run the full suite: `ReachabilityFenceTest`
+is excluded from the standard `test` task and only runs via the dedicated
+`testGCRace` task, which is wired into `check` exclusively when `-PuseZGC` is
+passed (see `build.gradle`, `testGCRace`/`useZGC` handling). This test
+reproduces a GC-race SIGSEGV regression (APPSEC-62784) that the CI Alpine
+JDK 21/25 matrix entries exercise. If your change touches `WafContext` or
+arena/native-memory lifetime, run `./gradlew check -PuseZGC` — plain `check`
+passing is not sufficient evidence of correctness for that kind of change.
 
 To build the native JNI lib against a separately-built libddwaf without
 touching the submodule checkout, use
