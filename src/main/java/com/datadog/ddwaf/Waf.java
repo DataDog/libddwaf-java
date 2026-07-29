@@ -83,6 +83,14 @@ public final class Waf {
   /** (FOR TESTING PURPOSES ONLY) Converts a ByteBuffer to a String. */
   static native String pwArgsBufferToString(ByteBuffer firstPWArgsBuffer);
 
+  /**
+   * (FOR TESTING PURPOSES ONLY) Builds a fixed object tree through libddwaf's official {@code
+   * ddwaf_object_set_*} API and renders it with the same printer as {@link
+   * #pwArgsBufferToString(ByteBuffer)}, so that the tree {@link ByteBufferSerializer} produces for
+   * the equivalent Java value can be compared against it.
+   */
+  static native String referenceObjectTreeToString();
+
   public static native String getVersion();
 
   /**

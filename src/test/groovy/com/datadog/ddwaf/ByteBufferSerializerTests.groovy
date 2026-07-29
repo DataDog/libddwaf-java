@@ -48,6 +48,26 @@ class ByteBufferSerializerTests extends ByteBufferSerializerTestsBase {
   }
 
   @Test
+  void 'can serialize strings around the small string boundary'() {
+    // strings of up to 14 UTF-8 bytes are stored inline in the ddwaf_object
+    // (DDWAF_OBJ_SMALL_STRING), longer ones through a pointer (DDWAF_OBJ_STRING).
+    // Both encodings must read back identically
+    for (int len in 1..16) {
+      String s = 'a' * len
+      assertSerializeValue(s, "<STRING> $s")
+    }
+  }
+
+  @Test
+  void 'can serialize multibyte strings around the small string boundary'() {
+    // the boundary is on UTF-8 bytes, not on characters: 'é' is 2 bytes and '👍' is 4
+    assertSerializeValue('é' * 7, '<STRING> ' + 'é' * 7)     // 14 bytes: small string
+    assertSerializeValue('é' * 8, '<STRING> ' + 'é' * 8)     // 16 bytes: pointer string
+    assertSerializeValue('👍' * 3 + 'ab', '<STRING> ' + '👍' * 3 + 'ab')  // 14 bytes
+    assertSerializeValue('👍' * 3 + 'abc', '<STRING> ' + '👍' * 3 + 'abc') // 15 bytes
+  }
+
+  @Test
   void 'can serialize a CharBuffer'() {
     char[] storedBody = 'my string' as char[]
     CharBuffer cb = CharBuffer.wrap(storedBody, 0, storedBody.length)
@@ -358,6 +378,26 @@ class ByteBufferSerializerTests extends ByteBufferSerializerTestsBase {
           c: <STRING> d
         '''
     assertThat res, is(exp)
+    assertMetrics(0, 0, 0)
+  }
+
+  @Test
+  void 'round-trips against a tree built with the official ddwaf_object API'() {
+    // ByteBufferSerializer hand-rolls libddwaf's ddwaf_object layout; build the same tree with
+    // the official C API and check both are read back identically
+    def value = [
+      sstr: 'small',
+      str: 'a string longer than 14 bytes',
+      signed: -42L,
+      bool: true,
+      float: 8.5d,
+      null: null,
+      array: [1L, 'two'],
+      map: [inner: 'value'],
+    ]
+    lease = serializer.serialize(value, metrics)
+    String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+    assertThat res, is(Waf.referenceObjectTreeToString())
     assertMetrics(0, 0, 0)
   }
 

@@ -67,7 +67,7 @@ public class WafContext implements Closeable {
    * context itself ({@code ddwaf_context_eval}), while ephemeral data is evaluated against a
    * throw-away subcontext ({@code ddwaf_subcontext_init}/{@code eval}/{@code destroy}). libddwaf
    * 2.x has no combined mode, and each evaluation yields its own result, so passing both (or
-   * neither) fails with {@link com.datadog.ddwaf.exception.InvalidArgumentWafException}.
+   * neither) fails with {@link InvalidArgumentWafException}.
    */
   private native Waf.ResultWithData runWafContext(
       ByteBuffer persistentBuffer,

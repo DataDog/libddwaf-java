@@ -28,9 +28,13 @@ typedef struct {
 JNIEXPORT jstring JNICALL
 Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(JNIEnv *, jclass, jobject);
 
+JNIEXPORT jstring JNICALL
+Java_com_datadog_ddwaf_Waf_referenceObjectTreeToString(JNIEnv *, jclass);
+
 static void _hstring_write_pwargs(hstring *str, size_t depth,
                                   const ddwaf_object *key,
                                   const ddwaf_object *pwargs);
+static jstring _pwargs_to_jstring(JNIEnv *env, const ddwaf_object *root);
 
 /*
  * Class:     com.datadog.ddwaf.Waf
@@ -49,12 +53,68 @@ JNIEXPORT jstring JNICALL Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(
 
     ddwaf_object root;
     memcpy(&root, input_p, sizeof root);
+    return _pwargs_to_jstring(env, &root);
+}
+
+/*
+ * Class:     com.datadog.ddwaf.Waf
+ * Method:    referenceObjectTreeToString
+ * Signature: ()Ljava/lang/String;
+ *
+ * (FOR TESTING PURPOSES ONLY) Builds a fixed object tree using libddwaf's
+ * official ddwaf_object_set_* and ddwaf_object_insert_* API and renders it with
+ * the same printer used for pwArgsBufferToString. The Java side builds the
+ * equivalent tree with ByteBufferSerializer's hand-rolled layout and compares
+ * the two renderings, which detects any divergence between the two
+ * construction paths.
+ */
+JNIEXPORT jstring JNICALL
+Java_com_datadog_ddwaf_Waf_referenceObjectTreeToString(JNIEnv *env,
+                                                       jclass clazz)
+{
+    (void) clazz;
+    ddwaf_allocator alloc = ddwaf_get_default_allocator();
+
+    ddwaf_object root;
+    ddwaf_object_set_map(&root, 8, alloc);
+
+    ddwaf_object_set_string(ddwaf_object_insert_key(&root, LSTR("sstr"), alloc),
+                            LSTR("small"), alloc);
+    ddwaf_object_set_string(ddwaf_object_insert_key(&root, LSTR("str"), alloc),
+                            LSTR("a string longer than 14 bytes"), alloc);
+    ddwaf_object_set_signed(
+            ddwaf_object_insert_key(&root, LSTR("signed"), alloc), -42);
+    ddwaf_object_set_bool(ddwaf_object_insert_key(&root, LSTR("bool"), alloc),
+                          true);
+    ddwaf_object_set_float(ddwaf_object_insert_key(&root, LSTR("float"), alloc),
+                           8.5);
+    ddwaf_object_set_null(ddwaf_object_insert_key(&root, LSTR("null"), alloc));
+
+    ddwaf_object *arr = ddwaf_object_insert_key(&root, LSTR("array"), alloc);
+    ddwaf_object_set_array(arr, 2, alloc);
+    ddwaf_object_set_signed(ddwaf_object_insert(arr, alloc), 1);
+    ddwaf_object_set_string(ddwaf_object_insert(arr, alloc), LSTR("two"),
+                            alloc);
+
+    ddwaf_object *nested = ddwaf_object_insert_key(&root, LSTR("map"), alloc);
+    ddwaf_object_set_map(nested, 1, alloc);
+    ddwaf_object_set_string(
+            ddwaf_object_insert_key(nested, LSTR("inner"), alloc),
+            LSTR("value"), alloc);
+
+    jstring jstr = _pwargs_to_jstring(env, &root);
+    ddwaf_object_destroy(&root, alloc);
+    return jstr;
+}
+
+static jstring _pwargs_to_jstring(JNIEnv *env, const ddwaf_object *root)
+{
     hstring str = {.buffer = malloc(INITIAL_CAPACITY),
                    .capacity = INITIAL_CAPACITY};
     if (!str.buffer) {
         return NULL;
     }
-    _hstring_write_pwargs(&str, 0, NULL, &root);
+    _hstring_write_pwargs(&str, 0, NULL, root);
 #ifdef __clang_analyzer__
     // due to other exclusions, analyzer doesn't know str.buffer was written
     jstring jstr = NULL;

@@ -53,6 +53,22 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
                                           int depth,
                                           struct json_segment *cur_seg);
 
+/* Reads the key of the index-th entry of the map container as a string.
+ * ddwaf_object_get_string leaves the length untouched for a non-string key, so
+ * such a key is reported as the empty string. */
+static const char *_key_string(const ddwaf_object *container, size_t index,
+                               size_t *len)
+{
+    *len = 0;
+    const char *key_str =
+            ddwaf_object_get_string(ddwaf_object_at_key(container, index), len);
+    if (key_str == NULL) {
+        key_str = "";
+        *len = 0;
+    }
+    return key_str;
+}
+
 static bool _key_has_prefix(const char *key, size_t key_len, const char *prefix)
 {
     size_t prefix_size = strlen(prefix);
@@ -413,15 +429,8 @@ static jobject _map_get_object_errmap_checked(JNIEnv *env,
             goto err;
         }
 
-        /* ddwaf_object_get_string leaves key_len untouched for a non-string
-         * key, so treat such a key as the empty string */
-        size_t key_len = 0;
-        const char *key_str =
-                ddwaf_object_get_string(ddwaf_object_at_key(o, i), &key_len);
-        if (key_str == NULL) {
-            key_str = "";
-            key_len = 0;
-        }
+        size_t key_len;
+        const char *key_str = _key_string(o, i, &key_len);
         jstring jkey = java_utf8_to_jstring_checked(env, key_str, key_len);
         if (JNI(ExceptionCheck)) {
             goto err;
@@ -594,15 +603,8 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
         size_t nb_entries = ddwaf_object_get_size(cur_obj);
         cur_seg = json_append(cur_seg, "{", 1);
         for (size_t i = 0; i < nb_entries; i++) {
-            /* ddwaf_object_get_string leaves key_len untouched for a non-string
-             * key, so treat such a key as the empty string */
-            size_t key_len = 0;
-            const char *key_str = ddwaf_object_get_string(
-                    ddwaf_object_at_key(cur_obj, i), &key_len);
-            if (key_str == NULL) {
-                key_str = "";
-                key_len = 0;
-            }
+            size_t key_len;
+            const char *key_str = _key_string(cur_obj, i, &key_len);
 
             cur_seg = json_append(cur_seg, "\"", 1);
             cur_seg = json_encode_str(cur_seg, key_str, key_len);
@@ -743,15 +745,8 @@ jobject output_convert_attributes_checked(JNIEnv *env, const ddwaf_object *obj)
     size_t nb_entries = ddwaf_object_get_size(obj);
     for (size_t i = 0; i < nb_entries; i++) {
         const ddwaf_object *entry = ddwaf_object_at_value(obj, i);
-        /* ddwaf_object_get_string leaves key_len untouched for a non-string
-         * key, so treat such a key as the empty string */
-        size_t key_len = 0;
-        const char *key_str =
-                ddwaf_object_get_string(ddwaf_object_at_key(obj, i), &key_len);
-        if (key_str == NULL) {
-            key_str = "";
-            key_len = 0;
-        }
+        size_t key_len;
+        const char *key_str = _key_string(obj, i, &key_len);
         jstring key = java_utf8_to_jstring_checked(env, key_str, key_len);
         if (JNI(ExceptionCheck)) {
             goto error;
@@ -891,15 +886,8 @@ jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
 
         size_t nb_entries = ddwaf_object_get_size(obj);
         for (size_t i = 0; i < nb_entries; i++) {
-            /* ddwaf_object_get_string leaves key_len untouched for a non-string
-             * key, so treat such a key as the empty string */
-            size_t key_len = 0;
-            const char *key_str = ddwaf_object_get_string(
-                    ddwaf_object_at_key(obj, i), &key_len);
-            if (key_str == NULL) {
-                key_str = "";
-                key_len = 0;
-            }
+            size_t key_len;
+            const char *key_str = _key_string(obj, i, &key_len);
             jstring key = java_utf8_to_jstring_checked(env, key_str, key_len);
             if (JNI(ExceptionCheck)) {
                 JNI(DeleteLocalRef, ret);

@@ -485,6 +485,7 @@ public class ByteBufferSerializer {
       long tmp = (long) s.length() * MAX_BYTES_PER_CHAR_UTF8 + 1; // 0 terminated
       if (tmp > Integer.MAX_VALUE) {
         // overflow ahead
+        PWArgsBuffer.setInvalid(dest, off);
         return false;
       }
       int maxBytes = (int) tmp;
@@ -741,8 +742,24 @@ public class ByteBufferSerializer {
       buffer.putLong(off + 8, 0L);
     }
 
+    /**
+     * Writes a {@code DDWAF_OBJ_INVALID} (type byte 0x00, rest zeroed) into the object slot at
+     * {@code off}.
+     *
+     * <p>Used on every write failure path. All 6 current callers convert a write failure into a
+     * thrown exception before this buffer reaches JNI, but zero the slot anyway as defense in depth
+     * against a stale pointer reaching libddwaf if a future caller doesn't: arenas are pooled and
+     * recycled, so a half-written slot would otherwise still hold the bytes (including a possibly
+     * dangling {@code char*}) of a previous serialization run.
+     */
+    static void setInvalid(ByteBuffer buffer, int off) {
+      clearObject(buffer, off);
+      buffer.put(off + OFF_TYPE, (byte) PWInputType.PWI_INVALID.value);
+    }
+
     boolean writeNull(Arena arena, String parameterName) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
       clearObject(this.buffer, valueOffset);
@@ -752,6 +769,7 @@ public class ByteBufferSerializer {
 
     boolean writeBool(Arena arena, String parameterName, boolean value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
       clearObject(this.buffer, valueOffset);
@@ -762,6 +780,7 @@ public class ByteBufferSerializer {
 
     boolean writeString(Arena arena, String parameterName, CharSequence value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
       return arena.writeStringObject(this.buffer, valueOffset, value);
@@ -769,6 +788,7 @@ public class ByteBufferSerializer {
 
     boolean writeLong(Arena arena, String parameterName, long value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
       clearObject(this.buffer, valueOffset);
@@ -779,6 +799,7 @@ public class ByteBufferSerializer {
 
     boolean writeDouble(Arena arena, String parameterName, double value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
       clearObject(this.buffer, valueOffset);
@@ -797,10 +818,15 @@ public class ByteBufferSerializer {
 
     private PWArgsArrayBuffer writeArrayOrMap(
         Arena arena, String parameterName, int numElements, PWInputType type) {
+      // Defence in depth: unreachable today, since every caller goes through
+      // clampContainerSize(), which already caps sizes to MAX_CONTAINER_SIZE. Kept so that a
+      // future change to the callers (or to Waf.Limits.maxElements) cannot silently reintroduce
+      // a uint16 wraparound in the size/capacity fields.
       if (numElements < 0 || numElements > MAX_CONTAINER_SIZE) {
         throw new IllegalArgumentException("Invalid container size: " + numElements);
       }
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return null;
       }
       clearObject(this.buffer, valueOffset);
@@ -814,11 +840,13 @@ public class ByteBufferSerializer {
       PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(numElements, stride, false);
       if (pwArgsArrayBuffer == null) {
         // should not happen
+        setInvalid(this.buffer, valueOffset);
         return null;
       }
       long address = pwArgsArrayBuffer.getAddress();
       if (address == NULLPTR) {
         // should not happen
+        setInvalid(this.buffer, valueOffset);
         return null;
       }
       this.buffer.putShort(valueOffset + OFF_CONTAINER_SIZE, (short) numElements);

@@ -107,7 +107,7 @@ static uint64_t _get_duration(const ddwaf_object *res);
 /* Default per-run timeout in microseconds, overridable through the
  * DD_APPSEC_WAF_TIMEOUT system property. libddwaf used to export this as
  * DDWAF_RUN_TIMEOUT, but that macro was removed in 2.0. */
-#define DDWAF_RUN_TIMEOUT 5000
+#define LIBDDWAF_JAVA_RUN_TIMEOUT 5000
 
 jclass jcls_rte;
 jclass jcls_iae;
@@ -1442,7 +1442,11 @@ static void _dispose_of_cache_references(JNIEnv *env)
     _dispose_of_cached_methods(env);
 }
 
-/* clamps a container size to what libddwaf's uint16_t capacity can hold */
+/* clamps a container size to what libddwaf's uint16_t capacity can hold.
+ *
+ * This 65535-entry cap did not exist before the migration to libddwaf 2.x
+ * (ddwaf_object size/capacity became uint16); truncation here is a new, real
+ * behavior change worth surfacing at WARN rather than DEBUG/INFO. */
 static uint16_t _clamp_capacity(jsize len)
 {
     if (len < 0) {
@@ -1535,7 +1539,7 @@ static void _convert_checked(JNIEnv *env, ddwaf_object *out, jobject obj,
                 break;
             }
             if (inserted >= MAX_CONTAINER_SIZE) {
-                JAVA_LOG(DDWAF_LOG_INFO,
+                JAVA_LOG(DDWAF_LOG_WARN,
                          "Interrupting iterating array due to the maximum "
                          "container size of %d being reached",
                          MAX_CONTAINER_SIZE);
@@ -1563,7 +1567,8 @@ static void _convert_checked(JNIEnv *env, ddwaf_object *out, jobject obj,
         if (JNI(ExceptionCheck)) {
             goto error;
         }
-        ddwaf_object_set_map(out, too_deep ? 0 : _clamp_capacity(map_len), alloc);
+        ddwaf_object_set_map(out, too_deep ? 0 : _clamp_capacity(map_len),
+                             alloc);
         if (too_deep) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
                      "Leaving map empty because max depth of %d "
@@ -1588,7 +1593,7 @@ static void _convert_checked(JNIEnv *env, ddwaf_object *out, jobject obj,
                 break;
             }
             if (inserted >= MAX_CONTAINER_SIZE) {
-                JAVA_LOG(DDWAF_LOG_INFO,
+                JAVA_LOG(DDWAF_LOG_WARN,
                          "Interrupting map iteration due to the maximum "
                          "container size of %d being reached",
                          MAX_CONTAINER_SIZE);
@@ -1668,7 +1673,7 @@ static void _convert_checked(JNIEnv *env, ddwaf_object *out, jobject obj,
                 break;
             }
             if (inserted >= MAX_CONTAINER_SIZE) {
-                JAVA_LOG(DDWAF_LOG_INFO,
+                JAVA_LOG(DDWAF_LOG_WARN,
                          "Interrupting iterable iteration due to the maximum "
                          "container size of %d being reached",
                          MAX_CONTAINER_SIZE);
@@ -2018,7 +2023,7 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
 
     return l;
 error:
-    return (struct _limits) {0};
+    return (struct _limits){0};
 }
 
 static bool _get_time_checked(JNIEnv *env, struct timespec *time)
@@ -2043,7 +2048,7 @@ static int64_t _get_pw_run_timeout_checked(JNIEnv *env)
     jstring env_key = NULL;
     jstring val_jstr = NULL;
     char *val_cstr = NULL;
-    long long val = DDWAF_RUN_TIMEOUT;
+    long long val = LIBDDWAF_JAVA_RUN_TIMEOUT;
 
     if (!java_meth_init_checked(
                 env, &get_prop, "java/lang/System", "getProperty",
@@ -2272,6 +2277,13 @@ static bool _apply_obfuscator_config_checked(JNIEnv *env, ddwaf_builder builder,
     ddwaf_object_set_string(value_regex_slot, value_regex ? value_regex : "",
                             (uint32_t) value_regex_len, alloc);
 
+    /* NOTE: libddwaf's builder has a single global "obfuscator" config section
+     * shared across all registered configs. If a future config source (e.g.
+     * remote-config) also carries an "obfuscator" key, it will be rejected as
+     * "duplicate obfuscator configuration" (and, due to an upstream
+     * diagnostics bug, surfaced under the "scanners" section instead of
+     * "obfuscator"). This binding is currently the only registrant, so it is
+     * not reachable today. */
     bool added = ddwaf_builder_add_or_update_config(
             builder, LSTR(OBFUSCATOR_CONFIG_PATH), &config, NULL);
     ddwaf_object_destroy(&config, alloc);
@@ -2372,7 +2384,7 @@ err:
     return NULL;
 }
 
-/* The time the evaluation took, in microseconds; 0 when absent. */
+/* The time the evaluation took, in nanoseconds; 0 when absent. */
 static uint64_t _get_duration(const ddwaf_object *res)
 {
     const ddwaf_object *duration_obj = ddwaf_object_find(res, LSTR("duration"));
