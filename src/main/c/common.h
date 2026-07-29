@@ -21,6 +21,9 @@
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
+/* expands a string literal into the (pointer, length) pair libddwaf expects */
+#define LSTR(x) "" x, (uint32_t) (sizeof(x) - 1)
+
 extern jclass jcls_rte;
 extern jclass jcls_iae;
 extern jmethodID rte_constr_cause;

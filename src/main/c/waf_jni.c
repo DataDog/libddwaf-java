@@ -20,6 +20,9 @@
 #include "metrics.h"
 #include "cs_wrapper.h"
 #include "compat.h"
+/* no symbol of ddwaf_layout.h is used here; it is included for its
+ * _Static_asserts, which pin the ddwaf_object layout this file relies on */
+#include "ddwaf_layout.h"
 #include <ddwaf.h>
 #include <assert.h>
 #ifndef _MSC_VER
@@ -57,8 +60,9 @@ struct _init_or_update {
     jobject jspec;
     jobjectArray jrsi_arr;
 };
-static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
-                                     struct _limits *limits, int rec_level);
+static void _convert_checked(JNIEnv *env, ddwaf_object *out, jobject obj,
+                             struct _limits *limits, int rec_level,
+                             ddwaf_allocator alloc);
 static ddwaf_object *_convert_buffer_checked(JNIEnv *env, jobject buffer);
 static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj);
 struct char_buffer_info {
@@ -86,18 +90,24 @@ static void _throw_pwaf_exception(JNIEnv *env, DDWAF_RET_CODE retcode);
 static void _throw_pwaf_timeout_exception(JNIEnv *env);
 static void _update_metrics(JNIEnv *env, jobject metrics_obj,
                             const ddwaf_object *ret);
-static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
-                                          ddwaf_config *out_config);
-static void _dispose_of_ddwaf_config(ddwaf_config *cfg);
+static bool _apply_obfuscator_config_checked(JNIEnv *env, ddwaf_builder builder,
+                                             jobject jconfig);
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
                                       const ddwaf_object *ddwaf_result);
-static inline bool _has_events(const ddwaf_object *res);
-static void consume_json_and_free(const ddwaf_object *obj);
+static uint64_t _get_duration(const ddwaf_object *res);
 
-#define MAX_DEPTH_UPPER_LIMIT ((uint32_t) 32)
+/* Container size/capacity are uint16_t in libddwaf 2.x. */
+#define MAX_CONTAINER_SIZE ((int) UINT16_MAX)
 
-// don't use DDWAF_OBJ_INVALID, as that can't be added to arrays/maps
-static const ddwaf_object _pwinput_invalid = {.type = DDWAF_OBJ_MAP};
+/* The path under which the obfuscator regexes given through WafConfig are
+ * registered in the builder. In libddwaf 2.x ddwaf_config is gone and the
+ * obfuscator is configured like any other piece of configuration. */
+#define OBFUSCATOR_CONFIG_PATH "libddwaf-java/obfuscator"
+
+/* Default per-run timeout in microseconds, overridable through the
+ * DD_APPSEC_WAF_TIMEOUT system property. libddwaf used to export this as
+ * DDWAF_RUN_TIMEOUT, but that macro was removed in 2.0. */
+#define DDWAF_RUN_TIMEOUT 5000
 
 jclass jcls_rte;
 jclass jcls_iae;
@@ -433,7 +443,12 @@ JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafContext_initWafContext(
         return 0L;
     }
 
-    ddwaf_context context = ddwaf_context_init(nat_handle);
+    /* The output allocator serves the result objects handed back by
+     * ddwaf_context_eval / ddwaf_subcontext_eval and must outlive the context.
+     * The default allocator is a process-wide singleton, so it trivially does.
+     */
+    ddwaf_context context =
+            ddwaf_context_init(nat_handle, ddwaf_get_default_allocator());
     if (!context) {
         JNI(ThrowNew, jcls_rte, "ddwaf_context_init failed");
         return 0L;
@@ -454,7 +469,10 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
     ddwaf_object *ephemeral_input_ptr = NULL;
 
     struct _limits limits;
+    /* on DDWAF_ERR_INTERNAL libddwaf leaves the result untouched, so make sure
+     * it is always safe to inspect and destroy */
     ddwaf_object ddwaf_result;
+    ddwaf_object_set_invalid(&ddwaf_result);
     struct timespec start;
 
     if (!_get_time_checked(env, &start)) {
@@ -477,11 +495,6 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
 
     context = _get_waf_context_context_checked(env, this);
     if (!context) {
-        return NULL;
-    }
-
-    if (context == 0) {
-        JNI(ThrowNew, jcls_rte, "The WafContext has already been cleared");
         return NULL;
     }
 
@@ -515,6 +528,18 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
         return NULL;
     }
 
+    /* libddwaf 2.x has no combined persistent+ephemeral evaluation: ephemeral
+     * data is now evaluated through a subcontext, which produces its own
+     * result. Mixing both in a single call would mean merging two result
+     * objects, so the caller must issue two separate calls instead. */
+    if (persistent_input_ptr != NULL && ephemeral_input_ptr != NULL) {
+        JAVA_LOG(DDWAF_LOG_WARN,
+                 "Persistent and ephemeral data cannot be evaluated in the "
+                 "same call; use separate run()/runEphemeral() calls");
+        _throw_pwaf_exception(env, DDWAF_ERR_INVALID_ARGUMENT);
+        return NULL;
+    }
+
     struct timespec conv_end;
     if (!_get_time_checked(env, &conv_end)) {
         goto err;
@@ -533,15 +558,39 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
 
     size_t run_budget = get_run_budget(rem_gen_budget_in_us, &limits);
 
-    DDWAF_RET_CODE ret_code =
-            ddwaf_run(context, persistent_input_ptr, ephemeral_input_ptr,
-                      &ddwaf_result, run_budget);
-    const ddwaf_object *timeout =
-            ddwaf_object_find(&ddwaf_result, "timeout", 7);
-    if (timeout != NULL && timeout->type == DDWAF_OBJ_BOOL &&
-        ddwaf_object_get_bool(timeout)) {
-        _throw_pwaf_timeout_exception(env);
-        goto freeRet;
+    /* alloc = NULL means libddwaf only takes a view of the data: it neither
+     * copies nor frees it. This is the exact replacement of the removed
+     * ddwaf_config.free_fn = NULL and is what keeps the serialization
+     * zero-copy. The direct ByteBuffer backing the data must therefore stay
+     * alive for as long as the context (or the subcontext) does; see the
+     * reachability fence in WafContext.java. */
+    DDWAF_RET_CODE ret_code;
+    if (ephemeral_input_ptr != NULL) {
+        /* ephemerals are subcontexts in libddwaf 2.x: the subcontext inherits
+         * the persistent data of the parent context, and the data given to it
+         * does not outlive the subcontext */
+        ddwaf_subcontext subcontext = ddwaf_subcontext_init(context);
+        if (!subcontext) {
+            JNI(ThrowNew, jcls_rte, "ddwaf_subcontext_init failed");
+            return NULL;
+        }
+        ret_code = ddwaf_subcontext_eval(subcontext, ephemeral_input_ptr, NULL,
+                                         &ddwaf_result, run_budget);
+        ddwaf_subcontext_destroy(subcontext);
+    } else {
+        ret_code = ddwaf_context_eval(context, persistent_input_ptr, NULL,
+                                      &ddwaf_result, run_budget);
+    }
+
+    if (ret_code == DDWAF_OK || ret_code == DDWAF_MATCH) {
+        const ddwaf_object *timeout =
+                ddwaf_object_find(&ddwaf_result, LSTR("timeout"));
+        if (timeout != NULL &&
+            ddwaf_object_get_type(timeout) == DDWAF_OBJ_BOOL &&
+            ddwaf_object_get_bool(timeout)) {
+            _throw_pwaf_timeout_exception(env);
+            goto freeRet;
+        }
     }
 
     switch (ret_code) {
@@ -566,7 +615,9 @@ static jobject _run_waf_context_common(JNIEnv *env, jobject this,
 
 freeRet:
     _update_metrics(env, metrics_obj, &ddwaf_result);
-    ddwaf_object_free(&ddwaf_result);
+    /* the result was allocated with the output allocator given to
+     * ddwaf_context_init, not with the (NULL) input allocator */
+    ddwaf_object_destroy(&ddwaf_result, ddwaf_get_default_allocator());
 
     return result;
 
@@ -980,15 +1031,17 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
     }
 
     jobject result_diagnostics = NULL;
+    ddwaf_allocator alloc = ddwaf_get_default_allocator();
     ddwaf_object ddwaf_diagnostics;
-    ddwaf_object_invalid(&ddwaf_diagnostics);
+    ddwaf_object_set_invalid(&ddwaf_diagnostics);
     struct _limits limits = {
             .max_depth = 20,
             .max_elements = 1000000,
             .max_string_size = 1000000,
     };
-    ddwaf_object ddwaf_configuration =
-            _convert_checked(env, configuration, &limits, 0);
+    ddwaf_object ddwaf_configuration;
+    _convert_checked(env, &ddwaf_configuration, configuration, &limits, 0,
+                     alloc);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
@@ -1009,7 +1062,7 @@ Java_com_datadog_ddwaf_WafBuilder_addOrUpdateConfigNative(
             ddwaf_builder, path_string, path_length, &ddwaf_configuration,
             &ddwaf_diagnostics);
 
-    if (ddwaf_object_type(&ddwaf_diagnostics) != DDWAF_OBJ_INVALID) {
+    if (ddwaf_object_get_type(&ddwaf_diagnostics) != DDWAF_OBJ_INVALID) {
         result_diagnostics =
                 output_convert_diagnostics_checked(env, &ddwaf_diagnostics);
 
@@ -1031,8 +1084,9 @@ error:
     if (result_diagnostics) {
         JNI(DeleteLocalRef, result_diagnostics);
     }
-    ddwaf_object_free(&ddwaf_configuration);
-    ddwaf_object_free(&ddwaf_diagnostics);
+    ddwaf_object_destroy(&ddwaf_configuration, alloc);
+    /* diagnostics are always served by the default allocator */
+    ddwaf_object_destroy(&ddwaf_diagnostics, ddwaf_get_default_allocator());
     return result;
 }
 
@@ -1040,14 +1094,18 @@ JNIEXPORT jlong JNICALL Java_com_datadog_ddwaf_WafBuilder_initBuilder(
         JNIEnv *env, jclass clazz, jobject config)
 {
     UNUSED(clazz);
-    ddwaf_config ddwaf_configuration;
-    _convert_ddwaf_config_checked(env, config, &ddwaf_configuration);
-    if (JNI(ExceptionCheck)) {
-        JAVA_LOG(DDWAF_LOG_DEBUG, "config was not found in ddwaf");
+
+    ddwaf_builder builder = ddwaf_builder_init();
+    if (!builder) {
+        JNI(ThrowNew, jcls_rte, "ddwaf_builder_init failed");
         return 0L;
     }
-    ddwaf_builder builder = ddwaf_builder_init(&ddwaf_configuration);
-    _dispose_of_ddwaf_config(&ddwaf_configuration);
+
+    if (!_apply_obfuscator_config_checked(env, builder, config)) {
+        ddwaf_builder_destroy(builder);
+        return 0L;
+    }
+
     return (jlong) (intptr_t) builder;
 }
 
@@ -1384,8 +1442,27 @@ static void _dispose_of_cache_references(JNIEnv *env)
     _dispose_of_cached_methods(env);
 }
 
-static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
-                                     struct _limits *lims, int rec_level)
+/* clamps a container size to what libddwaf's uint16_t capacity can hold */
+static uint16_t _clamp_capacity(jsize len)
+{
+    if (len < 0) {
+        return 0;
+    }
+    if (len > MAX_CONTAINER_SIZE) {
+        return (uint16_t) MAX_CONTAINER_SIZE;
+    }
+    return (uint16_t) len;
+}
+
+/*
+ * Converts a Java object into a ddwaf_object written in place into *out, using
+ * the official libddwaf construction API. This path is only used for the
+ * (infrequent) builder configuration; request data goes through the zero-copy
+ * ByteBufferSerializer instead.
+ */
+static void _convert_checked(JNIEnv *env, ddwaf_object *out, jobject obj,
+                             struct _limits *lims, int rec_level,
+                             ddwaf_allocator alloc)
 {
 #define RET_IF_EXC()                                                           \
     do {                                                                       \
@@ -1413,18 +1490,17 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
      * 1) maximum depth exceeded or
      * 2) a java method call or another JNI calls throws.
      *
-     * It particular, it doesn't "fail" if any of the Waf_* functions
-     * fail. It never checks their return values. The assumption is that
-     * any failure will be an extraordinary circumstance and that the
-     * implementation is designed in such a way that passing NULL pointers
-     * or PWI_INVALID objects doesn't cause crashes */
+     * It particular, it doesn't "fail" if any of the ddwaf_object_* functions
+     * fail. It never checks their return values, except where a NULL would
+     * have to be dereferenced. The assumption is that any failure will be an
+     * extraordinary circumstance. */
+
+    ddwaf_object_set_invalid(out);
 
     if (rec_level > lims->max_depth) {
         JNI(ThrowNew, jcls_rte, "Maximum recursion level exceeded");
         goto error;
     }
-
-    ddwaf_object result = _pwinput_invalid;
 
     jboolean is_array = JNI_FALSE;
     if (obj != NULL) {
@@ -1437,11 +1513,13 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
     }
 
     if (JNI(IsSameObject, obj, NULL)) {
-        ddwaf_object_null(&result); // can't fail
+        ddwaf_object_set_null(out);
     } else if (is_array == JNI_TRUE) {
-        ddwaf_object_array(&result); // can't fail
+        jsize len = JNI(GetArrayLength, obj);
+        bool too_deep = rec_level >= lims->max_depth;
+        ddwaf_object_set_array(out, too_deep ? 0 : _clamp_capacity(len), alloc);
 
-        if (rec_level >= lims->max_depth) {
+        if (too_deep) {
             JAVA_LOG(DDWAF_LOG_INFO,
                      "Leaving array empty because max depth of %d "
                      "has been reached",
@@ -1449,33 +1527,44 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             goto early_return;
         }
 
-        jsize len = JNI(GetArrayLength, obj);
-
+        int inserted = 0;
         for (int i = 0; i < len; i++) {
-
             if (lims->max_elements <= 0) {
                 JAVA_LOG(DDWAF_LOG_INFO, "Interrupting iterating array due to "
                                          "the max of elements being reached");
                 break;
             }
+            if (inserted >= MAX_CONTAINER_SIZE) {
+                JAVA_LOG(DDWAF_LOG_INFO,
+                         "Interrupting iterating array due to the maximum "
+                         "container size of %d being reached",
+                         MAX_CONTAINER_SIZE);
+                break;
+            }
 
             jobject element = JNI(GetObjectArrayElement, obj, i);
-
-            ddwaf_object value =
-                    _convert_checked(env, element, lims, rec_level + 1);
-            if (JNI(ExceptionCheck)) {
+            ddwaf_object *slot = ddwaf_object_insert(out, alloc);
+            if (!slot) {
+                JNI(DeleteLocalRef, element);
+                JNI(ThrowNew, jcls_rte, "ddwaf_object_insert failed (OOM?)");
                 goto error;
             }
-            bool success = ddwaf_object_array_add(&result, &value);
+            inserted++;
+
+            _convert_checked(env, slot, element, lims, rec_level + 1, alloc);
             JNI(DeleteLocalRef, element);
-            if (!success) {
-                JNI(ThrowNew, jcls_rte, "ddwaf_object_array_add failed (OOM?)");
+            if (JNI(ExceptionCheck)) {
                 goto error;
             }
         }
     } else if (JNI(IsInstanceOf, obj, *map_cls)) {
-        ddwaf_object_map(&result); // can't fail
-        if (rec_level >= lims->max_depth) {
+        bool too_deep = rec_level >= lims->max_depth;
+        jint map_len = JNI(CallIntMethod, obj, map_size.meth_id);
+        if (JNI(ExceptionCheck)) {
+            goto error;
+        }
+        ddwaf_object_set_map(out, too_deep ? 0 : _clamp_capacity(map_len), alloc);
+        if (too_deep) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
                      "Leaving map empty because max depth of %d "
                      "has been reached",
@@ -1487,6 +1576,7 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
         JAVA_CALL(entry_set, map_entryset, obj);
         JAVA_CALL(entry_set_it, iterable_iterator, entry_set);
 
+        int inserted = 0;
         while (JNI(CallBooleanMethod, entry_set_it, iterator_hasNext.meth_id)) {
             if (JNI(ExceptionCheck)) {
                 goto error;
@@ -1495,6 +1585,13 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                 JAVA_LOG(DDWAF_LOG_DEBUG,
                          "Interrupting map iteration due to the max "
                          "number of elements being reached");
+                break;
+            }
+            if (inserted >= MAX_CONTAINER_SIZE) {
+                JAVA_LOG(DDWAF_LOG_INFO,
+                         "Interrupting map iteration due to the maximum "
+                         "container size of %d being reached",
+                         MAX_CONTAINER_SIZE);
                 break;
             }
 
@@ -1510,12 +1607,6 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             JNI(DeleteLocalRef, key_obj);
             JNI(DeleteLocalRef, entry);
 
-            ddwaf_object value =
-                    _convert_checked(env, value_obj, lims, rec_level + 1);
-            if (JNI(ExceptionCheck)) {
-                goto error;
-            }
-
             size_t key_len;
             char *key_cstr = java_to_utf8_limited_checked(
                     env, key_jstr, &key_len, lims->max_string_size);
@@ -1523,17 +1614,24 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                 goto error;
             }
 
-            bool success =
-                    ddwaf_object_map_addl(&result, key_cstr, key_len, &value);
+            ddwaf_object *slot = ddwaf_object_insert_key(
+                    out, key_cstr, (uint32_t) key_len, alloc);
             free(key_cstr);
+            if (!slot) {
+                JNI(ThrowNew, jcls_rte,
+                    "ddwaf_object_insert_key failed (OOM?)");
+                goto error;
+            }
+            inserted++;
+
+            _convert_checked(env, slot, value_obj, lims, rec_level + 1, alloc);
 
             /* doesn't matter if these leak in case of error
              * we do need to delete them in normal circumstances because we're
              * on a loop and we don't want to run out of local refs */
             JNI(DeleteLocalRef, value_obj);
             JNI(DeleteLocalRef, key_jstr);
-            if (!success) {
-                JNI(ThrowNew, jcls_rte, "ddwaf_object_map_add failed (OOM?)");
+            if (JNI(ExceptionCheck)) {
                 goto error;
             }
         }
@@ -1542,8 +1640,13 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
         JNI(DeleteLocalRef, entry_set);
 
     } else if (JNI(IsInstanceOf, obj, *iterable_cls)) {
-        ddwaf_object_array(&result);
-        if (rec_level >= lims->max_depth) {
+        bool too_deep = rec_level >= lims->max_depth;
+        /* Iterable (unlike Map/array) doesn't expose a size accessor; the
+         * only way to know the element count is to exhaust the iterator,
+         * so we can't pre-size the capacity here and rely on
+         * ddwaf_object_insert growing the backing storage as needed. */
+        ddwaf_object_set_array(out, 0, alloc);
+        if (too_deep) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
                      "Leaving array empty because max depth of %d "
                      "has been reached",
@@ -1553,6 +1656,7 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
 
         jobject it;
         JAVA_CALL(it, iterable_iterator, obj);
+        int inserted = 0;
         while (JNI(CallBooleanMethod, it, iterator_hasNext.meth_id)) {
             if (JNI(ExceptionCheck)) {
                 goto error;
@@ -1563,20 +1667,28 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                          "the max of elements being reached");
                 break;
             }
+            if (inserted >= MAX_CONTAINER_SIZE) {
+                JAVA_LOG(DDWAF_LOG_INFO,
+                         "Interrupting iterable iteration due to the maximum "
+                         "container size of %d being reached",
+                         MAX_CONTAINER_SIZE);
+                break;
+            }
 
             jobject element;
             JAVA_CALL(element, iterator_next, it);
 
-            ddwaf_object value =
-                    _convert_checked(env, element, lims, rec_level + 1);
-            if (JNI(ExceptionCheck)) {
+            ddwaf_object *slot = ddwaf_object_insert(out, alloc);
+            if (!slot) {
+                JNI(DeleteLocalRef, element);
+                JNI(ThrowNew, jcls_rte, "ddwaf_object_insert failed (OOM?)");
                 goto error;
             }
+            inserted++;
 
-            bool success = ddwaf_object_array_add(&result, &value);
+            _convert_checked(env, slot, element, lims, rec_level + 1, alloc);
             JNI(DeleteLocalRef, element);
-            if (!success) {
-                JNI(ThrowNew, jcls_rte, "ddwaf_object_array_add failed (OOM?)");
+            if (JNI(ExceptionCheck)) {
                 goto error;
             }
         }
@@ -1591,10 +1703,11 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             goto error;
         }
 
-        bool success = !!ddwaf_object_stringl(&result, str_c, len);
+        bool success =
+                !!ddwaf_object_set_string(out, str_c, (uint32_t) len, alloc);
         free(str_c);
         if (!success) {
-            JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
+            JNI(ThrowNew, jcls_rte, "ddwaf_object_set_string failed (OOM?)");
             goto error;
         }
 
@@ -1629,11 +1742,12 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                 goto error;
             }
 
-            bool success = !!ddwaf_object_stringl(&result, (char *) utf8_out,
-                                                  utf8_len);
+            bool success = !!ddwaf_object_set_string(
+                    out, (char *) utf8_out, (uint32_t) utf8_len, alloc);
             free(utf8_out);
             if (!success) {
-                JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
+                JNI(ThrowNew, jcls_rte,
+                    "ddwaf_object_set_string failed (OOM?)");
                 goto error;
             }
         } else { // regular char sequence or non-direct CharBuffer w/out array
@@ -1668,10 +1782,12 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
                 goto error;
             }
 
-            bool success = !!ddwaf_object_stringl(&result, utf8_out, utf8_len);
+            bool success = !!ddwaf_object_set_string(
+                    out, utf8_out, (uint32_t) utf8_len, alloc);
             free(utf8_out);
             if (!success) {
-                JNI(ThrowNew, jcls_rte, "ddwaf_object_stringl failed (OOM?)");
+                JNI(ThrowNew, jcls_rte,
+                    "ddwaf_object_set_string failed (OOM?)");
                 goto error;
             }
         }
@@ -1685,17 +1801,17 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
-            success = !!ddwaf_object_float(&result, dval);
+            success = !!ddwaf_object_set_float(out, dval);
         } else {
             jlong lval = JNI(CallLongMethod, obj, number_longValue.meth_id);
             if (JNI(ExceptionCheck)) {
                 goto error;
             }
-            success = !!ddwaf_object_signed(&result, lval);
+            success = !!ddwaf_object_set_signed(out, lval);
         }
 
         if (!success) {
-            JNI(ThrowNew, jcls_rte, "ddwaf_object_signed failed");
+            JNI(ThrowNew, jcls_rte, "ddwaf_object_set_signed failed");
             goto error;
         }
     } else if (JNI(IsInstanceOf, obj, *_boolean_cls)) {
@@ -1706,46 +1822,50 @@ static ddwaf_object _convert_checked(JNIEnv *env, jobject obj,
             goto error;
         }
 
-        if (!ddwaf_object_bool(&result, (bool) bval)) {
-            JNI(ThrowNew, jcls_rte, "ddwaf_object_bool failed (OOM?)");
+        if (!ddwaf_object_set_bool(out, (bool) bval)) {
+            JNI(ThrowNew, jcls_rte, "ddwaf_object_set_bool failed (OOM?)");
             goto error;
         }
-    } else if (log_level_enabled(DDWAF_LOG_DEBUG)) {
-        jclass cls = JNI(GetObjectClass, obj);
-        jobject name = java_meth_call(env, &_class_get_name, cls);
-        static const char unknown[] = "<unknown class>";
-        static const size_t unknown_len = sizeof(unknown) - 1;
-        const char *name_c;
-        size_t name_len;
-        if (JNI(ExceptionCheck)) {
-            JNI(ExceptionClear);
-            name_c = unknown;
-            name_len = unknown_len;
-        } else {
-            name_c = java_to_utf8_checked(env, (jstring) name, &name_len);
+    } else {
+        if (log_level_enabled(DDWAF_LOG_DEBUG)) {
+            jclass cls = JNI(GetObjectClass, obj);
+            jobject name = java_meth_call(env, &_class_get_name, cls);
+            static const char unknown[] = "<unknown class>";
+            static const size_t unknown_len = sizeof(unknown) - 1;
+            const char *name_c;
+            size_t name_len;
             if (JNI(ExceptionCheck)) {
                 JNI(ExceptionClear);
                 name_c = unknown;
                 name_len = unknown_len;
+            } else {
+                name_c = java_to_utf8_checked(env, (jstring) name, &name_len);
+                if (JNI(ExceptionCheck)) {
+                    JNI(ExceptionClear);
+                    name_c = unknown;
+                    name_len = unknown_len;
+                }
+            }
+
+            JAVA_LOG(DDWAF_LOG_DEBUG,
+                     "Could not convert object of type %.*s; "
+                     "encoding as an empty map",
+                     (int) name_len /* should be safe */, name_c);
+            if (name_c != unknown) {
+                free((void *) (uintptr_t) name_c);
             }
         }
-
-        JAVA_LOG(DDWAF_LOG_DEBUG,
-                 "Could not convert object of type %.*s; "
-                 "encoding as invalid",
-                 (int) name_len /* should be safe */, name_c);
-        if (name_c != unknown) {
-            free((void *) (uintptr_t) name_c);
-        }
+        /* an invalid object cannot be stored in a container, so fall back to an
+         * empty map, as the pre-2.0 code did */
+        ddwaf_object_set_map(out, 0, alloc);
     }
 
-    // having lael here so if we add cleanup in the future we don't forget
+    // having label here so if we add cleanup in the future we don't forget
 early_return:
-    return result;
+    return;
 error:
-    ddwaf_object_free(&result);
-
-    return _pwinput_invalid;
+    ddwaf_object_destroy(out, alloc);
+    ddwaf_object_set_map(out, 0, alloc);
 }
 
 static ddwaf_object *_convert_buffer_checked(JNIEnv *env, jobject buffer)
@@ -1898,7 +2018,7 @@ static struct _limits _fetch_limits_checked(JNIEnv *env, jobject limits_obj)
 
     return l;
 error:
-    return (struct _limits){0};
+    return (struct _limits) {0};
 }
 
 static bool _get_time_checked(JNIEnv *env, struct timespec *time)
@@ -2058,14 +2178,8 @@ static void _update_metrics(JNIEnv *env, jobject metrics_obj,
 
     // metrics update
     if (!JNI(IsSameObject, metrics_obj, NULL)) {
-        // Get duration from the ddwaf_object structure
-        const ddwaf_object *duration_obj =
-                ddwaf_object_find(ddwaf_result, "duration", 8);
-        jlong duration = 0;
-        if (duration_obj != NULL && duration_obj->type == DDWAF_OBJ_UNSIGNED) {
-            duration = (jlong) ddwaf_object_get_unsigned(duration_obj);
-        }
-        metrics_update_checked(env, metrics_obj, 0, duration);
+        metrics_update_checked(env, metrics_obj, 0,
+                               (jlong) _get_duration(ddwaf_result));
     }
 
     if (earlier_exc) {
@@ -2085,86 +2199,112 @@ static void _update_metrics(JNIEnv *env, jobject metrics_obj,
     }
 }
 
-static bool _convert_ddwaf_config_checked(JNIEnv *env, jobject jconfig,
-                                          ddwaf_config *out_config)
+/*
+ * Registers the obfuscator regexes of a WafConfig in the builder.
+ *
+ * libddwaf 2.x removed ddwaf_config; the obfuscator is now provided like any
+ * other configuration, as {obfuscator: {key_regex: ..., value_regex: ...}}.
+ * Note that an *absent* key means "use libddwaf's built-in default", while an
+ * *empty* one means "do not obfuscate" — which is why both keys are always
+ * written, even when empty. This preserves the semantics of the old
+ * ddwaf_config.obfuscator, where a NULL regex disabled obfuscation.
+ */
+static bool _apply_obfuscator_config_checked(JNIEnv *env, ddwaf_builder builder,
+                                             jobject jconfig)
 {
+    bool ret = false;
+    char *key_regex = NULL, *value_regex = NULL;
+    size_t key_regex_len = 0, value_regex_len = 0;
 
     if (JNI(IsSameObject, jconfig, NULL)) {
         JNI(ThrowNew, jcls_iae, "Waf config cannot be null");
-        return false;
+        goto end;
     }
-
-    char *key_regex = NULL, *value_regex = NULL;
 
     jobject key_regex_jstr = JNI(GetObjectField, jconfig, _config_key_regex);
     if (JNI(ExceptionCheck)) {
-        return false;
+        goto end;
     }
     if (!JNI(IsSameObject, key_regex_jstr, NULL)) {
         key_regex = java_to_utf8_checked(env, (jstring) key_regex_jstr,
-                                         &(size_t){0});
+                                         &key_regex_len);
         if (!key_regex) {
-            return false;
-        }
-        if (key_regex[0] == '\0') {
-            free(key_regex);
-            key_regex = NULL;
+            goto end;
         }
     }
+
     jobject value_regex_jstr =
             JNI(GetObjectField, jconfig, _config_value_regex);
     if (JNI(ExceptionCheck)) {
-        return false;
+        goto end;
     }
     if (!JNI(IsSameObject, value_regex_jstr, NULL)) {
         value_regex = java_to_utf8_checked(env, (jstring) value_regex_jstr,
-                                           &(size_t){0});
+                                           &value_regex_len);
         if (!value_regex) {
-            free(key_regex);
-            return false;
-        }
-        if (value_regex[0] == '\0') {
-            free(value_regex);
-            value_regex = NULL;
+            goto end;
         }
     }
 
-    *out_config = (ddwaf_config){
-            // disable these checks. We also have our own
-            // limits given at rule run time
-            .limits =
-                    {// libddwaf allocates a vector with this
-                     // size, so this can't be too large
-                     .max_container_depth = MAX_DEPTH_UPPER_LIMIT,
-                     .max_container_size = (uint32_t) -1,
-                     .max_string_length = (uint32_t) -1},
+    ddwaf_allocator alloc = ddwaf_get_default_allocator();
+    ddwaf_object config;
+    ddwaf_object_set_map(&config, 1, alloc);
+    ddwaf_object *obfuscator =
+            ddwaf_object_insert_literal_key(&config, LSTR("obfuscator"), alloc);
+    if (!obfuscator || !ddwaf_object_set_map(obfuscator, 2, alloc)) {
+        ddwaf_object_destroy(&config, alloc);
+        JNI(ThrowNew, jcls_rte, "Failed building the obfuscator configuration");
+        goto end;
+    }
+    /* a missing key would silently fall back to libddwaf's default regex, so
+     * the insertions must be checked */
+    ddwaf_object *key_regex_slot = ddwaf_object_insert_literal_key(
+            obfuscator, LSTR("key_regex"), alloc);
+    ddwaf_object *value_regex_slot = ddwaf_object_insert_literal_key(
+            obfuscator, LSTR("value_regex"), alloc);
+    if (!key_regex_slot || !value_regex_slot) {
+        ddwaf_object_destroy(&config, alloc);
+        JNI(ThrowNew, jcls_rte, "Failed building the obfuscator configuration");
+        goto end;
+    }
+    ddwaf_object_set_string(key_regex_slot, key_regex ? key_regex : "",
+                            (uint32_t) key_regex_len, alloc);
+    ddwaf_object_set_string(value_regex_slot, value_regex ? value_regex : "",
+                            (uint32_t) value_regex_len, alloc);
 
-            .obfuscator =
-                    {
-                            .key_regex = key_regex,
-                            .value_regex = value_regex,
-                    },
+    bool added = ddwaf_builder_add_or_update_config(
+            builder, LSTR(OBFUSCATOR_CONFIG_PATH), &config, NULL);
+    ddwaf_object_destroy(&config, alloc);
+    if (!added) {
+        JNI(ThrowNew, jcls_rte, "Failed to configure the WAF obfuscator");
+        goto end;
+    }
 
-            .free_fn = NULL};
-
-    return true;
-}
-static void _dispose_of_ddwaf_config(ddwaf_config *cfg)
-{
-    free((void *) (uintptr_t) cfg->obfuscator.key_regex);
-    free((void *) (uintptr_t) cfg->obfuscator.value_regex);
+    ret = true;
+end:
+    free(key_regex);
+    free(value_regex);
+    return ret;
 }
 
 static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
                                       const ddwaf_object *ddwaf_result)
 {
-    bool has_events = _has_events(ddwaf_result);
+    /* Since libddwaf 2.x a DDWAF_MATCH may be returned because of attributes or
+     * actions alone, with no event at all, so the return code cannot be used as
+     * a proxy for "there are events": the events array itself must be
+     * inspected. */
+    const ddwaf_object *events_obj =
+            ddwaf_object_find(ddwaf_result, LSTR("events"));
+    bool has_events = events_obj != NULL && ddwaf_object_is_array(events_obj) &&
+                      ddwaf_object_get_size(events_obj) > 0;
+
     const ddwaf_object *actions_obj =
-            ddwaf_object_find(ddwaf_result, "actions", 7);
+            ddwaf_object_find(ddwaf_result, LSTR("actions"));
     jobject actions_jmap;
     bool del_actions_jmap = false;
-    if (actions_obj == NULL || actions_obj->type != DDWAF_OBJ_MAP ||
-        ddwaf_object_size(actions_obj) == 0) {
+    if (actions_obj == NULL || !ddwaf_object_is_map(actions_obj) ||
+        ddwaf_object_get_size(actions_obj) == 0) {
         actions_jmap = _result_with_data_empty_map;
     } else {
         actions_jmap = convert_ddwaf_object_to_jobject(env, actions_obj);
@@ -2175,12 +2315,9 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
         del_actions_jmap = true;
     }
 
-    // Get events from the ddwaf_object structure and use as data
-    const ddwaf_object *events_obj =
-            ddwaf_object_find(ddwaf_result, "events", 6);
+    // Use the events from the ddwaf_object structure as data
     jstring data_obj = NULL;
-    if (events_obj != NULL && events_obj->type == DDWAF_OBJ_ARRAY &&
-        ddwaf_object_size(events_obj) > 0) {
+    if (has_events) {
         struct json_segment *seg = output_convert_json(events_obj);
         if (!seg) {
             JNI(ThrowNew, jcls_iae, "failed converting events array to json");
@@ -2195,15 +2332,12 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
         }
     }
 
-    // Get attributes (formerly derivatives) from the new ddwaf_object structure
+    // Get attributes (formerly derivatives) from the ddwaf_object structure
     const ddwaf_object *attributes_obj =
-            ddwaf_object_find(ddwaf_result, "attributes", 10);
+            ddwaf_object_find(ddwaf_result, LSTR("attributes"));
     jobject attributes = NULL;
-
-    consume_json_and_free(ddwaf_result);
-    consume_json_and_free(attributes_obj);
-    if (attributes_obj != NULL && attributes_obj->type == DDWAF_OBJ_MAP &&
-        ddwaf_object_size(attributes_obj) > 0) {
+    if (attributes_obj != NULL && ddwaf_object_is_map(attributes_obj) &&
+        ddwaf_object_get_size(attributes_obj) > 0) {
         attributes = output_convert_attributes_checked(env, attributes_obj);
         if (!attributes) {
             java_wrap_exc("%s", "Failed encoding inferred attributes");
@@ -2212,18 +2346,14 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
     }
 
     // Get keep and duration from the ddwaf_object structure
-    const ddwaf_object *keep_obj = ddwaf_object_find(ddwaf_result, "keep", 4);
+    const ddwaf_object *keep_obj =
+            ddwaf_object_find(ddwaf_result, LSTR("keep"));
     jboolean keep = JNI_TRUE; // Default to true when NULL/missing
-    if (keep_obj != NULL && keep_obj->type == DDWAF_OBJ_BOOL) {
+    if (keep_obj != NULL && ddwaf_object_get_type(keep_obj) == DDWAF_OBJ_BOOL) {
         keep = (jboolean) ddwaf_object_get_bool(keep_obj);
     }
 
-    const ddwaf_object *duration_obj =
-            ddwaf_object_find(ddwaf_result, "duration", 8);
-    jlong duration = 0;
-    if (duration_obj != NULL && duration_obj->type == DDWAF_OBJ_UNSIGNED) {
-        duration = (jlong) ddwaf_object_get_unsigned(duration_obj);
-    }
+    jlong duration = (jlong) _get_duration(ddwaf_result);
 
     jobject result = java_meth_call(
             env, &result_with_data_init, NULL,
@@ -2242,28 +2372,13 @@ err:
     return NULL;
 }
 
-static inline bool _has_events(const ddwaf_object *res)
+/* The time the evaluation took, in microseconds; 0 when absent. */
+static uint64_t _get_duration(const ddwaf_object *res)
 {
-    const ddwaf_object *events_obj = ddwaf_object_find(res, "event", 5);
-    return events_obj == NULL || (events_obj->type == DDWAF_OBJ_BOOL &&
-                                  ddwaf_object_get_bool(events_obj));
-}
-
-static void consume_json_and_free(const ddwaf_object *obj)
-{
-    if (!obj)
-        return;
-    struct json_segment *seg = output_convert_json(obj);
-    if (!seg)
-        return;
-
-    size_t len = json_length(seg);
-    char *str = malloc(len + 1);
-    if (str) {
-        struct json_iterator it = {.seg = seg, .pos = 0};
-        size_t read = json_it_read(&it, str, len);
-        str[read] = '\0';
-        free(str);
+    const ddwaf_object *duration_obj = ddwaf_object_find(res, LSTR("duration"));
+    if (duration_obj != NULL &&
+        ddwaf_object_get_type(duration_obj) == DDWAF_OBJ_UNSIGNED) {
+        return ddwaf_object_get_unsigned(duration_obj);
     }
-    json_seg_free(seg);
+    return 0;
 }

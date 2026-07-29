@@ -130,41 +130,49 @@ class LimitsTests implements WafTrait {
   void 'runBudgetInUs is observed'() {
     def atom = new JsonSlurper().parseText('''
           {
-            "version": "1.0",
-            "events": [
+            "version": "2.1",
+            "rules": [
               {
                 "id": "arachni_rule1",
                 "name": "Arachni",
-                "conditions": [
-                  {
-                    "operation": "match_regex",
-                    "parameters": {
-                      "inputs": ["server.request.headers.no_cookies:user-agent"],
-                      "regex": "Arachni"
-                    }
-                  }
-                ],
                 "tags": {
                   "type": "arachni_detection1"
                 },
-                "action": "record"
+                "conditions": [
+                  {
+                    "operator": "match_regex",
+                    "parameters": {
+                      "inputs": [
+                        {
+                          "address": "server.request.headers.no_cookies",
+                          "key_path": ["user-agent"]
+                        }
+                      ],
+                      "regex": "Arachni"
+                    }
+                  }
+                ]
               },
               {
                 "id": "arachni_rule2",
                 "name": "Arachni",
-                "conditions": [
-                  {
-                    "operation": "match_regex",
-                    "parameters": {
-                      "inputs": ["server.request.headers.no_cookies:user-agent"],
-                      "regex": "Arachni"
-                    }
-                  }
-                ],
                 "tags": {
                   "type": "arachni_detection2"
                 },
-                "action": "record"
+                "conditions": [
+                  {
+                    "operator": "match_regex",
+                    "parameters": {
+                      "inputs": [
+                        {
+                          "address": "server.request.headers.no_cookies",
+                          "key_path": ["user-agent"]
+                        }
+                      ],
+                      "regex": "Arachni"
+                    }
+                  }
+                ]
               }
             ]
           }''')

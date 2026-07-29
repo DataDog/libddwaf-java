@@ -20,12 +20,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class Waf {
-  public static final String LIB_VERSION = "1.30.0";
+  public static final String LIB_VERSION = "2.0.1";
 
   private static final Logger LOGGER = LoggerFactory.getLogger(Waf.class);
   static final boolean EXIT_ON_LEAK;
 
-  private static boolean triedInitializing;
+  private static boolean triedLoadingLib;
+  private static boolean loadedLib;
   private static boolean initialized;
 
   static {
@@ -35,28 +36,47 @@ public final class Waf {
 
   private Waf() {}
 
+  /**
+   * Loads the native library and verifies it against the layout assumptions of {@link
+   * ByteBufferSerializer}.
+   *
+   * <p>A failure to load the native library is not retried: a subsequent call throws {@link
+   * UnclassifiedWafException}. A failure of the layout check, on the other hand, leaves the
+   * (already loaded) library alone, so a subsequent call retries the check and fails the same way
+   * again.
+   *
+   * @throws IllegalStateException if the layout of libddwaf's {@code ddwaf_object} is not the one
+   *     {@link ByteBufferSerializer} assumes
+   */
   public static synchronized void initialize(boolean simple)
       throws AbstractWafException, UnsupportedVMException {
     if (initialized) {
       return;
     }
 
-    if (triedInitializing) {
-      throw new UnclassifiedWafException(
-          "Previously loading attempt of sqreen_jni failed; not retrying");
+    if (!loadedLib) {
+      if (triedLoadingLib) {
+        throw new UnclassifiedWafException(
+            "Previously loading attempt of sqreen_jni failed; not retrying");
+      }
+
+      triedLoadingLib = true;
+      try {
+        if (simple) {
+          System.loadLibrary("sqreen_jni");
+        } else {
+          NativeLibLoader.load();
+        }
+      } catch (IOException e) {
+        LOGGER.error("Failure loading native library", e);
+        throw new RuntimeException("Error loading native lib", e);
+      }
+      loadedLib = true;
     }
 
-    triedInitializing = true;
-    try {
-      if (simple) {
-        System.loadLibrary("sqreen_jni");
-      } else {
-        NativeLibLoader.load();
-      }
-    } catch (IOException e) {
-      LOGGER.error("Failure loading native library", e);
-      throw new RuntimeException("Error loading native lib", e);
-    }
+    // ByteBufferSerializer hand-rolls libddwaf's ddwaf_object binary layout; make sure the
+    // assumption still holds for the library we just loaded rather than corrupting memory later
+    ByteBufferSerializer.checkNativeLayout();
     initialized = true;
   }
 

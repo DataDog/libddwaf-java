@@ -9,6 +9,7 @@
 #include "output.h"
 #include <assert.h>
 #include <ddwaf.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 #include <inttypes.h>
@@ -23,7 +24,6 @@
 #include "base64.h"
 #include "logging.h"
 
-#define LSTR(x) "" x, sizeof(x) - 1
 #define MAX_JINT ((jint) 0x7FFFFFFF)
 
 static struct j_method _rsi_init;
@@ -53,13 +53,13 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
                                           int depth,
                                           struct json_segment *cur_seg);
 
-static bool _is_derivative(const ddwaf_object *entry, const char *prefix)
+static bool _key_has_prefix(const char *key, size_t key_len, const char *prefix)
 {
     size_t prefix_size = strlen(prefix);
-    if (entry->parameterNameLength < prefix_size) {
+    if (key == NULL || key_len < prefix_size) {
         return false;
     }
-    return strncmp(prefix, entry->parameterName, prefix_size) == 0;
+    return strncmp(prefix, key, prefix_size) == 0;
 }
 
 static bool _cache_single_class_strong(JNIEnv *env, const char *class_name,
@@ -289,19 +289,12 @@ static const ddwaf_object *_map_get_object_checked(JNIEnv *env,
                                                    const char *str,
                                                    size_t str_len)
 {
-    if (!obj || obj->type != DDWAF_OBJ_MAP) {
+    if (!obj || !ddwaf_object_is_map(obj)) {
         JNI(ThrowNew, jcls_rte, "ddwaf map expected");
         return NULL;
     }
 
-    for (uint64_t i = 0; i < obj->nbEntries; i++) {
-        const ddwaf_object *o = &obj->array[i];
-        if (o->parameterNameLength == str_len &&
-            memcmp(o->parameterName, str, str_len) == 0) {
-            return o;
-        }
-    }
-    return NULL;
+    return ddwaf_object_find(obj, str, str_len);
 }
 
 static jstring _map_get_string_checked(JNIEnv *env, const ddwaf_object *obj,
@@ -328,28 +321,29 @@ static jobject _convert_strarr_checked(JNIEnv *env, const ddwaf_object *o)
         return NULL;
     }
 
-    if (o->type != DDWAF_OBJ_ARRAY) {
+    if (!ddwaf_object_is_array(o)) {
         JNI(ThrowNew, jcls_rte, "ddwaf array expected");
         return NULL;
     }
 
-    if (o->nbEntries == 0) {
+    size_t nb_entries = ddwaf_object_get_size(o);
+    if (nb_entries == 0) {
         return NULL;
     }
 
-    if (o->nbEntries > MAX_JINT) {
+    if (nb_entries > MAX_JINT) {
         JNI(ThrowNew, jcls_rte, "too many elements in ddwaf array");
         return NULL;
     }
 
     jobject ret =
-            java_meth_call(env, &_array_list_init, NULL, (jint) o->nbEntries);
+            java_meth_call(env, &_array_list_init, NULL, (jint) nb_entries);
     if (ret == NULL) {
         return NULL;
     }
 
-    for (uint64_t i = 0; i < o->nbEntries; i++) {
-        const ddwaf_object *elem = &o->array[i];
+    for (size_t i = 0; i < nb_entries; i++) {
+        const ddwaf_object *elem = ddwaf_object_at_value(o, i);
         size_t str_len;
         const char *str = ddwaf_object_get_string(elem, &str_len);
         if (!str) {
@@ -397,12 +391,13 @@ static jobject _map_get_object_errmap_checked(JNIEnv *env,
         return NULL;
     }
 
-    if (o->type != DDWAF_OBJ_MAP) {
+    if (!ddwaf_object_is_map(o)) {
         JNI(ThrowNew, jcls_rte, "ddwaf map expected");
         return NULL;
     }
 
-    if (o->nbEntries == 0) {
+    size_t nb_entries = ddwaf_object_get_size(o);
+    if (nb_entries == 0) {
         return NULL;
     }
 
@@ -411,15 +406,23 @@ static jobject _map_get_object_errmap_checked(JNIEnv *env,
         return NULL;
     }
 
-    for (uint64_t i = 0; i < o->nbEntries; i++) {
-        ddwaf_object *elem = &o->array[i];
-        if (elem->type != DDWAF_OBJ_ARRAY) {
+    for (size_t i = 0; i < nb_entries; i++) {
+        const ddwaf_object *elem = ddwaf_object_at_value(o, i);
+        if (!ddwaf_object_is_array(elem)) {
             JNI(ThrowNew, jcls_rte, "ddwaf array expected inside map");
             goto err;
         }
 
-        jstring jkey = java_utf8_to_jstring_checked(env, elem->parameterName,
-                                                    elem->parameterNameLength);
+        /* ddwaf_object_get_string leaves key_len untouched for a non-string
+         * key, so treat such a key as the empty string */
+        size_t key_len = 0;
+        const char *key_str =
+                ddwaf_object_get_string(ddwaf_object_at_key(o, i), &key_len);
+        if (key_str == NULL) {
+            key_str = "";
+            key_len = 0;
+        }
+        jstring jkey = java_utf8_to_jstring_checked(env, key_str, key_len);
         if (JNI(ExceptionCheck)) {
             goto err;
         }
@@ -536,65 +539,93 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
         return NULL;
     }
 
-    switch (cur_obj->type) {
+    if (ddwaf_object_is_string(cur_obj)) {
+        size_t len;
+        const char *value = ddwaf_object_get_string(cur_obj, &len);
+        cur_seg = json_append(cur_seg, "\"", 1);
+        cur_seg = json_encode_str(cur_seg, value, len);
+        cur_seg = json_append(cur_seg, "\"", 1);
+        return cur_seg;
+    }
+
+    switch (ddwaf_object_get_type(cur_obj)) {
     case DDWAF_OBJ_INVALID:
-        return false;
+        return NULL;
+    case DDWAF_OBJ_NULL:
+        cur_seg = json_append(cur_seg, "null", 4);
+        break;
     case DDWAF_OBJ_SIGNED: {
-        int64_t val = cur_obj->intValue;
         char str[21];
-        int len = sprintf(str, "%" PRId64, val);
+        int len = sprintf(str, "%" PRId64, ddwaf_object_get_signed(cur_obj));
         assert(len > 0); // can't fail
         cur_seg = json_append(cur_seg, str, (size_t) len);
     } break;
     case DDWAF_OBJ_UNSIGNED: {
-        uint64_t val = cur_obj->uintValue;
         char str[21];
-        int len = sprintf(str, "%" PRIu64, val);
+        int len = sprintf(str, "%" PRIu64, ddwaf_object_get_unsigned(cur_obj));
         assert(len > 0); // can't fail
         cur_seg = json_append(cur_seg, str, (size_t) len);
     } break;
-    case DDWAF_OBJ_STRING: {
-        cur_seg = json_append(cur_seg, "\"", 1);
-        cur_seg = json_encode_str(cur_seg, cur_obj->stringValue,
-                                  cur_obj->nbEntries);
-        cur_seg = json_append(cur_seg, "\"", 1);
+    case DDWAF_OBJ_FLOAT: {
+        double value = ddwaf_object_get_float(cur_obj);
+        if (!isfinite(value)) {
+            /* infinities and NaN have no JSON representation */
+            cur_seg = json_append(cur_seg, "null", 4);
+            break;
+        }
+        char str[32];
+        int len = snprintf(str, sizeof(str), "%.17g", value);
+        assert(len > 0 && (size_t) len < sizeof(str)); // can't fail
+        cur_seg = json_append(cur_seg, str, (size_t) len);
     } break;
     case DDWAF_OBJ_ARRAY: {
+        size_t nb_entries = ddwaf_object_get_size(cur_obj);
         cur_seg = json_append(cur_seg, "[", 1);
-        for (uint64_t i = 0; i < cur_obj->nbEntries; i++) {
-            const ddwaf_object *o = &cur_obj->array[i];
-            cur_seg = _convert_json(o, depth + 1, cur_seg);
-            if (i != cur_obj->nbEntries - 1) {
+        for (size_t i = 0; i < nb_entries; i++) {
+            cur_seg = _convert_json(ddwaf_object_at_value(cur_obj, i),
+                                    depth + 1, cur_seg);
+            if (i != nb_entries - 1) {
                 cur_seg = json_append(cur_seg, ",", 1);
             }
         }
         cur_seg = json_append(cur_seg, "]", 1);
     } break;
     case DDWAF_OBJ_MAP: {
+        size_t nb_entries = ddwaf_object_get_size(cur_obj);
         cur_seg = json_append(cur_seg, "{", 1);
-        for (uint64_t i = 0; i < cur_obj->nbEntries; i++) {
-            const ddwaf_object *o = &cur_obj->array[i];
+        for (size_t i = 0; i < nb_entries; i++) {
+            /* ddwaf_object_get_string leaves key_len untouched for a non-string
+             * key, so treat such a key as the empty string */
+            size_t key_len = 0;
+            const char *key_str = ddwaf_object_get_string(
+                    ddwaf_object_at_key(cur_obj, i), &key_len);
+            if (key_str == NULL) {
+                key_str = "";
+                key_len = 0;
+            }
 
             cur_seg = json_append(cur_seg, "\"", 1);
-            cur_seg = json_encode_str(cur_seg, o->parameterName,
-                                      o->parameterNameLength);
+            cur_seg = json_encode_str(cur_seg, key_str, key_len);
             cur_seg = json_append(cur_seg, "\":", 2);
 
-            cur_seg = _convert_json(o, depth + 1, cur_seg);
+            cur_seg = _convert_json(ddwaf_object_at_value(cur_obj, i),
+                                    depth + 1, cur_seg);
 
-            if (i != cur_obj->nbEntries - 1) {
+            if (i != nb_entries - 1) {
                 cur_seg = json_append(cur_seg, ",", 1);
             }
         }
         cur_seg = json_append(cur_seg, "}", 1);
     } break;
     case DDWAF_OBJ_BOOL: {
-        if (cur_obj->boolean) {
+        if (ddwaf_object_get_bool(cur_obj)) {
             cur_seg = json_append(cur_seg, "true", 4);
         } else {
             cur_seg = json_append(cur_seg, "false", 5);
         }
     } break;
+    default:
+        return NULL;
     }
 
     return cur_seg;
@@ -702,51 +733,58 @@ static jstring _encode_json_gzip_base64_checked(JNIEnv *env,
 
 jobject output_convert_attributes_checked(JNIEnv *env, const ddwaf_object *obj)
 {
-    assert(obj->type == DDWAF_OBJ_MAP);
+    assert(ddwaf_object_is_map(obj));
 
     jobject ret = java_meth_call(env, &_linked_hm_init, NULL);
     if (JNI(ExceptionCheck)) {
         return NULL;
     }
 
-    for (size_t i = 0; i < obj->nbEntries; i++) {
-        ddwaf_object *entry = &obj->array[i];
-        jstring key = java_utf8_to_jstring_checked(env, entry->parameterName,
-                                                   entry->parameterNameLength);
+    size_t nb_entries = ddwaf_object_get_size(obj);
+    for (size_t i = 0; i < nb_entries; i++) {
+        const ddwaf_object *entry = ddwaf_object_at_value(obj, i);
+        /* ddwaf_object_get_string leaves key_len untouched for a non-string
+         * key, so treat such a key as the empty string */
+        size_t key_len = 0;
+        const char *key_str =
+                ddwaf_object_get_string(ddwaf_object_at_key(obj, i), &key_len);
+        if (key_str == NULL) {
+            key_str = "";
+            key_len = 0;
+        }
+        jstring key = java_utf8_to_jstring_checked(env, key_str, key_len);
         if (JNI(ExceptionCheck)) {
             goto error;
         }
 
+        DDWAF_OBJ_TYPE entry_type = ddwaf_object_get_type(entry);
         jobject value = NULL;
-        if (_is_derivative(entry, "_dd.appsec.s.")) {
+        if (_key_has_prefix(key_str, key_len, "_dd.appsec.s.")) {
             // json schemas are json that has to be gzipped and encoded in
             // base64
             value = _encode_json_gzip_base64_checked(env, entry);
-        } else if (_is_derivative(entry, "_dd.appsec.fp.")) {
-            // fingerprints are simple strings
-            value = java_utf8_to_jstring_checked(env, entry->stringValue,
-                                                 entry->nbEntries);
-        } else if (entry->type == DDWAF_OBJ_STRING) {
-            // general string attributes
-            value = java_utf8_to_jstring_checked(env, entry->stringValue,
-                                                 entry->nbEntries);
-        } else if (entry->type == DDWAF_OBJ_SIGNED) {
+        } else if (ddwaf_object_is_string(entry)) {
+            // fingerprints (_dd.appsec.fp.*) and general string attributes
+            size_t str_len;
+            const char *str_val = ddwaf_object_get_string(entry, &str_len);
+            value = java_utf8_to_jstring_checked(env, str_val, str_len);
+        } else if (entry_type == DDWAF_OBJ_SIGNED) {
             // signed integer attributes
             value = java_meth_call(env, &long_valueOf, long_cls,
-                                   (jlong) entry->intValue);
-        } else if (entry->type == DDWAF_OBJ_UNSIGNED) {
+                                   (jlong) ddwaf_object_get_signed(entry));
+        } else if (entry_type == DDWAF_OBJ_UNSIGNED) {
             // unsigned integer attributes
             value = java_meth_call(env, &long_valueOf, long_cls,
-                                   (jlong) entry->uintValue);
-        } else if (entry->type == DDWAF_OBJ_FLOAT) {
+                                   (jlong) ddwaf_object_get_unsigned(entry));
+        } else if (entry_type == DDWAF_OBJ_FLOAT) {
             // float/double attributes
             value = java_meth_call(env, &double_valueOf, double_cls,
-                                   (jdouble) entry->f64);
-        } else if (entry->type == DDWAF_OBJ_BOOL) {
+                                   (jdouble) ddwaf_object_get_float(entry));
+        } else if (entry_type == DDWAF_OBJ_BOOL) {
             // boolean attributes
             value = java_meth_call(env, &boolean_valueOf, boolean_cls,
-                                   (jboolean) entry->boolean);
-        } else if (entry->type == DDWAF_OBJ_MAP) {
+                                   (jboolean) ddwaf_object_get_bool(entry));
+        } else if (entry_type == DDWAF_OBJ_MAP) {
             // map-type attributes (like trace tagging objects)
             jobject map_value = convert_ddwaf_object_to_jobject(env, entry);
             if (JNI(ExceptionCheck)) {
@@ -768,8 +806,8 @@ jobject output_convert_attributes_checked(JNIEnv *env, const ddwaf_object *obj)
             goto error;
         } else if (value == NULL) {
             JAVA_LOG(DDWAF_LOG_DEBUG,
-                     "Failed serializing derivative entry for %*.s",
-                     (int) entry->parameterNameLength, entry->parameterName);
+                     "Failed serializing derivative entry for %.*s",
+                     (int) key_len, key_str);
             JNI(DeleteLocalRef, key);
             continue;
         }
@@ -791,38 +829,45 @@ error:
 
 jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
 {
-    switch (obj->type) {
+    if (ddwaf_object_is_string(obj)) {
+        size_t str_len;
+        const char *str_val = ddwaf_object_get_string(obj, &str_len);
+        return java_utf8_to_jstring_checked(env, str_val, str_len);
+    }
+
+    switch (ddwaf_object_get_type(obj)) {
     case DDWAF_OBJ_INVALID:
         JNI(ThrowNew, jcls_rte, "Unsupported ddwaf object type");
         return NULL;
+    case DDWAF_OBJ_NULL:
+        return NULL;
     case DDWAF_OBJ_SIGNED:
         return java_meth_call(env, &long_valueOf, long_cls,
-                              (jlong) obj->intValue);
+                              (jlong) ddwaf_object_get_signed(obj));
     case DDWAF_OBJ_UNSIGNED:
         return java_meth_call(env, &long_valueOf, long_cls,
-                              (jlong) obj->uintValue);
+                              (jlong) ddwaf_object_get_unsigned(obj));
     case DDWAF_OBJ_FLOAT:
         return java_meth_call(env, &double_valueOf, double_cls,
-                              (jdouble) obj->f64);
+                              (jdouble) ddwaf_object_get_float(obj));
     case DDWAF_OBJ_BOOL:
         return java_meth_call(env, &boolean_valueOf, boolean_cls,
-                              (jboolean) obj->boolean);
-    case DDWAF_OBJ_STRING:
-        return java_utf8_to_jstring_checked(env, obj->stringValue,
-                                            obj->nbEntries);
+                              (jboolean) ddwaf_object_get_bool(obj));
     case DDWAF_OBJ_ARRAY: {
-        if (obj->nbEntries > MAX_JINT) {
+        size_t nb_entries = ddwaf_object_get_size(obj);
+        if (nb_entries > MAX_JINT) {
             JNI(ThrowNew, jcls_rte, "Too many elements in ddwaf array");
             return NULL;
         }
-        jobject ret = java_meth_call(env, &_array_list_init, NULL,
-                                     (jint) obj->nbEntries);
+        jobject ret =
+                java_meth_call(env, &_array_list_init, NULL, (jint) nb_entries);
         if (ret == NULL) {
             return NULL;
         }
 
-        for (uint64_t i = 0; i < obj->nbEntries; i++) {
-            jobject elem = convert_ddwaf_object_to_jobject(env, &obj->array[i]);
+        for (size_t i = 0; i < nb_entries; i++) {
+            jobject elem = convert_ddwaf_object_to_jobject(
+                    env, ddwaf_object_at_value(obj, i));
             if (JNI(ExceptionCheck)) {
                 JNI(DeleteLocalRef, ret);
                 return NULL;
@@ -844,16 +889,25 @@ jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
             return NULL;
         }
 
-        for (uint64_t i = 0; i < obj->nbEntries; i++) {
-            ddwaf_object *elem = &obj->array[i];
-            jstring key = java_utf8_to_jstring_checked(
-                    env, elem->parameterName, elem->parameterNameLength);
+        size_t nb_entries = ddwaf_object_get_size(obj);
+        for (size_t i = 0; i < nb_entries; i++) {
+            /* ddwaf_object_get_string leaves key_len untouched for a non-string
+             * key, so treat such a key as the empty string */
+            size_t key_len = 0;
+            const char *key_str = ddwaf_object_get_string(
+                    ddwaf_object_at_key(obj, i), &key_len);
+            if (key_str == NULL) {
+                key_str = "";
+                key_len = 0;
+            }
+            jstring key = java_utf8_to_jstring_checked(env, key_str, key_len);
             if (JNI(ExceptionCheck)) {
                 JNI(DeleteLocalRef, ret);
                 return NULL;
             }
 
-            jobject value = convert_ddwaf_object_to_jobject(env, elem);
+            jobject value = convert_ddwaf_object_to_jobject(
+                    env, ddwaf_object_at_value(obj, i));
             if (JNI(ExceptionCheck)) {
                 JNI(DeleteLocalRef, key);
                 return NULL;
@@ -870,6 +924,8 @@ jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
 
         return ret;
     }
+    default:
+        break;
     }
     JNI(ThrowNew, jcls_rte, "Unknown ddwaf object type");
     return NULL;

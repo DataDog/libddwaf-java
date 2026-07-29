@@ -10,11 +10,48 @@ extern "C" {
 #undef com_datadog_ddwaf_ByteBufferSerializer_NULLPTR
 #define com_datadog_ddwaf_ByteBufferSerializer_NULLPTR 0LL
 #undef com_datadog_ddwaf_ByteBufferSerializer_SIZEOF_PWARGS
-#define com_datadog_ddwaf_ByteBufferSerializer_SIZEOF_PWARGS 40L
+#define com_datadog_ddwaf_ByteBufferSerializer_SIZEOF_PWARGS 16L
+#undef com_datadog_ddwaf_ByteBufferSerializer_SIZEOF_PWARGS_KV
+#define com_datadog_ddwaf_ByteBufferSerializer_SIZEOF_PWARGS_KV 32L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_KV_VALUE
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_KV_VALUE 16L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_TYPE
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_TYPE 0L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_BOOL_VAL
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_BOOL_VAL 1L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_NUM_VAL
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_NUM_VAL 8L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_STR_SIZE
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_STR_SIZE 4L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_STR_PTR
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_STR_PTR 8L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_SSTR_SIZE
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_SSTR_SIZE 1L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_SSTR_DATA
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_SSTR_DATA 2L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_CONTAINER_SIZE
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_CONTAINER_SIZE 2L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_CONTAINER_CAPACITY
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_CONTAINER_CAPACITY 4L
+#undef com_datadog_ddwaf_ByteBufferSerializer_OFF_CONTAINER_PTR
+#define com_datadog_ddwaf_ByteBufferSerializer_OFF_CONTAINER_PTR 8L
+#undef com_datadog_ddwaf_ByteBufferSerializer_MAX_SMALL_STRING_SIZE
+#define com_datadog_ddwaf_ByteBufferSerializer_MAX_SMALL_STRING_SIZE 14L
+#undef com_datadog_ddwaf_ByteBufferSerializer_MAX_CONTAINER_SIZE
+#define com_datadog_ddwaf_ByteBufferSerializer_MAX_CONTAINER_SIZE 65535L
 #undef com_datadog_ddwaf_ByteBufferSerializer_PWARGS_MIN_SEGMENTS_SIZE
 #define com_datadog_ddwaf_ByteBufferSerializer_PWARGS_MIN_SEGMENTS_SIZE 512L
 #undef com_datadog_ddwaf_ByteBufferSerializer_STRINGS_MIN_SEGMENTS_SIZE
 #define com_datadog_ddwaf_ByteBufferSerializer_STRINGS_MIN_SEGMENTS_SIZE 81920L
+/*
+ * Class:     com_datadog_ddwaf_ByteBufferSerializer
+ * Method:    getNativeObjectLayout
+ * Signature: ()[I
+ */
+JNIEXPORT jintArray JNICALL
+Java_com_datadog_ddwaf_ByteBufferSerializer_getNativeObjectLayout(JNIEnv *,
+                                                                  jclass);
+
 /*
  * Class:     com_datadog_ddwaf_ByteBufferSerializer
  * Method:    getByteBufferAddress

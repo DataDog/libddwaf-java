@@ -56,7 +56,7 @@ class WafBuilderTest implements WafTrait {
 
   @Test
   void 'handle after adding one configuration'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     assert wafDiagnostics.numConfigOK == 1
     handle = builder.buildWafHandleInstance()
     assert handle != null
@@ -64,13 +64,13 @@ class WafBuilderTest implements WafTrait {
 
   @Test
   void 'remove an existing configuration'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     assert wafDiagnostics.numConfigOK == 1
     builder.removeConfig('test')
     shouldFail {
       builder.buildWafHandleInstance()
     }
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     assert wafDiagnostics.numConfigOK == 1
     handle = builder.buildWafHandleInstance()
     assert handle != null
@@ -78,7 +78,7 @@ class WafBuilderTest implements WafTrait {
 
   @Test
   void 'remove a non-existing configuration throws'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     assert wafDiagnostics.numConfigOK == 1
     shouldFail(UnclassifiedWafException) {
       builder.removeConfig('non-existing')
@@ -117,14 +117,14 @@ class WafBuilderTest implements WafTrait {
   @Test
   void 'add configuration with empty path throws'() {
     shouldFail(IllegalArgumentException) {
-      builder.addOrUpdateConfig('', ARACHNI_ATOM_V1_0)
+      builder.addOrUpdateConfig('', ARACHNI_ATOM_SIMPLE)
     }
   }
 
   @Test
   void 'add configuration with null path throws'() {
     shouldFail(IllegalArgumentException) {
-      builder.addOrUpdateConfig(null, ARACHNI_ATOM_V1_0)
+      builder.addOrUpdateConfig(null, ARACHNI_ATOM_SIMPLE)
     }
   }
 
@@ -152,7 +152,7 @@ class WafBuilderTest implements WafTrait {
   @Test
   void 'update existing configuration'() {
     // Add initial configuration
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     assert wafDiagnostics.numConfigOK == 1
 
     // Update with new configuration
@@ -172,11 +172,11 @@ class WafBuilderTest implements WafTrait {
   void 'multiple configurations can be added'() {
     try {
       // Add first configuration
-      wafDiagnostics = builder.addOrUpdateConfig('test1', ARACHNI_ATOM_V1_0)
+      wafDiagnostics = builder.addOrUpdateConfig('test1', ARACHNI_ATOM_SIMPLE)
       assert wafDiagnostics.numConfigOK == 1
 
       // Add second configuration - this might throw depending on compatibility of the configs
-      wafDiagnostics = builder.addOrUpdateConfig('test2', ARACHNI_ATOM_V1_0)
+      wafDiagnostics = builder.addOrUpdateConfig('test2', ARACHNI_ATOM_SIMPLE)
 
       // Should be able to build a handle with both configurations
       handle = builder.buildWafHandleInstance()

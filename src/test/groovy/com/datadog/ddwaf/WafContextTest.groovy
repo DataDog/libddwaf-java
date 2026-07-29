@@ -43,7 +43,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'creating WafContext with valid WafHandle succeeds'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
 
     context = new WafContext(handle)
@@ -52,7 +52,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'run with null limits throws IllegalArgumentException'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
@@ -65,7 +65,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'run with null parameters throws InvalidArgumentWafException'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
@@ -76,7 +76,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'throw an exception when both persistent and ephemeral are null in wafContext'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
@@ -87,7 +87,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'run with empty parameters returns valid result'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
@@ -101,7 +101,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'context run with matching rule returns MATCH result'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
@@ -114,7 +114,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'run with very short timeout throws TimeoutWafException'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
@@ -128,7 +128,7 @@ class WafContextTest implements WafTrait {
 
   @Test
   void 'run updates metrics if provided'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
@@ -189,22 +189,36 @@ class WafContextTest implements WafTrait {
   }
 
   @Test
-  void 'run with persistent and ephemeral data succeeds'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+  void 'run with persistent and then ephemeral data succeeds'() {
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
-    def persistentData = ['persistent': 'data']
-    def ephemeralData = ['ephemeral': 'data']
+    def persistentResult = context.run(['persistent': 'data'], limits, metrics)
+    assert persistentResult != null
+    assert persistentResult.result == Waf.Result.OK
 
-    def result = context.run(persistentData, ephemeralData, limits, metrics)
-    assert result != null
-    assert result.result == Waf.Result.OK
+    def ephemeralResult = context.runEphemeral(['ephemeral': 'data'], limits, metrics)
+    assert ephemeralResult != null
+    assert ephemeralResult.result == Waf.Result.OK
+  }
+
+  @Test
+  void 'passing both persistent and ephemeral data in the same call is rejected'() {
+    // libddwaf 2.x evaluates ephemeral data through a subcontext, which yields its own result;
+    // there is no combined mode any more
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+
+    shouldFail(InvalidArgumentWafException) {
+      context.run(['persistent': 'data'], ['ephemeral': 'data'], limits, metrics)
+    }
   }
 
   @Test
   void 'runEphemeral with data succeeds'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
 
