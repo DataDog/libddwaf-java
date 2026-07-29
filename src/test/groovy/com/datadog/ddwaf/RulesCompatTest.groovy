@@ -659,7 +659,7 @@ class RulesCompatTest implements WafTrait {
     def result = context.run(params, limits, metrics)
 
     assert result.result == Waf.Result.MATCH
-    assert !result.attributes.isEmpty()
+    assert !result.attributes.empty
     assert !result.events, 'events must be false for a match triggered only by attributes'
     assert result.data == null
   }
