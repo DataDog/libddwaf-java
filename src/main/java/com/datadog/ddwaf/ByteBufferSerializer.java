@@ -379,7 +379,7 @@ public class ByteBufferSerializer {
   private static int clampContainerSize(int size, int[] remainingElements, WafMetrics metrics) {
     int capped = Math.min(size, remainingElements[0]);
     if (capped > MAX_CONTAINER_SIZE) {
-      LOGGER.debug(
+      LOGGER.warn(
           "Truncating container from size {} to size {} (libddwaf limit)",
           capped,
           MAX_CONTAINER_SIZE);

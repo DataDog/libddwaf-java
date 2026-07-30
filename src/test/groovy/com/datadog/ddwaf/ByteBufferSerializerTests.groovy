@@ -402,6 +402,21 @@ class ByteBufferSerializerTests extends ByteBufferSerializerTestsBase {
   }
 
   @Test
+  void 'observes the native 65535 container size limit'() {
+    // libddwaf 2.x stores container size/capacity in a uint16_t; a container
+    // larger than 65535 entries must be truncated before crossing the JNI
+    // boundary, or the size field wraps around and libddwaf reads a corrupt
+    // object graph. This is separate from the configurable maxElements limit.
+    maxElements = 100_000
+    def bigList = (1..70_000).toList()
+    lease = serializer.serialize([my_key: bigList], metrics)
+
+    String res = Waf.pwArgsBufferToString(lease.firstPWArgsByteBuffer)
+    assertThat res.count('<SIGNED>'), is(65535)
+    assertMetrics(0, 1, 0)
+  }
+
+  @Test
   void 'first pwargs buffer with nothing written'() {
     lease = ByteBufferSerializer.blankLease
     shouldFail(IllegalStateException) { lease.firstPWArgsByteBuffer }
