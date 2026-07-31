@@ -20,7 +20,7 @@ class BadRuleTests implements WafTrait {
   @Test
   void 'no events'() {
     // libddwaf 1.27.0+ now accepts empty configurations instead of throwing an exception
-    wafDiagnostics = builder.addOrUpdateConfig('test', [version: '0.0', events: []])
+    wafDiagnostics = builder.addOrUpdateConfig('test', [version: '2.1', rules: []])
     assert wafDiagnostics != null
     assert wafDiagnostics.numConfigOK == 0
     assert wafDiagnostics.numConfigError == 0

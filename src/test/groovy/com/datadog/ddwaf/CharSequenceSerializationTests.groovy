@@ -22,24 +22,27 @@ class CharSequenceSerializationTests implements WafTrait {
 
   static final Map REQ_BODY_ATOM = (Map) new JsonSlurper().parseText('''
         {
-          "version": "1.0",
-          "events": [
+          "version": "2.1",
+          "rules": [
             {
               "id": "req_body_rule",
               "name": "Request body capturing",
-              "conditions": [
-                {
-                  "operation": "match_regex",
-                  "parameters": {
-                    "inputs": ["server.request.body.raw"],
-                    "regex": "my string"
-                  }
-                }
-              ],
               "tags": {
                 "type": "req_body_detection"
               },
-              "action": "record"
+              "conditions": [
+                {
+                  "operator": "match_regex",
+                  "parameters": {
+                    "inputs": [
+                      {
+                        "address": "server.request.body.raw"
+                      }
+                    ],
+                    "regex": "my string"
+                  }
+                }
+              ]
             }
           ]
         }

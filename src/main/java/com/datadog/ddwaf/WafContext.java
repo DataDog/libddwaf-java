@@ -9,6 +9,7 @@
 package com.datadog.ddwaf;
 
 import com.datadog.ddwaf.exception.AbstractWafException;
+import com.datadog.ddwaf.exception.InvalidArgumentWafException;
 import com.datadog.ddwaf.exception.TimeoutWafException;
 import com.datadog.ddwaf.exception.UnclassifiedWafException;
 import java.io.Closeable;
@@ -59,6 +60,15 @@ public class WafContext implements Closeable {
 
   private static native long initWafContext(WafHandle handle);
 
+  /**
+   * Evaluates one batch of data.
+   *
+   * <p>Exactly one of the two buffers must be non-null: persistent data is evaluated against the
+   * context itself ({@code ddwaf_context_eval}), while ephemeral data is evaluated against a
+   * throw-away subcontext ({@code ddwaf_subcontext_init}/{@code eval}/{@code destroy}). libddwaf
+   * 2.x has no combined mode, and each evaluation yields its own result, so passing both (or
+   * neither) fails with {@link InvalidArgumentWafException}.
+   */
   private native Waf.ResultWithData runWafContext(
       ByteBuffer persistentBuffer,
       ByteBuffer ephemeralBuffer,
@@ -75,7 +85,8 @@ public class WafContext implements Closeable {
   private native void clearWafContext();
 
   /**
-   * Push params to Waf with given limits
+   * Push params to Waf with given limits. Exactly one of {@code persistentData} and {@code
+   * ephemeralData} must be non-null; see {@link #runWafContext}.
    *
    * @param persistentData data to push to Waf
    * @param ephemeralData data to push to Waf
@@ -92,6 +103,12 @@ public class WafContext implements Closeable {
       throws AbstractWafException {
     if (limits == null) {
       throw new IllegalArgumentException("limits must be provided");
+    }
+    if ((persistentData == null) == (ephemeralData == null)) {
+      // Reject before serializing anything: libddwaf 2.x has no combined mode, and
+      // runWafContext() would otherwise reject this too, but only after persistentData has
+      // already been serialized into this.lease's arena, with no way to roll that back.
+      throw new InvalidArgumentWafException(WafErrorCode.INVALID_ARGUMENT.getCode());
     }
     try {
       long before = System.nanoTime();
@@ -126,10 +143,10 @@ public class WafContext implements Closeable {
 
           result = runWafContext(persistentBuffer, ephemeralBuffer, newLimits, metrics);
         } finally {
-          // Keep lease/ephemeralLease strongly reachable past the ddwaf_run JNI boundary.
-          // The JIT may elide references to this.lease and ephemeralLease after the last
-          // Java-visible use, letting the GC Cleaner free the underlying native memory while
-          // ddwaf_run is still executing (observed on ZGC Generational, JDK 21.0.8+/JDK 25).
+          // Keep lease/ephemeralLease strongly reachable past the ddwaf_context_eval JNI
+          // boundary. The JIT may elide references to this.lease and ephemeralLease after the
+          // last Java-visible use, letting the GC Cleaner free the underlying native memory
+          // while the WAF is still reading it (observed on ZGC Generational, JDK 21.0.8+/25).
           // Volatile writes are memory barriers the JIT cannot remove. Placed in finally so
           // they run on both normal and exceptional returns. See: APPSEC-62784
           leaseFenceSink = this.lease;

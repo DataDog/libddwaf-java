@@ -25,31 +25,30 @@ class WafHandleTest implements WafTrait {
   void 'Reference sample should pass'() {
     def rule = '''
           {
-            "version": "1.0",
-            "events": [
+            "version": "2.1",
+            "rules": [
               {
                 "id": "arachni_rule",
                 "name": "Arachni",
+                "tags": {
+                  "type": "flow1"
+                },
                 "conditions": [
                   {
-                    "operation": "match_regex",
+                    "operator": "match_regex",
                     "parameters": {
-                      "inputs": ["arg1"],
+                      "inputs": [{ "address": "arg1" }],
                       "regex": ".*"
                     }
                   },
                   {
-                    "operation": "match_regex",
+                    "operator": "match_regex",
                     "parameters": {
-                      "inputs": ["arg2"],
+                      "inputs": [{ "address": "arg2" }],
                       "regex": ".*"
                     }
                   }
-                ],
-                "tags": {
-                  "type": "flow1"
-                },
-                "action": "record"
+                ]
               }
             ]
           }
@@ -143,7 +142,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'waf handle is online after creation'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
 
     assert handle.online
@@ -151,7 +150,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'waf handle is offline after closing'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     handle.close()
 
@@ -160,7 +159,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'waf handle can be closed multiple times safely'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
 
     // First close
@@ -174,7 +173,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'waf handle has known addresses'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
 
     String[] addresses = handle.knownAddresses
@@ -194,7 +193,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'knownAddresses throws exception after handle is closed'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
     handle.close()
 
@@ -218,7 +217,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'different waf handle instances for same ruleset have same addresses'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
 
     // Create two separate instances
     def handle1 = builder.buildWafHandleInstance()
@@ -240,7 +239,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'waf handle thread safety for read operations'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
 
     // Simulate multiple threads accessing read methods
@@ -268,7 +267,7 @@ class WafHandleTest implements WafTrait {
 
   @Test
   void 'waf handle thread safety for close operation'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle = builder.buildWafHandleInstance()
 
     // Simulate multiple threads trying to close the handle
@@ -290,7 +289,7 @@ class WafHandleTest implements WafTrait {
   @Test
   void 'updating ruleset configuration works correctly'() {
     // First add a basic ruleset
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
 
     // Then update with a different ruleset
     wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_BLOCK)

@@ -21,6 +21,7 @@ import java.nio.charset.CoderResult;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.ConcurrentModificationException;
 import java.util.Deque;
@@ -31,9 +32,70 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Serializes Java objects into the raw binary representation of {@code ddwaf_object} (libddwaf 2.x)
+ * inside direct {@link ByteBuffer}s, so that libddwaf can consume them without any copy.
+ *
+ * <p>The binary layout replicated here is the one declared in {@code ddwaf.h}:
+ *
+ * <pre>
+ *   union _ddwaf_object {                     // 16 bytes, 8-byte aligned
+ *       uint8_t type;                         // +0
+ *       union {
+ *           struct { uint8_t type; bool val; }                          b8;   // val   +1
+ *           struct { uint8_t type; int64_t val; }                       i64;  // val   +8
+ *           struct { uint8_t type; uint64_t val; }                      u64;  // val   +8
+ *           struct { uint8_t type; double val; }                        f64;  // val   +8
+ *           struct { uint8_t type; uint32_t size; char *ptr; }          str;  // size  +4, ptr +8
+ *           struct { uint8_t type; uint8_t size; char data[14]; }       sstr; // size  +1, data +2
+ *           struct { uint8_t type; uint16_t size, capacity;
+ *                    ddwaf_object *ptr; }                               array;// size +2, cap +4,
+ *                                                                             // ptr  +8
+ *           struct { uint8_t type; uint16_t size, capacity;
+ *                    ddwaf_object_kv *ptr; }                            map;  // idem
+ *       } via;
+ *   };
+ *
+ *   struct _ddwaf_object_kv { ddwaf_object key; ddwaf_object val; };  // 32 bytes, key +0, val +16
+ * </pre>
+ *
+ * <p>Array children are plain 16-byte {@code ddwaf_object}s; map entries are 32-byte {@code
+ * ddwaf_object_kv}s. Both are allocated out of the same arena, which hands out 16-byte slots.
+ *
+ * <p>Since these constants are hand-rolled, {@link #checkNativeLayout()} cross-checks every one of
+ * them against the real C struct through {@link #getNativeObjectLayout()}; it is called from {@link
+ * Waf#initialize(boolean)} right after the native library is loaded, so a libddwaf layout change
+ * can never silently corrupt memory.
+ */
 public class ByteBufferSerializer {
   private static final long NULLPTR = 0;
-  private static final int SIZEOF_PWARGS = 40;
+
+  /** {@code sizeof(ddwaf_object)}. Also the arena allocation unit. */
+  private static final int SIZEOF_PWARGS = 16;
+
+  /** {@code sizeof(ddwaf_object_kv)}: a key object followed by a value object. */
+  private static final int SIZEOF_PWARGS_KV = 32;
+
+  /** {@code offsetof(ddwaf_object_kv, val)}. */
+  private static final int OFF_KV_VALUE = 16;
+
+  private static final int OFF_TYPE = 0;
+  private static final int OFF_BOOL_VAL = 1;
+  private static final int OFF_NUM_VAL = 8;
+  private static final int OFF_STR_SIZE = 4;
+  private static final int OFF_STR_PTR = 8;
+  private static final int OFF_SSTR_SIZE = 1;
+  private static final int OFF_SSTR_DATA = 2;
+  private static final int OFF_CONTAINER_SIZE = 2;
+  private static final int OFF_CONTAINER_CAPACITY = 4;
+  private static final int OFF_CONTAINER_PTR = 8;
+
+  /** {@code DDWAF_OBJ_SSTR_SIZE}: strings up to this length are stored inline in the object. */
+  private static final int MAX_SMALL_STRING_SIZE = 14;
+
+  /** Container {@code size}/{@code capacity} are {@code uint16_t} in libddwaf 2.x. */
+  private static final int MAX_CONTAINER_SIZE = 65535;
+
   private static final int PWARGS_MIN_SEGMENTS_SIZE = 512;
   private static final int STRINGS_MIN_SEGMENTS_SIZE = 81920;
 
@@ -63,6 +125,58 @@ public class ByteBufferSerializer {
 
   public static ArenaLease getBlankLease() {
     return ArenaPool.INSTANCE.getLease();
+  }
+
+  /**
+   * Returns the layout of {@code ddwaf_object}/{@code ddwaf_object_kv} as seen by the C compiler.
+   * See {@code Java_com_datadog_ddwaf_ByteBufferSerializer_getNativeObjectLayout} in {@code
+   * byte_buffer.c} for the meaning of each position.
+   */
+  private static native int[] getNativeObjectLayout();
+
+  /**
+   * Verifies the hardcoded layout constants of this class against the actual C structs.
+   *
+   * @throws IllegalStateException if libddwaf's object layout is not the one assumed here
+   */
+  static void checkNativeLayout() {
+    int[] expected =
+        new int[] {
+          SIZEOF_PWARGS,
+          SIZEOF_PWARGS_KV,
+          0, // offsetof(ddwaf_object_kv, key)
+          OFF_KV_VALUE,
+          OFF_TYPE,
+          OFF_BOOL_VAL,
+          OFF_NUM_VAL,
+          OFF_STR_SIZE,
+          OFF_STR_PTR,
+          OFF_SSTR_SIZE,
+          OFF_SSTR_DATA,
+          MAX_SMALL_STRING_SIZE,
+          OFF_CONTAINER_SIZE,
+          OFF_CONTAINER_CAPACITY,
+          OFF_CONTAINER_PTR,
+          PWInputType.PWI_INVALID.value,
+          PWInputType.PWI_NULL.value,
+          PWInputType.PWI_BOOL.value,
+          PWInputType.PWI_SIGNED.value,
+          PWInputType.PWI_UNSIGNED.value,
+          PWInputType.PWI_FLOAT.value,
+          PWInputType.PWI_STRING.value,
+          PWInputType.PWI_LITERAL_STRING.value,
+          PWInputType.PWI_SMALL_STRING.value,
+          PWInputType.PWI_ARRAY.value,
+          PWInputType.PWI_MAP.value,
+        };
+    int[] actual = getNativeObjectLayout();
+    if (!Arrays.equals(expected, actual)) {
+      throw new IllegalStateException(
+          "libddwaf ddwaf_object layout mismatch: ByteBufferSerializer assumes "
+              + Arrays.toString(expected)
+              + " but the native library reports "
+              + Arrays.toString(actual));
+    }
   }
 
   private static ByteBuffer serializeMore(
@@ -164,7 +278,7 @@ public class ByteBufferSerializer {
         throw new RuntimeException("Could not write number");
       }
     } else if (value instanceof Collection) {
-      int size = Math.min(((Collection<?>) value).size(), remainingElements[0]);
+      int size = clampContainerSize(((Collection<?>) value).size(), remainingElements, metrics);
 
       // TODO - ADD METRIC FOR UNTRUNCATED SIZE
       Iterator<?> iterator = ((Collection<?>) value).iterator();
@@ -179,7 +293,7 @@ public class ByteBufferSerializer {
           iterator,
           size);
     } else if (value.getClass().isArray()) {
-      int size = Math.min(Array.getLength(value), remainingElements[0]);
+      int size = clampContainerSize(Array.getLength(value), remainingElements, metrics);
 
       // TODO - ADD METRIC FOR UNTRUNCATED SIZE
       Iterator<?> iterator = new GenericArrayIterator(value);
@@ -197,11 +311,11 @@ public class ByteBufferSerializer {
       // we need to iterate twice
       Iterator<?> iterator = ((Iterable<?>) value).iterator();
       int size = 0;
-      int maxSize = remainingElements[0];
-      while (iterator.hasNext() && size < maxSize) {
+      while (iterator.hasNext() && size < remainingElements[0]) {
         iterator.next();
         size++;
       }
+      size = clampContainerSize(size, remainingElements, metrics);
 
       // TODO - ADD METRIC FOR UNTRUNCATED SIZE
       iterator = ((Iterable<?>) value).iterator();
@@ -216,7 +330,7 @@ public class ByteBufferSerializer {
           iterator,
           size);
     } else if (value instanceof Map) {
-      int size = Math.min(((Map<?, ?>) value).size(), remainingElements[0]);
+      int size = clampContainerSize(((Map<?, ?>) value).size(), remainingElements, metrics);
 
       // TODO - ADD METRIC FOR UNTRUNCATED SIZE
       PWArgsArrayBuffer pwArgsArrayBuffer = pwargsSlot.writeMap(arena, parameterName, size);
@@ -256,6 +370,25 @@ public class ByteBufferSerializer {
         throw new RuntimeException("Error writing null for unknown type");
       }
     }
+  }
+
+  /**
+   * Caps the number of children of a container to what the remaining element budget allows and to
+   * what libddwaf's {@code uint16_t} size field can represent.
+   */
+  private static int clampContainerSize(int size, int[] remainingElements, WafMetrics metrics) {
+    int capped = Math.min(size, remainingElements[0]);
+    if (capped > MAX_CONTAINER_SIZE) {
+      LOGGER.warn(
+          "Truncating container from size {} to size {} (libddwaf limit)",
+          capped,
+          MAX_CONTAINER_SIZE);
+      capped = MAX_CONTAINER_SIZE;
+      if (metrics != null) {
+        metrics.incrementTruncatedListMapTooLargeCount();
+      }
+    }
+    return capped;
   }
 
   private static void serializeIterable(
@@ -302,7 +435,6 @@ public class ByteBufferSerializer {
     List<StringsSegment> stringsSegments = new ArrayList<>();
     int curStringsSegment;
     CharBuffer currentWrapper = null;
-    WrittenString cachedWS = null;
 
     public final CharsetEncoder getCharsetEncoder() {
       CharsetEncoder charsetEncoder = utf8Encoder;
@@ -336,32 +468,13 @@ public class ByteBufferSerializer {
       return pwargsSegments.get(idxOfFirstUsedPWArgsSegment).buffer;
     }
 
-    static class WrittenString {
-      private final Arena arena;
-      private long ptr;
-      private int utf8len;
-
-      WrittenString(Arena arena) {
-        this.arena = arena;
-      }
-
-      public void release() {
-        arena.cachedWS = this;
-      }
-
-      public WrittenString update(long ptr, int utf8len) {
-        this.ptr = ptr;
-        this.utf8len = utf8len;
-        return this;
-      }
-    }
-
     /**
-     * @param s the string to serialize
-     * @return the native pointer to the string and its size in bytes, or null if the string is too
-     *     large
+     * Writes a string object (either a small string, stored inline, or a regular string pointing
+     * into the strings arena) into {@code dest} at offset {@code off}.
+     *
+     * @return false if the string is too large to be serialized
      */
-    WrittenString writeStringUnlimited(CharSequence s) {
+    boolean writeStringObject(ByteBuffer dest, int off, CharSequence s) {
       CharBuffer cb;
       if (s instanceof CharBuffer) {
         cb = ((CharBuffer) s).duplicate();
@@ -372,38 +485,50 @@ public class ByteBufferSerializer {
       long tmp = (long) s.length() * MAX_BYTES_PER_CHAR_UTF8 + 1; // 0 terminated
       if (tmp > Integer.MAX_VALUE) {
         // overflow ahead
-        return null;
+        PWArgsBuffer.setInvalid(dest, off);
+        return false;
       }
       int maxBytes = (int) tmp;
 
-      StringsSegment segment;
-      segment = stringsSegments.get(curStringsSegment);
-      WrittenString str = cachedWS;
-      if (str == null) {
-        cachedWS = str = new WrittenString(this);
-      }
-      while ((str = segment.writeNulTerminated(str, getCharsetEncoder(), cb, maxBytes)) == null) {
+      StringsSegment segment = stringsSegments.get(curStringsSegment);
+      int utf8len;
+      while ((utf8len = segment.write(getCharsetEncoder(), cb, maxBytes)) < 0) {
         segment = changeStringsSegment(Math.max(STRINGS_MIN_SEGMENTS_SIZE, maxBytes));
-        str = cachedWS;
       }
-      cachedWS = null;
-      return str;
+
+      // write() leaves the buffer positioned right after the encoded bytes plus the
+      // NUL terminator it appends, so the start of the string it just wrote is always
+      // (current position - encoded length - 1 NUL byte) bytes back.
+      int start = segment.buffer.position() - utf8len - 1;
+      PWArgsBuffer.clearObject(dest, off);
+      if (utf8len <= MAX_SMALL_STRING_SIZE) {
+        // small strings live inside the object itself; give the arena space back
+        dest.put(off + OFF_TYPE, (byte) PWInputType.PWI_SMALL_STRING.value);
+        dest.put(off + OFF_SSTR_SIZE, (byte) utf8len);
+        for (int i = 0; i < utf8len; i++) {
+          dest.put(off + OFF_SSTR_DATA + i, segment.buffer.get(start + i));
+        }
+        segment.rollbackTo(start);
+      } else {
+        dest.put(off + OFF_TYPE, (byte) PWInputType.PWI_STRING.value);
+        dest.putInt(off + OFF_STR_SIZE, utf8len);
+        dest.putLong(off + OFF_STR_PTR, segment.base + start);
+      }
+      return true;
     }
 
     PWArgsArrayBuffer allocateGetAddressCompatiblePWArgsBuffer(int num) {
-      return allocatePWArgsBuffer(num, true);
+      return allocatePWArgsBuffer(num, SIZEOF_PWARGS, true);
     }
 
-    PWArgsArrayBuffer allocatePWArgsBuffer(int num) {
-      return allocatePWArgsBuffer(num, false);
-    }
-
-    private PWArgsArrayBuffer allocatePWArgsBuffer(int num, boolean getAddressCompatible) {
+    private PWArgsArrayBuffer allocatePWArgsBuffer(
+        int num, int stride, boolean getAddressCompatible) {
+      int slots = num * (stride / SIZEOF_PWARGS);
       PWArgsSegment segment;
       segment = pwargsSegments.get(curPWArgsSegment);
       PWArgsArrayBuffer array;
-      while ((array = segment.allocate(num, getAddressCompatible)) == null) {
-        segment = changePWArgsSegment(Math.max(PWARGS_MIN_SEGMENTS_SIZE, num));
+      while ((array = segment.allocate(slots, num, stride, getAddressCompatible)) == null) {
+        segment = changePWArgsSegment(Math.max(PWARGS_MIN_SEGMENTS_SIZE, slots));
       }
       if (idxOfFirstUsedPWArgsSegment == -1) {
         idxOfFirstUsedPWArgsSegment = curPWArgsSegment;
@@ -483,6 +608,10 @@ public class ByteBufferSerializer {
     }
   }
 
+  /**
+   * A chunk of direct memory handing out 16-byte slots ({@code sizeof(ddwaf_object)}). Map entries
+   * take two consecutive slots each ({@code sizeof(ddwaf_object_kv)}).
+   */
   static class PWArgsSegment {
     ByteBuffer buffer;
     List<PWArgsArrayBuffer> pwargsArrays = new ArrayList<>();
@@ -494,26 +623,25 @@ public class ByteBufferSerializer {
       this.buffer.order(ByteOrder.nativeOrder());
     }
 
-    PWArgsArrayBuffer allocate(int num, boolean getAddressCompatible) {
-      if (left() < num) {
+    PWArgsArrayBuffer allocate(int slots, int num, int stride, boolean getAddressCompatible) {
+      if (left() < slots) {
         return null;
       }
       int position = this.buffer.position();
       PWArgsArrayBuffer arrayBuffer;
       if (getAddressCompatible) {
         ByteBuffer slice = this.buffer.slice().order(ByteOrder.nativeOrder());
-        arrayBuffer = new PWArgsArrayBuffer(slice, 0, num);
+        arrayBuffer = new PWArgsArrayBuffer(slice, 0, num, stride);
       } else if (idxOfNextUnusedPWArgsArrayBuffer >= pwargsArrays.size()) {
-        ByteBuffer duplicate = this.buffer.duplicate().order(ByteOrder.nativeOrder());
-        arrayBuffer = new PWArgsArrayBuffer(duplicate, position, num);
+        arrayBuffer = new PWArgsArrayBuffer(this.buffer, position, num, stride);
         pwargsArrays.add(arrayBuffer);
         idxOfNextUnusedPWArgsArrayBuffer++;
       } else {
         arrayBuffer = pwargsArrays.get(idxOfNextUnusedPWArgsArrayBuffer);
-        arrayBuffer.reset(position, num);
+        arrayBuffer.reset(position, num, stride);
         idxOfNextUnusedPWArgsArrayBuffer++;
       }
-      this.buffer.position(position + num * SIZEOF_PWARGS);
+      this.buffer.position(position + slots * SIZEOF_PWARGS);
       return arrayBuffer;
     }
 
@@ -527,23 +655,27 @@ public class ByteBufferSerializer {
     }
   }
 
+  /**
+   * The children of a container: {@code num} entries of {@code stride} bytes each, either 16 bytes
+   * ({@code ddwaf_object}, for arrays) or 32 bytes ({@code ddwaf_object_kv}, for maps).
+   */
   static class PWArgsArrayBuffer {
     private final ByteBuffer buffer;
     private int start;
     private int num;
+    private int stride;
     private final List<PWArgsBuffer> pwArgsBuffers;
 
     static final PWArgsArrayBuffer EMPTY_BUFFER = new PWArgsArrayBuffer();
 
-    PWArgsArrayBuffer(ByteBuffer buffer, int start, int num) {
+    PWArgsArrayBuffer(ByteBuffer buffer, int start, int num, int stride) {
       if (num == 0 || buffer == null) {
         throw new IllegalArgumentException();
       }
       this.buffer = buffer;
       this.start = start;
       this.num = num;
-      buffer.limit(start + num * SIZEOF_PWARGS);
-      buffer.position(start);
+      this.stride = stride;
       this.pwArgsBuffers = new ArrayList<>(num);
     }
 
@@ -551,14 +683,14 @@ public class ByteBufferSerializer {
       this.buffer = null;
       this.start = 0;
       this.num = 0;
+      this.stride = SIZEOF_PWARGS;
       this.pwArgsBuffers = null;
     }
 
-    void reset(int start, int num) {
+    void reset(int start, int num, int stride) {
       this.start = start;
       this.num = num;
-      this.buffer.limit(start + num * SIZEOF_PWARGS);
-      this.buffer.position(start);
+      this.stride = stride;
     }
 
     PWArgsBuffer get(int i) {
@@ -567,11 +699,10 @@ public class ByteBufferSerializer {
       }
       assert this.buffer != null;
       while (i >= pwArgsBuffers.size()) {
-        ByteBuffer duplicate = this.buffer.duplicate().order(ByteOrder.nativeOrder());
-        pwArgsBuffers.add(new PWArgsBuffer(duplicate, start + i * SIZEOF_PWARGS));
+        pwArgsBuffers.add(new PWArgsBuffer(this.buffer));
       }
       PWArgsBuffer pwArgsBuffer = pwArgsBuffers.get(i);
-      pwArgsBuffer.reset(start + i * SIZEOF_PWARGS);
+      pwArgsBuffer.reset(start + i * stride, stride == SIZEOF_PWARGS_KV);
       return pwArgsBuffer;
     }
 
@@ -584,93 +715,96 @@ public class ByteBufferSerializer {
     }
   }
 
-  /*
-   * This is the structure until we get improvements:
-   *
-   * https://github.com/sqreen/PowerWAF/issues/201
-   *
-   *  struct _PWArgs
-   *  {
-   *      const char* parameterName;
-   *      uint64_t parameterNameLength;
-   *      union
-   *      {
-   *          const char* stringValue;
-   *          uint64_t uintValue;
-   *          int64_t intValue;
-   *          const PWArgs* array;
-   *          bool boolean;
-   *          double f64;
-   *      };
-   *      uint64_t nbEntries;
-   *      PW_INPUT_TYPE type;
-   *  };
+  /**
+   * A single slot to write a {@code ddwaf_object} into. When the slot belongs to a map it actually
+   * spans a whole {@code ddwaf_object_kv}: the key object is written at {@code start} and the value
+   * object at {@code start + 16}.
    */
   static class PWArgsBuffer {
     private final ByteBuffer buffer;
+    private int keyOffset;
+    private int valueOffset;
 
-    PWArgsBuffer(ByteBuffer buffer, int start) {
+    /** Creates an unpositioned slot; {@link #reset} must be called before writing to it. */
+    PWArgsBuffer(ByteBuffer buffer) {
       this.buffer = buffer;
-      this.buffer.limit(start + SIZEOF_PWARGS);
-      this.buffer.position(start);
+      this.keyOffset = -1;
+      this.valueOffset = -1;
     }
 
-    void reset(int start) {
-      this.buffer.limit(start + SIZEOF_PWARGS);
-      this.buffer.position(start);
+    void reset(int start, boolean isMapEntry) {
+      this.keyOffset = isMapEntry ? start : -1;
+      this.valueOffset = isMapEntry ? start + OFF_KV_VALUE : start;
+    }
+
+    static void clearObject(ByteBuffer buffer, int off) {
+      buffer.putLong(off, 0L);
+      buffer.putLong(off + 8, 0L);
+    }
+
+    /**
+     * Writes a {@code DDWAF_OBJ_INVALID} (type byte 0x00, rest zeroed) into the object slot at
+     * {@code off}.
+     *
+     * <p>Used on every write failure path. All 6 current callers convert a write failure into a
+     * thrown exception before this buffer reaches JNI, but zero the slot anyway as defense in depth
+     * against a stale pointer reaching libddwaf if a future caller doesn't: arenas are pooled and
+     * recycled, so a half-written slot would otherwise still hold the bytes (including a possibly
+     * dangling {@code char*}) of a previous serialization run.
+     */
+    static void setInvalid(ByteBuffer buffer, int off) {
+      clearObject(buffer, off);
+      buffer.put(off + OFF_TYPE, (byte) PWInputType.PWI_INVALID.value);
     }
 
     boolean writeNull(Arena arena, String parameterName) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
-      this.buffer.putLong(0).putLong(0).putInt(PWInputType.PWI_NULL.value);
+      clearObject(this.buffer, valueOffset);
+      this.buffer.put(valueOffset + OFF_TYPE, (byte) PWInputType.PWI_NULL.value);
       return true;
     }
 
-    private static final byte[] BOOL_TRUE_REPR = new byte[] {1, 0, 0, 0, 0, 0, 0, 0};
-    private static final byte[] BOOL_FALSE_REPR = new byte[] {0, 0, 0, 0, 0, 0, 0, 0};
-
     boolean writeBool(Arena arena, String parameterName, boolean value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
-      this.buffer
-          .put(value ? BOOL_TRUE_REPR : BOOL_FALSE_REPR)
-          .putLong(0)
-          .putInt(PWInputType.PWI_BOOL.value);
+      clearObject(this.buffer, valueOffset);
+      this.buffer.put(valueOffset + OFF_TYPE, (byte) PWInputType.PWI_BOOL.value);
+      this.buffer.put(valueOffset + OFF_BOOL_VAL, (byte) (value ? 1 : 0));
       return true;
     }
 
     boolean writeString(Arena arena, String parameterName, CharSequence value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
-      Arena.WrittenString writtenString = arena.writeStringUnlimited(value);
-      if (writtenString == null) { // string too large
-        return false;
-      }
-      this.buffer
-          .putLong(writtenString.ptr)
-          .putLong(writtenString.utf8len)
-          .putInt(PWInputType.PWI_STRING.value);
-      writtenString.release();
-      return true;
+      return arena.writeStringObject(this.buffer, valueOffset, value);
     }
 
     boolean writeLong(Arena arena, String parameterName, long value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
-      this.buffer.putLong(value).putLong(0).putInt(PWInputType.PWI_SIGNED_NUMBER.value);
+      clearObject(this.buffer, valueOffset);
+      this.buffer.put(valueOffset + OFF_TYPE, (byte) PWInputType.PWI_SIGNED.value);
+      this.buffer.putLong(valueOffset + OFF_NUM_VAL, value);
       return true;
     }
 
     boolean writeDouble(Arena arena, String parameterName, double value) {
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return false;
       }
-      this.buffer.putDouble(value).putLong(0).putInt(PWInputType.PWI_FLOAT.value);
+      clearObject(this.buffer, valueOffset);
+      this.buffer.put(valueOffset + OFF_TYPE, (byte) PWInputType.PWI_FLOAT.value);
+      this.buffer.putDouble(valueOffset + OFF_NUM_VAL, value);
       return true;
     }
 
@@ -684,54 +818,68 @@ public class ByteBufferSerializer {
 
     private PWArgsArrayBuffer writeArrayOrMap(
         Arena arena, String parameterName, int numElements, PWInputType type) {
+      // Defence in depth: unreachable today, since every caller goes through
+      // clampContainerSize(), which already caps sizes to MAX_CONTAINER_SIZE. Kept so that a
+      // future change to the callers (or to Waf.Limits.maxElements) cannot silently reintroduce
+      // a uint16 wraparound in the size/capacity fields.
+      if (numElements < 0 || numElements > MAX_CONTAINER_SIZE) {
+        throw new IllegalArgumentException("Invalid container size: " + numElements);
+      }
       if (!putParameterName(arena, parameterName)) { // string too large
+        setInvalid(this.buffer, valueOffset);
         return null;
       }
+      clearObject(this.buffer, valueOffset);
+      this.buffer.put(valueOffset + OFF_TYPE, (byte) type.value);
       if (numElements == 0) {
-        this.buffer.putLong(0L).putLong(0L).putInt(type.value);
+        // size = capacity = 0, ptr = NULL
         return PWArgsArrayBuffer.EMPTY_BUFFER;
       }
 
-      PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(numElements);
+      int stride = type == PWInputType.PWI_MAP ? SIZEOF_PWARGS_KV : SIZEOF_PWARGS;
+      PWArgsArrayBuffer pwArgsArrayBuffer = arena.allocatePWArgsBuffer(numElements, stride, false);
       if (pwArgsArrayBuffer == null) {
         // should not happen
+        setInvalid(this.buffer, valueOffset);
         return null;
       }
       long address = pwArgsArrayBuffer.getAddress();
       if (address == NULLPTR) {
         // should not happen
+        setInvalid(this.buffer, valueOffset);
         return null;
       }
-      this.buffer.putLong(address).putLong(numElements).putInt(type.value);
+      this.buffer.putShort(valueOffset + OFF_CONTAINER_SIZE, (short) numElements);
+      this.buffer.putShort(valueOffset + OFF_CONTAINER_CAPACITY, (short) numElements);
+      this.buffer.putLong(valueOffset + OFF_CONTAINER_PTR, address);
       return pwArgsArrayBuffer;
     }
 
     private boolean putParameterName(Arena arena, String parameterName) {
-      if (parameterName == null) {
-        this.buffer.putLong(0L).putLong(0L);
-      } else {
-        Arena.WrittenString writtenString = arena.writeStringUnlimited(parameterName);
-        if (writtenString == null) { // string too large
-          return false;
-        }
-        this.buffer.putLong(writtenString.ptr).putLong(writtenString.utf8len);
-        writtenString.release();
+      if (keyOffset < 0) {
+        // not a map entry: there is no key slot to write to
+        return true;
       }
-
-      return true;
+      // callers are expected never to pass a null key for a map entry, but keep the invariant
+      // local: an absent key is written as the empty string
+      return arena.writeStringObject(
+          this.buffer, keyOffset, parameterName == null ? "" : parameterName);
     }
   }
 
+  /** Mirrors {@code DDWAF_OBJ_TYPE}. These are bitmask values, not sequential ordinals. */
   enum PWInputType {
-    PWI_INVALID(0),
-    PWI_SIGNED_NUMBER(1),
-    PWI_UNSIGNED_NUMBER(2),
-    PWI_STRING(4),
-    PWI_ARRAY(8),
-    PWI_MAP(16),
-    PWI_BOOL(32),
-    PWI_FLOAT(64),
-    PWI_NULL(128);
+    PWI_INVALID(0x00),
+    PWI_NULL(0x01),
+    PWI_BOOL(0x02),
+    PWI_SIGNED(0x04),
+    PWI_UNSIGNED(0x06),
+    PWI_FLOAT(0x08),
+    PWI_STRING(0x10),
+    PWI_LITERAL_STRING(0x12),
+    PWI_SMALL_STRING(0x14),
+    PWI_ARRAY(0x20),
+    PWI_MAP(0x40);
 
     int value;
 
@@ -759,13 +907,16 @@ public class ByteBufferSerializer {
       buffer.clear();
     }
 
-    Arena.WrittenString writeNulTerminated(
-        Arena.WrittenString writtenString, CharsetEncoder encoder, CharBuffer in, int maxBytes) {
+    /**
+     * Encodes {@code in} as UTF-8 at the current position, followed by a NUL byte.
+     *
+     * @return the encoded length in bytes (excluding the NUL), or -1 if it does not fit
+     */
+    int write(CharsetEncoder encoder, CharBuffer in, int maxBytes) {
       if (left() < maxBytes) {
-        return null;
+        return -1;
       }
       int position = this.buffer.position();
-      long ptr = base + position;
       if (maxBytes > 1 && in.hasRemaining()) {
         try {
           CoderResult cr = encoder.encode(in, this.buffer, true);
@@ -781,7 +932,12 @@ public class ByteBufferSerializer {
       int bytesLen = this.buffer.position() - position;
       this.buffer.put(NUL_TERMINATOR);
 
-      return writtenString.update(ptr, bytesLen);
+      return bytesLen;
+    }
+
+    /** Gives back the space taken by the last string written (it was inlined in the object). */
+    void rollbackTo(int position) {
+      this.buffer.position(position);
     }
 
     private int left() {

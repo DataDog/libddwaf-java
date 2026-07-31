@@ -17,6 +17,14 @@ Java_com_datadog_ddwaf_Waf_pwArgsBufferToString(JNIEnv *, jclass, jobject);
 
 /*
  * Class:     com_datadog_ddwaf_Waf
+ * Method:    referenceObjectTreeToString
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_datadog_ddwaf_Waf_referenceObjectTreeToString(JNIEnv *, jclass);
+
+/*
+ * Class:     com_datadog_ddwaf_Waf
  * Method:    getVersion
  * Signature: ()Ljava/lang/String;
  */

@@ -8,11 +8,13 @@
 
 package com.datadog.ddwaf
 
+import com.datadog.ddwaf.exception.InvalidRuleSetException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.junit.Test
 
 import static Waf.ResultWithData
+import static groovy.test.GroovyAssert.shouldFail
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.containsInAnyOrder
@@ -28,8 +30,8 @@ class BasicTests implements WafTrait {
   }
 
   @Test
-  void 'test running basic rule v1_0'() {
-    def ruleSet = ARACHNI_ATOM_V1_0
+  void 'test running basic rule with a simple ruleset'() {
+    def ruleSet = ARACHNI_ATOM_SIMPLE
 
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     assert wafDiagnostics.rules.loaded == ['arachni_rule']
@@ -204,7 +206,7 @@ class BasicTests implements WafTrait {
 
   @Test
   void 'test with array of string lists'() {
-    def ruleSet = ARACHNI_ATOM_V1_0
+    def ruleSet = ARACHNI_ATOM_SIMPLE
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
@@ -219,7 +221,7 @@ class BasicTests implements WafTrait {
 
   @Test
   void 'test with array'() {
-    def ruleSet = ARACHNI_ATOM_V1_0
+    def ruleSet = ARACHNI_ATOM_SIMPLE
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
@@ -231,7 +233,7 @@ class BasicTests implements WafTrait {
 
   @Test
   void 'test null argument'() {
-    def ruleSet = ARACHNI_ATOM_V1_0
+    def ruleSet = ARACHNI_ATOM_SIMPLE
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
@@ -243,7 +245,7 @@ class BasicTests implements WafTrait {
 
   @Test
   void 'test boolean arguments'() {
-    def ruleSet = ARACHNI_ATOM_V1_0
+    def ruleSet = ARACHNI_ATOM_SIMPLE
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
@@ -258,7 +260,7 @@ class BasicTests implements WafTrait {
 
   @Test
   void 'test unencodable arguments'() {
-    def ruleSet = ARACHNI_ATOM_V1_0
+    def ruleSet = ARACHNI_ATOM_SIMPLE
     wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet)
     handle = builder.buildWafHandleInstance()
     context = new WafContext(handle)
@@ -288,38 +290,39 @@ class BasicTests implements WafTrait {
   }
 
   @Test
-  void 'handles ruleset without addresses'() {
+  void 'a rule without addresses is rejected'() {
+    // With the v1 configuration schema gone (libddwaf 2.0), a rule with no inputs can no longer
+    // be expressed: the v2.1 parser rejects it, so a ruleset without addresses is not
+    // representable any more.
     def ruleSet = new JsonSlurper().parseText '''
             {
-              "version": "1.0",
-              "events": [
+              "version": "2.1",
+              "rules": [
                 {
                   "id": "arachni_rule",
                   "name": "Arachni",
+                  "tags": {
+                    "type": "arachni_detection"
+                  },
                   "conditions": [
                     {
-                      "operation": "match_regex",
+                      "operator": "match_regex",
                       "parameters": {
                         "inputs": [],
                         "regex": "Arachni"
                       }
                     }
-                  ],
-                  "tags": {
-                    "type": "arachni_detection"
-                  },
-                  "action": "record"
+                  ]
                 }
               ]
             }'''
-    wafDiagnostics = builder.addOrUpdateConfig('test', ruleSet as Map<String, Object>)
-    handle = builder.buildWafHandleInstance()
-    context = new WafContext(handle)
-    assert handle.knownAddresses.length == 0
-
-    final params = ['server.request.headers.no_cookies': ['user-agent': 'Arachni']]
-    ResultWithData res = context.run(params, limits, metrics)
-    assertThat res.result, is(Waf.Result.OK)
+    def exc = shouldFail(InvalidRuleSetException) {
+      builder.addOrUpdateConfig('test', ruleSet as Map<String, Object>)
+    }
+    wafDiagnostics = exc.wafDiagnostics
+    assert wafDiagnostics.numConfigOK == 0
+    assert wafDiagnostics.numConfigError == 1
+    assert wafDiagnostics.allErrors.keySet() == ['empty non-optional argument'] as Set
   }
 
   @Test

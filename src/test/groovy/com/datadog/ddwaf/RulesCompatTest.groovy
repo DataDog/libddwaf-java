@@ -641,6 +641,50 @@ class RulesCompatTest implements WafTrait {
   }
 
   @Test
+  void 'match produced only by attributes reports no events'() {
+    // In libddwaf 2.x a MATCH can be produced by attributes/actions alone, with an empty
+    // events array. ResultWithData.events must reflect that and be false.
+    wafDiagnostics = builder.addOrUpdateConfig('test', TRACE_TAGGING_RULESET)
+    assert wafDiagnostics.numConfigOK == 1
+
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+
+    def params = [
+      'server.request.headers.no_cookies': [
+        'user-agent': 'TraceTagging/v1'
+      ]
+    ]
+
+    def result = context.run(params, limits, metrics)
+
+    assert result.result == Waf.Result.MATCH
+    assert !result.attributes.empty
+    assert !result.events, 'events must be false for a match triggered only by attributes'
+    assert result.data == null
+  }
+
+  @Test
+  void 'no match reports no events'() {
+    wafDiagnostics = builder.addOrUpdateConfig('test', TRACE_TAGGING_RULESET)
+    assert wafDiagnostics.numConfigOK == 1
+
+    handle = builder.buildWafHandleInstance()
+    context = new WafContext(handle)
+
+    def params = [
+      'server.request.headers.no_cookies': [
+        'user-agent': 'Harmless/1.0'
+      ]
+    ]
+
+    def result = context.run(params, limits, metrics)
+
+    assert result.result == Waf.Result.OK
+    assert !result.events, 'events must be false when there is no match'
+  }
+
+  @Test
   void 'test trace tagging rule with attributes, no keep and event'() {
     def rulesetWithTraceTaggingEvent = TRACE_TAGGING_EVENT_RULESET
 

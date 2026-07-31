@@ -48,7 +48,7 @@ class ObfuscationTests implements WafTrait {
 
     def json = slurper.parseText(awd.data)
 
-    assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent', '0']
+    assert json[0].rule_matches[0]['parameters'][0].key_path == ['user-agent', 0]
     assert json[0].rule_matches[0]['parameters'][0].value == 'Arachni/v1 password=<Redacted>'
     assert json[0].rule_matches[0]['parameters'][0].highlight == ['<Redacted>']
   }

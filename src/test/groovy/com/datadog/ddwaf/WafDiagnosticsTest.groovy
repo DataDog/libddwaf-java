@@ -18,7 +18,7 @@ class WafDiagnosticsTest implements WafTrait {
 
   @Test
   void 'WafDiagnostics returns expected values for addOrUpdateConfig'() {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
 
     assert wafDiagnostics != null
     assert wafDiagnostics.rules != null

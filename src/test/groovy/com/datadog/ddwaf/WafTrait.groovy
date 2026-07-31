@@ -20,26 +20,37 @@ import static org.hamcrest.Matchers.is
 @CompileStatic
 trait WafTrait extends JNITrait {
 
-  static final Map ARACHNI_ATOM_V1_0 = (Map) new JsonSlurper().parseText('''
+  /**
+   * Minimal ruleset with an unanchored regex and no metadata. libddwaf 2.0 dropped support for the
+   * legacy v1.0 configuration schema, so this is the v2.1 equivalent of the former
+   * ARACHNI_ATOM_V1_0 fixture.
+   */
+  static final Map ARACHNI_ATOM_SIMPLE = (Map) new JsonSlurper().parseText('''
         {
-          "version": "1.0",
-          "events": [
+          "version": "2.1",
+          "rules": [
             {
               "id": "arachni_rule",
               "name": "Arachni",
-              "conditions": [
-                {
-                  "operation": "match_regex",
-                  "parameters": {
-                    "inputs": ["server.request.headers.no_cookies:user-agent"],
-                    "regex": "Arachni"
-                  }
-                }
-              ],
               "tags": {
                 "type": "arachni_detection"
               },
-              "action": "record"
+              "conditions": [
+                {
+                  "operator": "match_regex",
+                  "parameters": {
+                    "inputs": [
+                      {
+                        "address": "server.request.headers.no_cookies",
+                        "key_path": [
+                          "user-agent"
+                        ]
+                      }
+                    ],
+                    "regex": "Arachni"
+                  }
+                }
+              ]
             }
           ]
         }''')
@@ -237,7 +248,7 @@ trait WafTrait extends JNITrait {
 
   @SuppressWarnings(value = ['UnnecessaryCast', 'UnsafeImplementationAsMap'])
   Waf.ResultWithData runRules(Object data) {
-    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_V1_0)
+    wafDiagnostics = builder.addOrUpdateConfig('test', ARACHNI_ATOM_SIMPLE)
     handle?.close()
     context?.close()
     handle = builder.buildWafHandleInstance()
