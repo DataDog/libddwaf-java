@@ -19,7 +19,7 @@ plugins {
     id 'codenarc'
     id 'me.champeau.jmh' version '0.7.2'
     id 'info.solidsoft.pitest' version '1.15.0'
-    id 'com.diffplug.spotless' version '6.13.0'
+    id 'com.diffplug.spotless' version '8.10.2'
     id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
 
