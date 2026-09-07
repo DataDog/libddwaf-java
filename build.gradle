@@ -256,7 +256,7 @@ configurations {
     testGCRuntimeClasspath.extendsFrom(testRuntimeClasspath)
 }
 
-def SLF4J_VERSION = '1.7.30'
+def SLF4J_VERSION = '2.0.19'
 dependencies {
     implementation group: 'org.slf4j', name: 'slf4j-api', version: SLF4J_VERSION
 
