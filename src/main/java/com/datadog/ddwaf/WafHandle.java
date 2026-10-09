@@ -48,6 +48,17 @@ public class WafHandle {
     }
   }
 
+  /** Creates a native context while keeping this handle alive and checking its state. */
+  long createWafContext() {
+    this.readLock.lock();
+    try {
+      checkIfOnline();
+      return WafContext.initWafContext(this);
+    } finally {
+      this.readLock.unlock();
+    }
+  }
+
   public void close() {
     this.writeLock.lock();
     try {
