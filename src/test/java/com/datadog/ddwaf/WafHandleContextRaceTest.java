@@ -42,7 +42,9 @@ public class WafHandleContextRaceTest {
 
   @BeforeClass
   public static void initialize() throws Exception {
-    Waf.initialize(false);
+    // Match JNITrait: the native timeout is captured once when JNI is loaded.
+    System.setProperty("DD_APPSEC_WAF_TIMEOUT", "500000");
+    Waf.initialize(System.getProperty("useReleaseBinaries") == null);
   }
 
   private static Map<String, Object> entry(Object... pairs) {
