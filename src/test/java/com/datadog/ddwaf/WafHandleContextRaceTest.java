@@ -145,6 +145,47 @@ public class WafHandleContextRaceTest {
   }
 
   @Test
+  public void newCreationIsRejectedWhileCloseWaitsForExistingReader() throws Exception {
+    WafHandle handle = newHandle(builder);
+    Lock readLock = lock(handle, "readLock");
+    FutureTask<Void> closing =
+        new FutureTask<>(
+            () -> {
+              handle.close();
+              return null;
+            });
+    FutureTask<Void> creation =
+        new FutureTask<>(
+            () -> {
+              try (WafContext unexpected = new WafContext(handle)) {
+                fail("new creation must reject a closing handle");
+              } catch (IllegalStateException expected) {
+                assertEquals("This WafHandle is no longer online", expected.getMessage());
+              }
+              return null;
+            });
+    Thread closer = new Thread(closing, "waf-queued-close-test");
+    Thread creator = new Thread(creation, "waf-reject-creation-during-close-test");
+    readLock.lock();
+    try {
+      closer.start();
+      awaitWaiting(closer, closing);
+      creator.start();
+      // Must finish while close is still waiting, without releasing the existing reader.
+      creation.get(10, TimeUnit.SECONDS);
+      assertFalse("close must still be waiting for the existing reader", closing.isDone());
+      assertTrue(handle.isOnline());
+    } finally {
+      readLock.unlock();
+      creator.join(10000);
+      closer.join(10000);
+      handle.close();
+    }
+    closing.get(10, TimeUnit.SECONDS);
+    assertFalse(handle.isOnline());
+  }
+
+  @Test
   public void closeWaitsForCreationAndCreatedContextSurvives() throws Exception {
 
     WafHandle handle = newHandle(builder);
