@@ -45,10 +45,19 @@ public class WafContext implements Closeable {
   private boolean online;
   private final WafHandle wafHandle;
 
+  /**
+   * Creates a request context from an open handle.
+   *
+   * @throws IllegalArgumentException if the handle is null
+   * @throws IllegalStateException if the handle has already been closed
+   */
   public WafContext(WafHandle wafHandle) {
+    if (wafHandle == null) {
+      throw new IllegalArgumentException("WafHandle must not be null");
+    }
     this.wafHandle = wafHandle;
     LOGGER.debug("Creating WafContext for {}", wafHandle);
-    this.ptr = initWafContext(wafHandle);
+    this.ptr = wafHandle.createWafContext();
     this.lease = ByteBufferSerializer.getBlankLease();
     this.online = true;
     if (Waf.EXIT_ON_LEAK) {
@@ -58,7 +67,8 @@ public class WafContext implements Closeable {
     }
   }
 
-  private static native long initWafContext(WafHandle handle);
+  // Called only by WafHandle while holding its read lock and after checking it is online.
+  static native long initWafContext(WafHandle handle);
 
   /**
    * Evaluates one batch of data.

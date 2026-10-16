@@ -18,6 +18,7 @@ public class WafHandle {
   private static final Logger LOGGER = LoggerFactory.getLogger(WafHandle.class);
   private final long nativeHandle;
   private boolean online;
+  private volatile boolean closing;
   private final Lock writeLock;
   private final Lock readLock;
   private final String uniqueName;
@@ -48,7 +49,23 @@ public class WafHandle {
     }
   }
 
+  /** Creates a native context while keeping this handle alive and checking its state. */
+  long createWafContext() {
+    // Avoid queueing behind a close that is waiting for readers or destroying the handle.
+    if (closing) {
+      throw new IllegalStateException("This WafHandle is no longer online");
+    }
+    this.readLock.lock();
+    try {
+      checkIfOnline();
+      return WafContext.initWafContext(this);
+    } finally {
+      this.readLock.unlock();
+    }
+  }
+
   public void close() {
+    closing = true;
     this.writeLock.lock();
     try {
       if (nativeHandle == 0 || !online) {
