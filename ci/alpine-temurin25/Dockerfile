@@ -6,11 +6,16 @@ RUN apk add --no-cache bash openjdk8 p11-kit-trust && \
     done && \
     rm -f /usr/lib/libnssckbi-testlib.so*
 COPY --from=eclipse-temurin:25-jdk-alpine /opt/java/openjdk /usr/lib/jvm/25
-# Delete the emSign ECC G3 root only while the copied JDK still ships it (the Oct-21 JDK update removes it).
-RUN KS=/usr/lib/jvm/25/lib/security/cacerts; A="cn_emsign_ecc_root_ca__g3,o_emudhra_technologies_limited,ou_emsign_pki,c_in [jdk]"; \
-    if /usr/lib/jvm/25/bin/keytool -list -keystore "$KS" -storepass changeit -alias "$A" >/dev/null 2>&1; then \
-      /usr/lib/jvm/25/bin/keytool -delete -keystore "$KS" -storepass changeit -alias "$A"; \
-    fi
+# Delete both compromised roots from the copied JDK cacerts by subject (not alias), then fail the
+# build if either is still there. The current eclipse-temurin:25-jdk-alpine tag still ships emSign
+# ECC G3; the Oct-21 Temurin release drops it, and then this step deletes nothing.
+RUN set -e; KT=/usr/lib/jvm/25/bin/keytool; KS=/usr/lib/jvm/25/lib/security/cacerts; \
+    BAD='^Owner: CN=(emSign ECC Root CA - G3|AAA Certificate Services),'; \
+    LIST=$("$KT" -list -v -keystore "$KS" -storepass changeit); \
+    printf '%s\n' "$LIST" | awk -v bad="$BAD" '/^Alias name: /{a=substr($0,13)} $0 ~ bad {print a}' | \
+    while IFS= read -r alias; do "$KT" -delete -keystore "$KS" -storepass changeit -alias "$alias"; done; \
+    LIST=$("$KT" -list -v -keystore "$KS" -storepass changeit); \
+    if printf '%s\n' "$LIST" | grep -Eq "$BAD"; then echo "compromised root still in $KS" >&2; exit 1; fi
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8-openjdk
 ENV JAVA_8_HOME=/usr/lib/jvm/java-1.8-openjdk
 ENV JAVA_25_HOME=/usr/lib/jvm/25
