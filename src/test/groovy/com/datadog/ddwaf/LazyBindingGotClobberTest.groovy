@@ -35,9 +35,12 @@ class LazyBindingGotClobberTest {
     assumeFalse('musl does not support LD_AUDIT', isMusl())
     assumeFalse('not combined with the ASan LD_PRELOAD', System.getenv('LD_PRELOAD')?.contains('asan') ?: false)
 
+    String auditSource = System.getProperty('gotClobberAuditSource')
+    assumeTrue('gotClobberAuditSource is set by the Gradle test task', auditSource != null)
+
     File tmpDir = Files.createTempDirectory('got-clobber').toFile()
     File auditLib = new File(tmpDir, 'got_clobber_audit.so')
-    assumeTrue('C compiler not available', compileAuditLib(auditLib))
+    assumeTrue('C compiler not available', compileAuditLib(auditSource, auditLib))
 
     ProcessBuilder pb = new ProcessBuilder(
       new File(System.getProperty('java.home'), 'bin/java').path,
@@ -52,18 +55,27 @@ class LazyBindingGotClobberTest {
     pb.redirectErrorStream(true)
 
     Process process = pb.start()
-    String output = process.inputStream.text
-    int exitCode = process.waitFor()
+    String output
+    int exitCode
+    try {
+      output = process.inputStream.text
+      exitCode = process.waitFor()
+    } finally {
+      // do not leave the child JVM behind if the test times out
+      process.destroyForcibly()
+    }
 
     assert output.contains('GOT_CLOBBER: patched malloc'):
     "audit module did not patch the GOT, the scenario was not exercised:\n$output"
     assert exitCode == 0 && output.contains(Child.LOADED):
     "libsqreen_jni.so crashed after its malloc GOT slot was written before relocation " +
     "(is it linked without -z now?), exit code $exitCode:\n$output"
+
+    // only reached on success: on failure, keep the hs_err file referenced in the output
+    tmpDir.deleteDir()
   }
 
-  private static boolean compileAuditLib(File target) {
-    String source = System.getProperty('gotClobberAuditSource')
+  private static boolean compileAuditLib(String source, File target) {
     Process process
     try {
       process = new ProcessBuilder('cc', '-shared', '-fPIC', '-o', target.path, source)

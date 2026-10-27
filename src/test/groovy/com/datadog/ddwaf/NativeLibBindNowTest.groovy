@@ -20,6 +20,15 @@ import static org.junit.Assume.assumeFalse
  * Unlike LazyBindingGotClobberTest, it needs no compiler, so it also guards the release binaries.
  */
 class NativeLibBindNowTest {
+  // Elf64_Ehdr, Elf64_Phdr and Elf64_Dyn field offsets
+  private static final int E_PHOFF = 0x20
+  private static final int E_PHENTSIZE = 0x36
+  private static final int E_PHNUM = 0x38
+  private static final int P_OFFSET = 0x08
+  private static final int P_FILESZ = 0x20
+  private static final int DYN_SIZE = 16
+  private static final int D_VAL = 8
+
   private static final int PT_DYNAMIC = 2
   private static final long DT_NULL = 0
   private static final long DT_BIND_NOW = 24
@@ -50,19 +59,19 @@ class NativeLibBindNowTest {
     ByteBuffer buf = ByteBuffer.wrap(elf).order(LITTLE_ENDIAN)
     assert buf.getInt(0) == 0x464c457f && elf[4] == 2: 'not a 64-bit ELF file'
 
-    long phoff = buf.getLong(0x20)
-    int phentsize = buf.getShort(0x36) & 0xffff
-    int phnum = buf.getShort(0x38) & 0xffff
+    long phoff = buf.getLong(E_PHOFF)
+    int phentsize = buf.getShort(E_PHENTSIZE) & 0xffff
+    int phnum = buf.getShort(E_PHNUM) & 0xffff
     for (int i = 0; i < phnum; i++) {
       int ph = (int) (phoff + i * phentsize)
       if (buf.getInt(ph) != PT_DYNAMIC) {
         continue
       }
-      long dynOffset = buf.getLong(ph + 8)
-      long dynSize = buf.getLong(ph + 32)
-      for (long dyn = dynOffset; dyn < dynOffset + dynSize; dyn += 16) {
+      long dynOffset = buf.getLong(ph + P_OFFSET)
+      long dynSize = buf.getLong(ph + P_FILESZ)
+      for (long dyn = dynOffset; dyn < dynOffset + dynSize; dyn += DYN_SIZE) {
         long tag = buf.getLong((int) dyn)
-        long value = buf.getLong((int) dyn + 8)
+        long value = buf.getLong((int) dyn + D_VAL)
         if (tag == DT_NULL) {
           break
         }
