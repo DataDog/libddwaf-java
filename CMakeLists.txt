@@ -89,6 +89,12 @@ else()
 endif()
 if(NOT (CMAKE_CXX_COMPILER_ID MATCHES MSVC OR APPLE))
     target_link_libraries(sqreen_jni PRIVATE rt)
+    # Bind all imports at load time and make the GOT read-only afterwards (full
+    # RELRO). With lazy binding, glibc relocates PLT slots as "*slot += base",
+    # so a slot written by another component (e.g. a GOT-patching profiler)
+    # before relocation becomes a wild pointer and crashes the first call
+    # through it, inside JNI_OnLoad (APPSEC-69052).
+    target_link_libraries(sqreen_jni PRIVATE -Wl,-z,now -Wl,-z,relro)
 endif()
 target_link_libraries(sqreen_jni PRIVATE ${LIBDDWAF_TARGET} ${JAVA_JVM_LIBRARY} zlibstatic)
 
