@@ -13,13 +13,20 @@ import org.junit.Test
 import java.nio.ByteBuffer
 
 import static java.nio.ByteOrder.LITTLE_ENDIAN
-import static org.junit.Assume.assumeFalse
+import static org.junit.Assume.assumeTrue
 
 /**
  * Checks that every Linux libsqreen_jni.so on the classpath is linked with BIND_NOW (APPSEC-69052).
  * Unlike LazyBindingGotClobberTest, it needs no compiler, so it also guards the release binaries.
  */
 class NativeLibBindNowTest {
+  private static final List<String> LINUX_JNI_LIBS = [
+    'native_libs/linux/x86_64/glibc/libsqreen_jni.so',
+    'native_libs/linux/x86_64/musl/libsqreen_jni.so',
+    'native_libs/linux/aarch64/glibc/libsqreen_jni.so',
+    'native_libs/linux/aarch64/musl/libsqreen_jni.so',
+  ]
+
   // Elf64_Ehdr, Elf64_Phdr and Elf64_Dyn field offsets
   private static final int E_PHOFF = 0x20
   private static final int E_PHENTSIZE = 0x36
@@ -40,19 +47,17 @@ class NativeLibBindNowTest {
   @Test
   void linuxJniLibrariesAreLinkedWithBindNow() {
     Map<String, byte[]> libs = [:]
-    for (String arch : ['x86_64', 'aarch64']) {
-      for (String libc : ['glibc', 'musl']) {
-        String path = "native_libs/linux/$arch/$libc/libsqreen_jni.so"
-        InputStream is = getClass().classLoader.getResourceAsStream(path)
-        if (is != null) {
-          libs[path] = is.withCloseable { it.bytes }
-        }
+    for (String path : LINUX_JNI_LIBS) {
+      InputStream is = getClass().classLoader.getResourceAsStream(path)
+      if (is != null) {
+        libs[path] = is.withCloseable { it.bytes }
       }
     }
-    assumeFalse('no Linux libsqreen_jni.so on the classpath', libs.isEmpty())
+    // not libs.empty: on a Map that looks up the 'empty' key
+    assumeTrue('no Linux libsqreen_jni.so on the classpath', libs as boolean)
 
     List<String> lazy = libs.findAll { !hasBindNow(it.value) }*.key
-    assert lazy.isEmpty(): "linked without -z now: $lazy"
+    assert lazy.empty: "linked without -z now: $lazy"
   }
 
   private static boolean hasBindNow(byte[] elf) {
@@ -62,26 +67,34 @@ class NativeLibBindNowTest {
     long phoff = buf.getLong(E_PHOFF)
     int phentsize = buf.getShort(E_PHENTSIZE) & 0xffff
     int phnum = buf.getShort(E_PHNUM) & 0xffff
-    for (int i = 0; i < phnum; i++) {
-      int ph = (int) (phoff + i * phentsize)
-      if (buf.getInt(ph) != PT_DYNAMIC) {
-        continue
+    (0..<phnum).collect { int i -> (int) (phoff + i * phentsize) }
+    .findAll { int ph -> buf.getInt(ph) == PT_DYNAMIC }
+    .any { int ph -> dynamicSectionHasBindNow(buf, buf.getLong(ph + P_OFFSET), buf.getLong(ph + P_FILESZ)) }
+  }
+
+  private static boolean dynamicSectionHasBindNow(ByteBuffer buf, long offset, long size) {
+    for (long dyn = offset; dyn < offset + size; dyn += DYN_SIZE) {
+      long tag = buf.getLong((int) dyn)
+      if (tag == DT_NULL) {
+        break
       }
-      long dynOffset = buf.getLong(ph + P_OFFSET)
-      long dynSize = buf.getLong(ph + P_FILESZ)
-      for (long dyn = dynOffset; dyn < dynOffset + dynSize; dyn += DYN_SIZE) {
-        long tag = buf.getLong((int) dyn)
-        long value = buf.getLong((int) dyn + D_VAL)
-        if (tag == DT_NULL) {
-          break
-        }
-        if (tag == DT_BIND_NOW ||
-          (tag == DT_FLAGS && (value & DF_BIND_NOW) != 0) ||
-          (tag == DT_FLAGS_1 && (value & DF_1_NOW) != 0)) {
-          return true
-        }
+      if (isBindNowEntry(tag, buf.getLong((int) dyn + D_VAL))) {
+        return true
       }
     }
     false
+  }
+
+  private static boolean isBindNowEntry(long tag, long value) {
+    switch (tag) {
+      case DT_BIND_NOW:
+        return true
+      case DT_FLAGS:
+        return (value & DF_BIND_NOW) != 0
+      case DT_FLAGS_1:
+        return (value & DF_1_NOW) != 0
+      default:
+        return false
+    }
   }
 }

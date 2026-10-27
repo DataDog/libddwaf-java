@@ -11,6 +11,7 @@ package com.datadog.ddwaf
 import org.junit.Test
 
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 
 import static org.junit.Assume.assumeFalse
 import static org.junit.Assume.assumeTrue
@@ -28,11 +29,12 @@ import static org.junit.Assume.assumeTrue
  * NativeLibBindNowTest covers the release binaries where this test cannot run.
  */
 class LazyBindingGotClobberTest {
+  private static final long CHILD_TIMEOUT_MINUTES = 2
 
-  @Test(timeout = 120_000L)
+  @Test
   void libraryLoadsWhenGotSlotIsWrittenBeforeRelocation() {
     assumeTrue('LD_AUDIT is Linux only', System.getProperty('os.name') == 'Linux')
-    assumeFalse('musl does not support LD_AUDIT', isMusl())
+    assumeFalse('musl does not support LD_AUDIT', runningOnMusl())
     assumeFalse('not combined with the ASan LD_PRELOAD', System.getenv('LD_PRELOAD')?.contains('asan') ?: false)
 
     String auditSource = System.getProperty('gotClobberAuditSource')
@@ -40,8 +42,13 @@ class LazyBindingGotClobberTest {
 
     File tmpDir = Files.createTempDirectory('got-clobber').toFile()
     File auditLib = new File(tmpDir, 'got_clobber_audit.so')
-    assumeTrue('C compiler not available', compileAuditLib(auditSource, auditLib))
+    boolean compiled = compileAuditLib(auditSource, auditLib)
+    if (!compiled) {
+      tmpDir.deleteDir()
+    }
+    assumeTrue('C compiler not available', compiled)
 
+    File outputFile = new File(tmpDir, 'child-output.txt')
     ProcessBuilder pb = new ProcessBuilder(
       new File(System.getProperty('java.home'), 'bin/java').path,
       '-XX:-CreateCoredumpOnCrash',
@@ -53,23 +60,24 @@ class LazyBindingGotClobberTest {
       GOT_CLOBBER_TARGET: 'libsqreen_jni.so',
       GOT_CLOBBER_SYMBOL: 'malloc')
     pb.redirectErrorStream(true)
+    pb.redirectOutput(outputFile)
 
+    // the output goes to a file so that nothing blocks on a pipe and the timeout always applies
     Process process = pb.start()
-    String output
-    int exitCode
+    boolean exited
     try {
-      output = process.inputStream.text
-      exitCode = process.waitFor()
+      exited = process.waitFor(CHILD_TIMEOUT_MINUTES, TimeUnit.MINUTES)
     } finally {
-      // do not leave the child JVM behind if the test times out
       process.destroyForcibly()
     }
+    String output = outputFile.text
 
+    assert exited: "child JVM did not exit within $CHILD_TIMEOUT_MINUTES minutes:\n$output"
     assert output.contains('GOT_CLOBBER: patched malloc'):
     "audit module did not patch the GOT, the scenario was not exercised:\n$output"
-    assert exitCode == 0 && output.contains(Child.LOADED):
-    "libsqreen_jni.so crashed after its malloc GOT slot was written before relocation " +
-    "(is it linked without -z now?), exit code $exitCode:\n$output"
+    assert process.exitValue() == 0:
+    'libsqreen_jni.so crashed after its malloc GOT slot was written before relocation ' +
+    "(is it linked without -z now?), exit code ${process.exitValue()}:\n$output"
 
     // only reached on success: on failure, keep the hs_err file referenced in the output
     tmpDir.deleteDir()
@@ -89,7 +97,7 @@ class LazyBindingGotClobberTest {
     true
   }
 
-  private static boolean isMusl() {
+  private static boolean runningOnMusl() {
     new File('/proc/self/maps').readLines('ISO-8859-1').any {
       it.contains('libc.musl-') || it.contains('ld-musl-')
     }
@@ -97,11 +105,9 @@ class LazyBindingGotClobberTest {
 
   /** Entry point of the child JVM: loads the native library the same way the tracer does. */
   static class Child {
-    static final String LOADED = 'LIBSQREEN_JNI_LOADED'
-
     static void main(String[] args) {
+      // exits 0 only if the library loaded; a crash in JNI_OnLoad kills the JVM
       Waf.initialize(false)
-      println LOADED
     }
   }
 }
