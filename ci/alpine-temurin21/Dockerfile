@@ -3,7 +3,8 @@ FROM alpine:3.24.3
 RUN apk add --no-cache bash openjdk8 p11-kit-trust && \
     for module in /usr/lib/libnssckbi.so*; do \
         ln -sf /usr/lib/pkcs11/p11-kit-trust.so "$module"; \
-    done
+    done && \
+    rm -f /usr/lib/libnssckbi-testlib.so*
 COPY --from=eclipse-temurin:21-jdk-alpine /opt/java/openjdk /usr/lib/jvm/21
 # Delete the emSign ECC G3 root only while the copied JDK still ships it (the Oct-21 JDK update removes it).
 RUN KS=/usr/lib/jvm/21/lib/security/cacerts; A="cn_emsign_ecc_root_ca__g3,o_emudhra_technologies_limited,ou_emsign_pki,c_in [jdk]"; \

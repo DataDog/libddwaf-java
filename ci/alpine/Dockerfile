@@ -8,7 +8,13 @@ RUN apk add --no-cache ca-certificates \
  && update-ca-certificates \
  && ln -sf /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem
 
-RUN apk add --update-cache --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing cmake bash make git g++ wget openjdk8
+# openjdk8 pulls in nss, whose builtin roots module still trusts both roots: point it at the
+# p11-kit trust module (system bundle) and drop the NSS test copy of the builtins.
+RUN apk add --update-cache --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing cmake bash make git g++ wget openjdk8 p11-kit-trust \
+ && for module in /usr/lib/libnssckbi.so*; do \
+        ln -sf /usr/lib/pkcs11/p11-kit-trust.so "$module"; \
+    done \
+ && rm -f /usr/lib/libnssckbi-testlib.so*
 
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8-openjdk
 ENV PATH=$JAVA_HOME/bin:$PATH
