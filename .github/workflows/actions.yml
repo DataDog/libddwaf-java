@@ -605,6 +605,14 @@ jobs:
         docker run --rm -w $(pwd) -v $(pwd):$(pwd) ${{ matrix.docker_image }} \
           sh -c './gradlew check --no-daemon --info -Prelease -PuseReleaseBinaries -Dorg.gradle.native=false -PtestJavaHome="$${{ matrix.test_java_home_var }}"${{ matrix.use_zgc && ' -PuseZGC' || '' }}'
       if: ${{ matrix.os == 'linux' }}
+    # macOS 15 runner images no longer ship JDK 8; setup-java exports JAVA_HOME_8_X64
+    - name: Setup JDK 8 (macOS)
+      uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+      with:
+        java-version: 8
+        distribution: temurin
+        architecture: x64
+      if: ${{ matrix.os == 'macos' && matrix.jdk == 'temurin8' }}
     - name: Run tests (no docker)
       run: |
         set -eux
