@@ -11,7 +11,7 @@ defaults:
 env:
   buildType: RelWithDebInfo
   tempdir: ${{ github.workspace }}/build
-  libddwafVersion: 2.0.1
+  libddwafVersion: 2.2.0
 jobs:
   Spotless:
     name: spotless

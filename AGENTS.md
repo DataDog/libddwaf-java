@@ -80,9 +80,15 @@ guide.
 
 ### Before touching any file
 
-Read the new libddwaf release's `UPGRADING.md` and `CHANGELOG.md`
-(`https://github.com/DataDog/libddwaf/blob/master/UPGRADING.md` and
-`.../CHANGELOG.md` on the target tag). Specifically look for:
+Read the new libddwaf release's upgrading notes and changelog, on the
+target tag: `https://github.com/DataDog/libddwaf/tree/<tag>/docs/upgrading`
+and `https://github.com/DataDog/libddwaf/tree/<tag>/docs/changelog`. Read
+both the per-version files (e.g. `UPGRADING-v2.2.md`, `CHANGELOG-v2.2.0.md`)
+and the cumulative per-major files (e.g. `UPGRADING-v2.x.md`,
+`CHANGELOG-v2.x.md`) for every release between the current version and the
+target, since the cumulative files may not include the newest release yet.
+`UPGRADING-latest.md`/`CHANGELOG-latest.md` only contain the name of the
+newest per-version file, not its content. Specifically look for:
 
 - Renamed or removed keys in the `ddwaf_run` result or in the diagnostics
   output (e.g. a past release renamed `block_id` to
@@ -102,7 +108,7 @@ Read the new libddwaf release's `UPGRADING.md` and `CHANGELOG.md`
 
 If in doubt about the scope of the change, do NOT assume it's a trivial
 version bump just because it looks like one in the diff — verify against
-`UPGRADING.md` first.
+the upstream `docs/upgrading/` notes first.
 
 ### Steps
 
@@ -123,7 +129,10 @@ version bump just because it looks like one in the diff — verify against
    git add libddwaf
    ```
    Verify `git -C libddwaf rev-parse HEAD` matches the tag commit exactly —
-   never leave it pointing at an arbitrary `master` commit.
+   never leave it pointing at an arbitrary `master` commit. Also verify the
+   staged gitlink with `git rev-parse :libddwaf` (or `git rev-parse HEAD:libddwaf`
+   after committing): the first check passes even if `git add libddwaf` was
+   forgotten.
 3. Update the `libddwafVersion` env var, near the top of
    `.github/workflows/actions.yml` (`grep -n "libddwafVersion:" .github/workflows/actions.yml`
    to find its current line). This is a **second, independent** source of

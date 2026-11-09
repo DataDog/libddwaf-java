@@ -69,6 +69,24 @@ class BadRuleTests implements WafTrait {
     assert handle != null
   }
 
+  @Test
+  void 'invalid schema version'() {
+    // since libddwaf 2.2.0 (#523), top-level parsing errors are reported in the diagnostics
+    // 'error' field, which makes numConfigError 1 and wellStructured true
+    def rules = copyMap(ARACHNI_ATOM_V2_1)
+    rules['version'] = 'abc'
+
+    InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+      builder.addOrUpdateConfig('test', rules)
+    }
+    wafDiagnostics = exc.wafDiagnostics
+
+    assert wafDiagnostics.error == 'invalid version format, expected major.minor'
+    assert wafDiagnostics.numConfigOK == 0
+    assert wafDiagnostics.numConfigError == 1
+    assert wafDiagnostics.wellStructured
+  }
+
   private Map copyMap(Map map) {
     new JsonSlurper().parseText(JsonOutput.toJson(map))
   }

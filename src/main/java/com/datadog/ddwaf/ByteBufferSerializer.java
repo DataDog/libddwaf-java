@@ -93,7 +93,10 @@ public class ByteBufferSerializer {
   /** {@code DDWAF_OBJ_SSTR_SIZE}: strings up to this length are stored inline in the object. */
   private static final int MAX_SMALL_STRING_SIZE = 14;
 
-  /** Container {@code size}/{@code capacity} are {@code uint16_t} in libddwaf 2.x. */
+  /**
+   * Binding limit: we only write compact containers ({@code uint16_t} size/capacity). libddwaf 2.1+
+   * also supports large containers, which we never produce.
+   */
   private static final int MAX_CONTAINER_SIZE = 65535;
 
   private static final int PWARGS_MIN_SEGMENTS_SIZE = 512;
@@ -374,13 +377,13 @@ public class ByteBufferSerializer {
 
   /**
    * Caps the number of children of a container to what the remaining element budget allows and to
-   * what libddwaf's {@code uint16_t} size field can represent.
+   * what the compact layout's {@code uint16_t} size field can represent.
    */
   private static int clampContainerSize(int size, int[] remainingElements, WafMetrics metrics) {
     int capped = Math.min(size, remainingElements[0]);
     if (capped > MAX_CONTAINER_SIZE) {
       LOGGER.warn(
-          "Truncating container from size {} to size {} (libddwaf limit)",
+          "Truncating container from size {} to size {} (binding limit)",
           capped,
           MAX_CONTAINER_SIZE);
       capped = MAX_CONTAINER_SIZE;

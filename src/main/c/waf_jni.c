@@ -96,7 +96,8 @@ static jobject _create_result_checked(JNIEnv *env, DDWAF_RET_CODE code,
                                       const ddwaf_object *ddwaf_result);
 static uint64_t _get_duration(const ddwaf_object *res);
 
-/* Container size/capacity are uint16_t in libddwaf 2.x. */
+/* Binding limit: we only build compact containers (uint16_t size/capacity).
+ * libddwaf >= 2.1 also has large containers, which we never produce. */
 #define MAX_CONTAINER_SIZE ((int) UINT16_MAX)
 
 /* The path under which the obfuscator regexes given through WafConfig are
@@ -1442,11 +1443,15 @@ static void _dispose_of_cache_references(JNIEnv *env)
     _dispose_of_cached_methods(env);
 }
 
-/* clamps a container size to what libddwaf's uint16_t capacity can hold.
+/* clamps a container size to the uint16_t capacity of the compact
+ * ddwaf_object layout.
  *
- * This 65535-entry cap did not exist before the migration to libddwaf 2.x
- * (ddwaf_object size/capacity became uint16); truncation here is a new, real
- * behavior change worth surfacing at WARN rather than DEBUG/INFO. */
+ * The 65535-entry cap is this binding's choice, not a libddwaf limit. The
+ * zero-copy ByteBufferSerializer (request data) can only write compact
+ * containers. This builder-config path uses the official API, so it could
+ * accept larger containers since libddwaf 2.1, but it still applies the same
+ * cap. Truncation drops user data (e.g. entries of a large rules_data list),
+ * so it is surfaced at WARN rather than DEBUG/INFO. */
 static uint16_t _clamp_capacity(jsize len)
 {
     if (len < 0) {
