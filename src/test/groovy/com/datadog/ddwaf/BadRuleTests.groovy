@@ -9,6 +9,7 @@
 package com.datadog.ddwaf
 
 import com.datadog.ddwaf.exception.InvalidRuleSetException
+import com.datadog.ddwaf.exception.UnclassifiedWafException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.junit.Test
@@ -67,6 +68,40 @@ class BadRuleTests implements WafTrait {
 
     handle = builder.buildWafHandleInstance()
     assert handle != null
+  }
+
+  @Test
+  void 'invalid schema version'() {
+    // since libddwaf 2.2.0 (#523), top-level parsing errors are reported in the diagnostics
+    // 'error' field, which makes numConfigError 1 and wellStructured true
+    def rules = copyMap(ARACHNI_ATOM_V2_1)
+    rules['version'] = 'abc'
+
+    InvalidRuleSetException exc = shouldFail(InvalidRuleSetException) {
+      builder.addOrUpdateConfig('test', rules)
+    }
+    wafDiagnostics = exc.wafDiagnostics
+
+    assert wafDiagnostics.error == 'invalid version format, expected major.minor'
+    assert wafDiagnostics.numConfigOK == 0
+    assert wafDiagnostics.numConfigError == 1
+    assert wafDiagnostics.wellStructured
+  }
+
+  @Test
+  void 'removing a path after a rejected update fails'() {
+    // since libddwaf 2.2.0 (#523), a rejected update always unregisters the path, so a later
+    // removeConfig on it fails (with 2.0.1 the path stayed registered and the removal succeeded)
+    builder.addOrUpdateConfig('test', ARACHNI_ATOM_V2_1)
+    def bad = copyMap(ARACHNI_ATOM_V2_1)
+    bad['version'] = 'abc'
+    shouldFail(InvalidRuleSetException) {
+      builder.addOrUpdateConfig('test', bad)
+    }
+
+    shouldFail(UnclassifiedWafException) {
+      builder.removeConfig('test')
+    }
   }
 
   private Map copyMap(Map map) {

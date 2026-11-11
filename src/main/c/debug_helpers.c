@@ -269,7 +269,8 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
             HSTRING_APPEND_CONST(str, "false\n");
         }
         break;
-    case DDWAF_OBJ_ARRAY: {
+    case DDWAF_OBJ_ARRAY:
+    case DDWAF_OBJ_LARGE_ARRAY: {
         HSTRING_APPEND_CONST(str, "<ARRAY>\n");
         size_t size = ddwaf_object_get_size(pwargs);
         for (size_t i = 0; i < size; i++) {
@@ -278,7 +279,8 @@ static void _hstring_write_pwargs(hstring *str, size_t depth,
         }
         break;
     }
-    case DDWAF_OBJ_MAP: {
+    case DDWAF_OBJ_MAP:
+    case DDWAF_OBJ_LARGE_MAP: {
         HSTRING_APPEND_CONST(str, "<MAP>\n");
         size_t size = ddwaf_object_get_size(pwargs);
         for (size_t i = 0; i < size; i++) {

@@ -587,7 +587,9 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
         assert(len > 0 && (size_t) len < sizeof(str)); // can't fail
         cur_seg = json_append(cur_seg, str, (size_t) len);
     } break;
-    case DDWAF_OBJ_ARRAY: {
+    // large containers exist since libddwaf 2.1.0 (> 65535 elements)
+    case DDWAF_OBJ_ARRAY:
+    case DDWAF_OBJ_LARGE_ARRAY: {
         size_t nb_entries = ddwaf_object_get_size(cur_obj);
         cur_seg = json_append(cur_seg, "[", 1);
         for (size_t i = 0; i < nb_entries; i++) {
@@ -599,7 +601,8 @@ static struct json_segment *_convert_json(const ddwaf_object *cur_obj,
         }
         cur_seg = json_append(cur_seg, "]", 1);
     } break;
-    case DDWAF_OBJ_MAP: {
+    case DDWAF_OBJ_MAP:
+    case DDWAF_OBJ_LARGE_MAP: {
         size_t nb_entries = ddwaf_object_get_size(cur_obj);
         cur_seg = json_append(cur_seg, "{", 1);
         for (size_t i = 0; i < nb_entries; i++) {
@@ -779,7 +782,7 @@ jobject output_convert_attributes_checked(JNIEnv *env, const ddwaf_object *obj)
             // boolean attributes
             value = java_meth_call(env, &boolean_valueOf, boolean_cls,
                                    (jboolean) ddwaf_object_get_bool(entry));
-        } else if (entry_type == DDWAF_OBJ_MAP) {
+        } else if (ddwaf_object_is_map(entry)) {
             // map-type attributes (like trace tagging objects)
             jobject map_value = convert_ddwaf_object_to_jobject(env, entry);
             if (JNI(ExceptionCheck)) {
@@ -848,7 +851,8 @@ jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
     case DDWAF_OBJ_BOOL:
         return java_meth_call(env, &boolean_valueOf, boolean_cls,
                               (jboolean) ddwaf_object_get_bool(obj));
-    case DDWAF_OBJ_ARRAY: {
+    case DDWAF_OBJ_ARRAY:
+    case DDWAF_OBJ_LARGE_ARRAY: {
         size_t nb_entries = ddwaf_object_get_size(obj);
         if (nb_entries > MAX_JINT) {
             JNI(ThrowNew, jcls_rte, "Too many elements in ddwaf array");
@@ -878,7 +882,8 @@ jobject convert_ddwaf_object_to_jobject(JNIEnv *env, const ddwaf_object *obj)
 
         return ret;
     }
-    case DDWAF_OBJ_MAP: {
+    case DDWAF_OBJ_MAP:
+    case DDWAF_OBJ_LARGE_MAP: {
         jobject ret = java_meth_call(env, &_linked_hm_init, NULL);
         if (ret == NULL) {
             return NULL;

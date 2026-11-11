@@ -68,10 +68,12 @@ public final class WafBuilder {
   }
 
   /**
-   * Removes a configuration. It does not fail if the configuration does not exist.
+   * Removes a configuration.
    *
    * @param path Path to the configuration.
-   * @throws UnclassifiedWafException If the builder is closed.
+   * @throws UnclassifiedWafException If the builder is closed, or if no configuration is registered
+   *     at {@code path}. This includes a path whose last {@link #addOrUpdateConfig(String, Map)}
+   *     was rejected: since libddwaf 2.2.0 a rejected update unregisters the path.
    * @throws IllegalArgumentException If the path is null or empty.
    */
   public synchronized void removeConfig(String path) throws UnclassifiedWafException {
