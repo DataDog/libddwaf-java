@@ -3,7 +3,7 @@
  * under the Apache-2.0 License.
  *
  * This product includes software developed at Datadog
- * (https://www.datadoghq.com/). Copyright 2021 Datadog, Inc.
+ * (https://www.datadoghq.com/). Copyright 2026 Datadog, Inc.
  */
 
 package com.datadog.ddwaf;
@@ -12,6 +12,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
@@ -31,7 +32,7 @@ public class RelocatedBindingInitTest {
   @Test
   public void initializesWithOrgSlf4jVisibleFromBindingLoader() throws Exception {
     ClassLoader parent = RelocatedBindingInitTest.class.getClassLoader();
-    URL bindingJar = new File(System.getProperty("relocatedBindingJar")).toURI().toURL();
+    URL bindingJar = new File(requiredProperty("relocatedBindingJar")).toURI().toURL();
     URLClassLoader cl = new URLClassLoader(new URL[] {bindingJar}, parent);
 
     // If the parent saw the binding, parent-first delegation would load the unrelocated classes and
@@ -40,7 +41,6 @@ public class RelocatedBindingInitTest {
       Class.forName("com.datadog.ddwaf.Waf", false, parent);
       fail("com.datadog.ddwaf.Waf must not be loadable from the test class loader");
     } catch (ClassNotFoundException expected) {
-      // expected
     }
 
     // Visibility of org.slf4j.event.Level from the binding loader is what made the native init
@@ -59,7 +59,6 @@ public class RelocatedBindingInitTest {
       infoToDebug.getConstructor(Class.forName("org.slf4j.Logger", false, cl));
       fail("InfoToDebugLogger must not have a constructor taking org.slf4j.Logger");
     } catch (NoSuchMethodException expected) {
-      // expected
     }
 
     Class<?> waf = Class.forName("com.datadog.ddwaf.Waf", true, cl);
@@ -76,5 +75,12 @@ public class RelocatedBindingInitTest {
     assertTrue(
         "version " + version + " does not match " + libVersion,
         Pattern.compile(libVersion).matcher(version).find());
+  }
+
+  // Set by the testSlf4jRelocation Gradle task; skip instead of failing with an NPE elsewhere.
+  private static String requiredProperty(String name) {
+    String value = System.getProperty(name);
+    assumeTrue(name + " is only set by the testSlf4jRelocation Gradle task", value != null);
+    return value;
   }
 }

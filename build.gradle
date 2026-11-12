@@ -494,6 +494,8 @@ tasks.register('relocatedBindingJar', ShadowJar) {
     description = 'Builds the binding and slf4j-api with org.slf4j relocated to datadog.slf4j'
     group = 'verification'
     archiveClassifier = 'relocated-binding'
+    // Outside build/libs: the release packaging step copies build/libs/libsqreen-*.jar
+    destinationDirectory = layout.buildDirectory.dir('relocation-test-libs')
     from sourceSets.main.output
     configurations = [project.configurations.runtimeClasspath]
     dependencies {
@@ -509,6 +511,7 @@ tasks.register('relocatedSlf4jJar', ShadowJar) {
     description = 'Builds slf4j-api with org.slf4j relocated to datadog.slf4j'
     group = 'verification'
     archiveClassifier = 'relocated-slf4j'
+    destinationDirectory = layout.buildDirectory.dir('relocation-test-libs')
     configurations = [project.configurations.runtimeClasspath]
     dependencies {
         include(dependency("org.slf4j:slf4j-api:${SLF4J_VERSION}"))
@@ -542,6 +545,10 @@ tasks.register('testSlf4jRelocation', Test) {
     classpath = sourceSets.testRelocation.runtimeClasspath
     // The native init state (C statics) is per process: one JVM per test class.
     forkEvery = 1
+    // The classes under test are relocated copies loaded by custom class loaders: their coverage data
+    // does not match the main classes, and jacocoTestReport would read this task's exec file without
+    // a declared dependency.
+    jacoco.enabled = false
 
     def bindingJar = tasks.named('relocatedBindingJar').flatMap { it.archiveFile }
     def slf4jJar = tasks.named('relocatedSlf4jJar').flatMap { it.archiveFile }

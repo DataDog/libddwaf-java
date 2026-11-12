@@ -135,6 +135,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     jobject wrapper_local = NULL;
     jclass level_cls = NULL;
     jclass object_cls_local = NULL;
+    const struct slf4j_strings *detected = NULL;
 
     _vm = vm;
 
@@ -144,10 +145,11 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
      * org/slf4j can still be reachable from this class loader (e.g. slf4j as
      * a named module in the JPMS boot layer, which the JDK builtin loaders
      * delegate to across loaders). */
-    slf4j_active = _detect_slf4j_strings(env);
-    if (!slf4j_active) {
+    detected = _detect_slf4j_strings(env);
+    if (!detected) {
         goto error;
     }
+    slf4j_active = detected;
 
     level_cls = JNI(FindClass, slf4j_active->level);
     if (!level_cls) {

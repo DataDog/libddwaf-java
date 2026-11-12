@@ -3,7 +3,7 @@
  * under the Apache-2.0 License.
  *
  * This product includes software developed at Datadog
- * (https://www.datadoghq.com/). Copyright 2021 Datadog, Inc.
+ * (https://www.datadoghq.com/). Copyright 2026 Datadog, Inc.
  */
 
 package com.datadog.ddwaf;
@@ -12,6 +12,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
@@ -34,11 +35,15 @@ public class UnrelocatedBindingWithRelocatedSlf4jVisibleTest {
   public void initializesWithDatadogSlf4jVisibleFromBindingLoader() throws Exception {
     ClassLoader parent = UnrelocatedBindingWithRelocatedSlf4jVisibleTest.class.getClassLoader();
     List<URL> urls = new ArrayList<>();
-    for (String dir : System.getProperty("mainClassesDirs").split(File.pathSeparator)) {
+    for (String dir : requiredProperty("mainClassesDirs").split(File.pathSeparator)) {
       addIfExists(urls, dir);
     }
-    addIfExists(urls, System.getProperty("mainResourcesDir"));
-    urls.add(new File(System.getProperty("relocatedSlf4jJar")).toURI().toURL());
+    String resourcesDir = requiredProperty("mainResourcesDir");
+    assertTrue(
+        "native_libs/ missing under " + resourcesDir,
+        new File(resourcesDir, "native_libs").isDirectory());
+    addIfExists(urls, resourcesDir);
+    urls.add(new File(requiredProperty("relocatedSlf4jJar")).toURI().toURL());
     URLClassLoader cl = new URLClassLoader(urls.toArray(new URL[0]), parent);
 
     // If the parent saw the binding, parent-first delegation would load it from there instead.
@@ -46,7 +51,6 @@ public class UnrelocatedBindingWithRelocatedSlf4jVisibleTest {
       Class.forName("com.datadog.ddwaf.Waf", false, parent);
       fail("com.datadog.ddwaf.Waf must not be loadable from the test class loader");
     } catch (ClassNotFoundException expected) {
-      // expected
     }
 
     // Both slf4j packages are visible from the binding loader.
@@ -69,7 +73,6 @@ public class UnrelocatedBindingWithRelocatedSlf4jVisibleTest {
       infoToDebug.getConstructor(Class.forName("datadog.slf4j.Logger", false, cl));
       fail("InfoToDebugLogger must not have a constructor taking datadog.slf4j.Logger");
     } catch (NoSuchMethodException expected) {
-      // expected
     }
 
     Class<?> waf = Class.forName("com.datadog.ddwaf.Waf", true, cl);
@@ -94,5 +97,12 @@ public class UnrelocatedBindingWithRelocatedSlf4jVisibleTest {
     if (f.isDirectory()) {
       urls.add(f.toURI().toURL());
     }
+  }
+
+  // Set by the testSlf4jRelocation Gradle task; skip instead of failing with an NPE elsewhere.
+  private static String requiredProperty(String name) {
+    String value = System.getProperty(name);
+    assumeTrue(name + " is only set by the testSlf4jRelocation Gradle task", value != null);
+    return value;
   }
 }
