@@ -79,6 +79,48 @@ static const struct slf4j_strings *slf4j_active = &slf4j_strings_org;
 DDWAF_LOG_LEVEL min_level;
 extern inline bool log_level_enabled(DDWAF_LOG_LEVEL);
 
+#define INFO_TO_DEBUG_LOGGER_CLASS "com/datadog/ddwaf/logging/InfoToDebugLogger"
+
+// Returns NULL with a pending exception if no candidate matches
+static const struct slf4j_strings *_detect_slf4j_strings(JNIEnv *env)
+{
+    const struct slf4j_strings *candidates[] = {&slf4j_strings_ddog,
+                                                &slf4j_strings_org};
+    const size_t num_candidates = sizeof(candidates) / sizeof(candidates[0]);
+    const struct slf4j_strings *found = NULL;
+
+    jclass wrapper_cls = JNI(FindClass, INFO_TO_DEBUG_LOGGER_CLASS);
+    if (!wrapper_cls) {
+        java_wrap_exc("Could not find class %s", INFO_TO_DEBUG_LOGGER_CLASS);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < num_candidates; i++) {
+        jmethodID ctor = JNI(GetMethodID, wrapper_cls, "<init>",
+                             candidates[i]->info_to_dbg_descr);
+        if (ctor) {
+            found = candidates[i];
+            break;
+        }
+        // GetMethodID failed (typically NoSuchMethodError). Clear whatever is
+        // pending before the next candidate, but keep the last failure
+        // pending: java_wrap_exc only wraps a pending exception.
+        if (i + 1 < num_candidates) {
+            JNI(ExceptionClear);
+        }
+    }
+
+    if (!found) {
+        java_wrap_exc("Could not find a constructor %s.<init> taking either "
+                      "%s or %s",
+                      INFO_TO_DEBUG_LOGGER_CLASS,
+                      slf4j_strings_ddog.info_to_dbg_descr,
+                      slf4j_strings_org.info_to_dbg_descr);
+    }
+    JNI(DeleteLocalRef, wrapper_cls);
+    return found;
+}
+
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
     char *loc = memrchr(__FILE__, DIR_SEP, strlen(__FILE__));
@@ -96,16 +138,21 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
 
     _vm = vm;
 
+    /* Choose the slf4j package from the signature InfoToDebugLogger was
+     * compiled (or relocated) against, not from which slf4j happens to be
+     * visible: when the binding is relocated to datadog/slf4j, an unrelated
+     * org/slf4j can still be reachable from this class loader (e.g. slf4j as
+     * a named module in the JPMS boot layer, which the JDK builtin loaders
+     * delegate to across loaders). */
+    slf4j_active = _detect_slf4j_strings(env);
+    if (!slf4j_active) {
+        goto error;
+    }
+
     level_cls = JNI(FindClass, slf4j_active->level);
     if (!level_cls) {
-        JNI(ExceptionClear);
-        slf4j_active = &slf4j_strings_ddog;
-        level_cls = JNI(FindClass, slf4j_active->level);
-        if (!level_cls) {
-            java_wrap_exc("Could find slf4j Level neither at %s, nor at %s",
-                          slf4j_strings_org.level, slf4j_strings_ddog.level);
-            goto error;
-        }
+        java_wrap_exc("Could not find slf4j Level at %s", slf4j_active->level);
+        goto error;
     }
 
     object_cls_local = JNI(FindClass, "java/lang/Object");
