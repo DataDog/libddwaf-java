@@ -517,6 +517,49 @@ tasks.register('relocatedSlf4jJar', ShadowJar) {
     exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
 }
 
+// Tests for the slf4j relocation done by dd-java-agent (APPSEC-71631). Each test builds its own
+// URLClassLoader over the jars/dirs passed as system properties, so the task classpath must NOT see
+// the binding (no sourceSets.main.output): parent-first delegation would load the unrelocated classes.
+sourceSets {
+    testRelocation {
+        java.srcDirs = ['src/test_relocation/java']
+        groovy.srcDirs = []
+        resources.srcDirs = []
+    }
+}
+dependencies {
+    testRelocationImplementation group: 'junit', name: 'junit', version: '4.13.2'
+    testRelocationImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
+    testRelocationRuntimeOnly group: 'org.slf4j', name: 'slf4j-api', version: SLF4J_VERSION
+    testRelocationRuntimeOnly group: 'org.slf4j', name: 'slf4j-simple', version: SLF4J_VERSION
+}
+
+tasks.register('testSlf4jRelocation', Test) {
+    description = 'Initializes the binding in class loaders that reproduce the dd-java-agent slf4j relocation (APPSEC-71631)'
+    group = 'verification'
+    useJUnit()
+    testClassesDirs = sourceSets.testRelocation.output.classesDirs
+    classpath = sourceSets.testRelocation.runtimeClasspath
+    // The native init state (C statics) is per process: one JVM per test class.
+    forkEvery = 1
+
+    def bindingJar = tasks.named('relocatedBindingJar').flatMap { it.archiveFile }
+    def slf4jJar = tasks.named('relocatedSlf4jJar').flatMap { it.archiveFile }
+    def mainOutput = sourceSets.main.output
+    inputs.file(bindingJar).withPropertyName('relocatedBindingJar').withNormalizer(ClasspathNormalizer)
+    inputs.file(slf4jJar).withPropertyName('relocatedSlf4jJar').withNormalizer(ClasspathNormalizer)
+    inputs.files(mainOutput).withPropertyName('mainOutput').withNormalizer(ClasspathNormalizer)
+    jvmArgumentProviders.add({
+        [
+            "-DrelocatedBindingJar=${bindingJar.get().asFile.absolutePath}",
+            "-DrelocatedSlf4jJar=${slf4jJar.get().asFile.absolutePath}",
+            "-DmainClassesDirs=${mainOutput.classesDirs.files*.absolutePath.join(File.pathSeparator)}",
+            "-DmainResourcesDir=${mainOutput.resourcesDir.absolutePath}",
+        ]*.toString()
+    } as CommandLineArgumentProvider)
+}
+check.dependsOn testSlf4jRelocation
+
 // Dedicated task for the GC race regression (APPSEC-62784).
 // Must run without the Jacoco coverage agent: the agent instruments WafContext.run()
 // bytecode in a way that keeps DirectByteBuffer references alive past the JNI boundary,
