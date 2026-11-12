@@ -1,3 +1,4 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.jvm.toolchain.internal.SpecificInstallationToolchainSpec
 
 buildscript {
@@ -21,6 +22,10 @@ plugins {
     id 'info.solidsoft.pitest' version '1.15.0'
     id 'com.diffplug.spotless' version '6.13.0'
     id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
+    // Not applied: applying it adds a shadow variant to components.java and changes the published
+    // artifact. Only the ShadowJar task type is used, for the slf4j relocation tests (APPSEC-71631).
+    // 8.1.1 is the last line that runs on a JDK 8 Gradle daemon.
+    id 'com.github.johnrengelman.shadow' version '8.1.1' apply false
 }
 
 repositories {
@@ -481,6 +486,86 @@ tasks.register('testgc', Test) {
     classpath = sourceSets.testGC.runtimeClasspath
 }
 check.dependsOn testgc
+
+// Relocated jars for the slf4j relocation tests (APPSEC-71631). They reproduce how dd-java-agent
+// shades this binding: org.slf4j is relocated to datadog.slf4j. Not part of assemble/publishing.
+// relocatedBindingJar: main classes and resources (including native_libs/) plus slf4j-api.
+tasks.register('relocatedBindingJar', ShadowJar) {
+    description = 'Builds the binding and slf4j-api with org.slf4j relocated to datadog.slf4j'
+    group = 'verification'
+    archiveClassifier = 'relocated-binding'
+    // Outside build/libs: the release packaging step copies build/libs/libsqreen-*.jar
+    destinationDirectory = layout.buildDirectory.dir('relocation-test-libs')
+    from sourceSets.main.output
+    configurations = [project.configurations.runtimeClasspath]
+    dependencies {
+        include(dependency("org.slf4j:slf4j-api:${SLF4J_VERSION}"))
+    }
+    relocate 'org.slf4j', 'datadog.slf4j'
+    exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    dependsOn copyNativeLibs
+}
+
+// relocatedSlf4jJar: slf4j-api only, with org.slf4j relocated to datadog.slf4j.
+tasks.register('relocatedSlf4jJar', ShadowJar) {
+    description = 'Builds slf4j-api with org.slf4j relocated to datadog.slf4j'
+    group = 'verification'
+    archiveClassifier = 'relocated-slf4j'
+    destinationDirectory = layout.buildDirectory.dir('relocation-test-libs')
+    configurations = [project.configurations.runtimeClasspath]
+    dependencies {
+        include(dependency("org.slf4j:slf4j-api:${SLF4J_VERSION}"))
+    }
+    relocate 'org.slf4j', 'datadog.slf4j'
+    exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
+
+// Tests for the slf4j relocation done by dd-java-agent (APPSEC-71631). Each test builds its own
+// URLClassLoader over the jars/dirs passed as system properties, so the task classpath must NOT see
+// the binding (no sourceSets.main.output): parent-first delegation would load the unrelocated classes.
+sourceSets {
+    testRelocation {
+        java.srcDirs = ['src/test_relocation/java']
+        groovy.srcDirs = []
+        resources.srcDirs = []
+    }
+}
+dependencies {
+    testRelocationImplementation group: 'junit', name: 'junit', version: '4.13.2'
+    testRelocationImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
+    testRelocationRuntimeOnly group: 'org.slf4j', name: 'slf4j-api', version: SLF4J_VERSION
+    testRelocationRuntimeOnly group: 'org.slf4j', name: 'slf4j-simple', version: SLF4J_VERSION
+}
+
+tasks.register('testSlf4jRelocation', Test) {
+    description = 'Initializes the binding in class loaders that reproduce the dd-java-agent slf4j relocation (APPSEC-71631)'
+    group = 'verification'
+    useJUnit()
+    testClassesDirs = sourceSets.testRelocation.output.classesDirs
+    classpath = sourceSets.testRelocation.runtimeClasspath
+    // The native init state (C statics) is per process: one JVM per test class.
+    forkEvery = 1
+    // The classes under test are relocated copies loaded by custom class loaders: their coverage data
+    // does not match the main classes, and jacocoTestReport would read this task's exec file without
+    // a declared dependency.
+    jacoco.enabled = false
+
+    def bindingJar = tasks.named('relocatedBindingJar').flatMap { it.archiveFile }
+    def slf4jJar = tasks.named('relocatedSlf4jJar').flatMap { it.archiveFile }
+    def mainOutput = sourceSets.main.output
+    inputs.file(bindingJar).withPropertyName('relocatedBindingJar').withNormalizer(ClasspathNormalizer)
+    inputs.file(slf4jJar).withPropertyName('relocatedSlf4jJar').withNormalizer(ClasspathNormalizer)
+    inputs.files(mainOutput).withPropertyName('mainOutput').withNormalizer(ClasspathNormalizer)
+    jvmArgumentProviders.add({
+        [
+            "-DrelocatedBindingJar=${bindingJar.get().asFile.absolutePath}",
+            "-DrelocatedSlf4jJar=${slf4jJar.get().asFile.absolutePath}",
+            "-DmainClassesDirs=${mainOutput.classesDirs.files*.absolutePath.join(File.pathSeparator)}",
+            "-DmainResourcesDir=${mainOutput.resourcesDir.absolutePath}",
+        ]*.toString()
+    } as CommandLineArgumentProvider)
+}
+check.dependsOn testSlf4jRelocation
 
 // Dedicated task for the GC race regression (APPSEC-62784).
 // Must run without the Jacoco coverage agent: the agent instruments WafContext.run()
