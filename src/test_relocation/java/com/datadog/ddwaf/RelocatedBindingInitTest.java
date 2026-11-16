@@ -25,7 +25,7 @@ import org.junit.Test;
 /**
  * Initializes the binding relocated to datadog.slf4j (as dd-java-agent ships it) from a loader that
  * can also see an unrelated org.slf4j, e.g. slf4j as a JPMS boot-layer module (APPSEC-71631). The
- * native init must pick the slf4j signatures from the relocated InfoToDebugLogger constructor.
+ * native init must use the relocated slf4j, which it reaches only through InfoToDebugLogger.
  */
 public class RelocatedBindingInitTest {
 

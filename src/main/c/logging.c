@@ -27,7 +27,6 @@
 
 #define LOGGER_NAME "ddwaf_native"
 #define LOGGING_PATTERN "%s (%s on %s:%s)"
-static jobject _trace, _debug, _info, _warn, _error;
 static jobject _logger;
 static jstring _log_pattern; // LOGGING_PATTERN
 static struct j_method _log_meth;
@@ -50,20 +49,10 @@ static const char *_remove_path(const char *path);
 static JNIEnv *_attach_vm(bool *attached);
 static void _detach_vm(void);
 
-#define SLF4J_SIG_MAX 256
-struct slf4j_strings {
-    char level[SLF4J_SIG_MAX], level_descr[SLF4J_SIG_MAX],
-            logger_factory[SLF4J_SIG_MAX], get_logger_descr[SLF4J_SIG_MAX],
-            info_to_dbg_descr[SLF4J_SIG_MAX], log_descr[SLF4J_SIG_MAX],
-            is_loggable_descr[SLF4J_SIG_MAX];
-};
-
 DDWAF_LOG_LEVEL min_level;
 extern inline bool log_level_enabled(DDWAF_LOG_LEVEL);
 
 #define INFO_TO_DEBUG_LOGGER_CLASS "com/datadog/ddwaf/logging/InfoToDebugLogger"
-
-static bool _build_slf4j_strings(JNIEnv *env, struct slf4j_strings *out);
 
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
@@ -71,28 +60,13 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     file_strip_idx = loc ? (int) (loc - __FILE__ + 1) : 0;
 
     bool retval = false;
-    struct j_method fact_get = {0};
-    struct j_method wrapper_log_init = {0};
+    struct j_method create = {0};
     jstring logger_name = NULL;
     jstring str_pattern_local = NULL;
-    jobject logger_local = NULL;
     jobject wrapper_local = NULL;
-    jclass level_cls = NULL;
     jclass object_cls_local = NULL;
-    struct slf4j_strings sigs;
-    const struct slf4j_strings *slf4j_active = &sigs;
 
     _vm = vm;
-
-    if (!_build_slf4j_strings(env, &sigs)) {
-        goto error;
-    }
-
-    level_cls = JNI(FindClass, slf4j_active->level);
-    if (!level_cls) {
-        java_wrap_exc("Could not find slf4j Level at %s", slf4j_active->level);
-        goto error;
-    }
 
     object_cls_local = JNI(FindClass, "java/lang/Object");
     if (!object_cls_local) {
@@ -103,30 +77,13 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-#define FETCH_FIELD(var, name)                                                 \
-    do {                                                                       \
-        var = java_static_field_checked(env, level_cls, name,                  \
-                                        slf4j_active->level_descr);            \
-        if (!var) {                                                            \
-            goto error;                                                        \
-        }                                                                      \
-    } while (0)
-
-    FETCH_FIELD(_trace, "TRACE");
-    FETCH_FIELD(_debug, "DEBUG");
-    FETCH_FIELD(_info, "INFO");
-    FETCH_FIELD(_warn, "WARN");
-    FETCH_FIELD(_error, "ERROR");
-
-    if (!java_meth_init_checked(env, &fact_get, slf4j_active->logger_factory,
-                                "getLogger", slf4j_active->get_logger_descr,
-                                JMETHOD_STATIC)) {
-        goto error;
-    }
-
+    /* The InfoToDebugLogger methods called from here take only JDK types, so
+     * this code does not depend on the package slf4j lives in (dd-java-agent
+     * relocates org.slf4j to datadog.slf4j). */
     if (!java_meth_init_checked(
-                env, &wrapper_log_init, INFO_TO_DEBUG_LOGGER_CLASS, "<init>",
-                slf4j_active->info_to_dbg_descr, JMETHOD_CONSTRUCTOR)) {
+                env, &create, INFO_TO_DEBUG_LOGGER_CLASS, "jniCreate",
+                "(Ljava/lang/String;)L" INFO_TO_DEBUG_LOGGER_CLASS ";",
+                JMETHOD_STATIC)) {
         goto error;
     }
 
@@ -134,12 +91,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     if (!logger_name) {
         goto error;
     }
-    logger_local = java_meth_call(env, &fact_get, NULL, logger_name);
-    if (JNI(ExceptionCheck)) {
-        goto error;
-    }
-
-    wrapper_local = java_meth_call(env, &wrapper_log_init, NULL, logger_local);
+    wrapper_local = java_meth_call(env, &create, NULL, logger_name);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
@@ -163,14 +115,15 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     }
 
     if (!java_meth_init_checked(env, &_log_meth, INFO_TO_DEBUG_LOGGER_CLASS,
-                                "log", slf4j_active->log_descr,
+                                "jniLog",
+                                "(ILjava/lang/Throwable;Ljava/lang/String;"
+                                "[Ljava/lang/Object;)V",
                                 JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
     if (!java_meth_init_checked(env, &_is_loggable, INFO_TO_DEBUG_LOGGER_CLASS,
-                                "isLoggable", slf4j_active->is_loggable_descr,
-                                JMETHOD_NON_VIRTUAL)) {
+                                "jniIsLoggable", "(I)Z", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
@@ -184,9 +137,6 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     retval = true;
 
 error:
-    if (level_cls) {
-        JNI(DeleteLocalRef, level_cls);
-    }
     if (object_cls_local) {
         JNI(DeleteLocalRef, object_cls_local);
     }
@@ -196,14 +146,10 @@ error:
     if (str_pattern_local) {
         JNI(DeleteLocalRef, str_pattern_local);
     }
-    if (logger_local) {
-        JNI(DeleteLocalRef, logger_local);
-    }
     if (wrapper_local) {
         JNI(DeleteLocalRef, wrapper_local);
     }
-    java_meth_destroy(env, &fact_get);
-    java_meth_destroy(env, &wrapper_log_init);
+    java_meth_destroy(env, &create);
     if (!retval) {
         java_log_shutdown(env);
     }
@@ -214,21 +160,6 @@ void java_log_shutdown(JNIEnv *env)
 {
     if (_object_jcls) {
         JNI(DeleteGlobalRef, _object_jcls);
-    }
-    if (_trace) {
-        JNI(DeleteWeakGlobalRef, _trace);
-    }
-    if (_debug) {
-        JNI(DeleteWeakGlobalRef, _debug);
-    }
-    if (_info) {
-        JNI(DeleteWeakGlobalRef, _info);
-    }
-    if (_warn) {
-        JNI(DeleteWeakGlobalRef, _warn);
-    }
-    if (_error) {
-        JNI(DeleteWeakGlobalRef, _error);
     }
     if (_logger) {
         JNI(DeleteGlobalRef, _logger);
@@ -266,9 +197,10 @@ void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
 
 static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level)
 {
-#define TEST_LEVEL(jobj, pwl_level)                                            \
+#define TEST_LEVEL(pwl_level)                                                  \
     do {                                                                       \
-        if (JNI(CallBooleanMethod, _logger, _is_loggable.meth_id, jobj)) {     \
+        if (JNI(CallBooleanMethod, _logger, _is_loggable.meth_id,              \
+                (jint) pwl_level)) {                                           \
             *level = pwl_level;                                                \
             return true;                                                       \
         }                                                                      \
@@ -277,29 +209,12 @@ static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level)
         }                                                                      \
     } while (0)
 
-    TEST_LEVEL(_trace, DDWAF_LOG_TRACE);
-    TEST_LEVEL(_debug, DDWAF_LOG_DEBUG);
-    TEST_LEVEL(_info, DDWAF_LOG_INFO);
-    TEST_LEVEL(_warn, DDWAF_LOG_WARN);
+    TEST_LEVEL(DDWAF_LOG_TRACE);
+    TEST_LEVEL(DDWAF_LOG_DEBUG);
+    TEST_LEVEL(DDWAF_LOG_INFO);
+    TEST_LEVEL(DDWAF_LOG_WARN);
     *level = DDWAF_LOG_ERROR;
     return true;
-}
-static jobject _lvl_api_to_java(DDWAF_LOG_LEVEL api_lvl)
-{
-    switch (api_lvl) {
-    case DDWAF_LOG_TRACE:
-        return _trace;
-    case DDWAF_LOG_DEBUG:
-        return _debug;
-    case DDWAF_LOG_INFO:
-        return _info;
-    case DDWAF_LOG_WARN:
-        return _warn;
-    case DDWAF_LOG_ERROR:
-        return _error;
-    }
-    // should not be reached
-    return _debug;
 }
 static void _waf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
                            const char *file, unsigned line, const char *message,
@@ -370,8 +285,7 @@ static void _waf_logging_c_throwable(DDWAF_LOG_LEVEL level,
     ADD_ARR_ELEM(2, file_jstr);
     ADD_ARR_ELEM(3, line_jstr);
 
-    jobject java_level = _lvl_api_to_java(level);
-    JNI(CallVoidMethod, _logger, _log_meth.meth_id, java_level, throwable,
+    JNI(CallVoidMethod, _logger, _log_meth.meth_id, (jint) level, throwable,
         _log_pattern, args_arr);
 
 error:
@@ -519,74 +433,4 @@ static const char *_remove_path(const char *path)
         path++;
     }
     return res;
-}
-
-/* Builds the slf4j signatures from InfoToDebugLogger.SLF4J_PACKAGE_PREFIX
- * (e.g. "org/slf4j/"), which is derived from a class literal, so it follows
- * whatever relocation was applied to the binding. Checking which slf4j is
- * visible instead would be wrong: when the binding is relocated, an unrelated
- * org/slf4j can still be reachable from this class loader (e.g. slf4j as a
- * named module in the JPMS boot layer).
- * Returns false with a pending exception on failure. */
-static bool _build_slf4j_strings(JNIEnv *env, struct slf4j_strings *out)
-{
-    bool retval = false;
-    jstring prefix_jstr = NULL;
-    const char *p = NULL;
-
-    jclass wrapper_cls = JNI(FindClass, INFO_TO_DEBUG_LOGGER_CLASS);
-    if (!wrapper_cls) {
-        java_wrap_exc("Could not find class %s", INFO_TO_DEBUG_LOGGER_CLASS);
-        return false;
-    }
-    jfieldID fid = JNI(GetStaticFieldID, wrapper_cls, "SLF4J_PACKAGE_PREFIX",
-                       "Ljava/lang/String;");
-    if (!fid) {
-        java_wrap_exc("Could not find %s.SLF4J_PACKAGE_PREFIX",
-                      INFO_TO_DEBUG_LOGGER_CLASS);
-        goto end;
-    }
-    prefix_jstr = JNI(GetStaticObjectField, wrapper_cls, fid);
-    if (JNI(ExceptionCheck)) {
-        goto end;
-    }
-    if (!prefix_jstr) {
-        JNI(ThrowNew, jcls_rte, "SLF4J_PACKAGE_PREFIX is null");
-        goto end;
-    }
-    p = JNI(GetStringUTFChars, prefix_jstr, NULL);
-    if (!p) {
-        goto end;
-    }
-
-#define BUILD(field, fmt)                                                      \
-    do {                                                                       \
-        int n = snprintf(out->field, sizeof(out->field), fmt, p);              \
-        if (n < 0 || (size_t) n >= sizeof(out->field)) {                       \
-            JNI(ThrowNew, jcls_rte, "slf4j package prefix is too long");       \
-            goto end;                                                          \
-        }                                                                      \
-    } while (0)
-
-    BUILD(level, "%sevent/Level");
-    BUILD(level_descr, "L%sevent/Level;");
-    BUILD(logger_factory, "%sLoggerFactory");
-    BUILD(get_logger_descr, "(Ljava/lang/String;)L%sLogger;");
-    BUILD(info_to_dbg_descr, "(L%sLogger;)V");
-    BUILD(log_descr, "(L%sevent/Level;Ljava/lang/Throwable;"
-                     "Ljava/lang/String;[Ljava/lang/Object;)V");
-    BUILD(is_loggable_descr, "(L%sevent/Level;)Z");
-#undef BUILD
-
-    retval = true;
-
-end:
-    if (p) {
-        JNI(ReleaseStringUTFChars, prefix_jstr, p);
-    }
-    if (prefix_jstr) {
-        JNI(DeleteLocalRef, prefix_jstr);
-    }
-    JNI(DeleteLocalRef, wrapper_cls);
-    return retval;
 }

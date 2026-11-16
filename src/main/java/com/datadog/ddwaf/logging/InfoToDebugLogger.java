@@ -9,24 +9,46 @@
 package com.datadog.ddwaf.logging;
 
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 import org.slf4j.event.Level;
 
 public class InfoToDebugLogger extends ForwardLogger {
-  // Read by the native logging init to build the slf4j signatures, e.g. "org/slf4j/". Derived
-  // from a class literal so that relocating org.slf4j (as dd-java-agent does) updates it.
-  static final String SLF4J_PACKAGE_PREFIX = slf4jPackagePrefix();
-
-  private static String slf4jPackagePrefix() {
-    String name = Logger.class.getName();
-    return name.substring(0, name.lastIndexOf('.') + 1).replace('.', '/');
-  }
-
   public InfoToDebugLogger(Logger delegate) {
     super(delegate);
   }
 
-  // these simplify calls from JNI
+  // Entry points for the native code. They take only JDK types, so the native code does not
+  // depend on the package slf4j lives in (dd-java-agent relocates org.slf4j to datadog.slf4j).
+  // Levels are DDWAF_LOG_LEVEL values.
+
+  static InfoToDebugLogger jniCreate(String name) {
+    return new InfoToDebugLogger(LoggerFactory.getLogger(name));
+  }
+
+  void jniLog(int ddwafLevel, Throwable t, String fmt, Object[] args) {
+    log(toSlf4jLevel(ddwafLevel), t, fmt, args);
+  }
+
+  boolean jniIsLoggable(int ddwafLevel) {
+    return isLoggable(toSlf4jLevel(ddwafLevel));
+  }
+
+  private static Level toSlf4jLevel(int ddwafLevel) {
+    switch (ddwafLevel) {
+      case 0:
+        return Level.TRACE;
+      case 1:
+        return Level.DEBUG;
+      case 2:
+        return Level.INFO;
+      case 3:
+        return Level.WARN;
+      default:
+        return Level.ERROR;
+    }
+  }
+
   public void log(Level level, Throwable t, String fmt, Object[] args) {
     if (!isLoggable(level)) {
       return;

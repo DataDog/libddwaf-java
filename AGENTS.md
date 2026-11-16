@@ -40,8 +40,8 @@ passing is not sufficient evidence of correctness for that kind of change.
 
 `check` also runs `testSlf4jRelocation`: it builds relocated copies of the
 binding and of slf4j-api (`org.slf4j` -> `datadog.slf4j`, as dd-java-agent
-shades it) and runs each test class in its own JVM, because the native slf4j
-table choice in `JNI_OnLoad` is per process. Changes to `src/main/c/logging.c`
+shades it) and runs each test class in its own JVM, because the native logging
+init in `JNI_OnLoad` runs once per process. Changes to `src/main/c/logging.c`
 (native logging init) must keep it passing. Its classpath must never include
 the main output: the tests assert the binding is not visible from the parent.
 

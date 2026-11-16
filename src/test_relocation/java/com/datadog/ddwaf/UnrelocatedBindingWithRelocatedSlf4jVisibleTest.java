@@ -26,8 +26,8 @@ import org.junit.Test;
 
 /**
  * Initializes the unrelocated binding from a loader that can also see a relocated datadog.slf4j, as
- * an unshaded binding does when dd-java-agent is attached (APPSEC-71631). Guards against choosing
- * the slf4j signatures by probing datadog.slf4j first instead of the InfoToDebugLogger constructor.
+ * an unshaded binding does when dd-java-agent is attached (APPSEC-71631). Guards against the native
+ * init using whichever slf4j is visible instead of the one InfoToDebugLogger was compiled against.
  */
 public class UnrelocatedBindingWithRelocatedSlf4jVisibleTest {
 
