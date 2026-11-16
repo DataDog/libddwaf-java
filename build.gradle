@@ -488,22 +488,33 @@ tasks.register('testgc', Test) {
 check.dependsOn testgc
 
 // Relocated jars for the slf4j relocation tests (APPSEC-71631). They reproduce how dd-java-agent
-// shades this binding: org.slf4j is relocated to datadog.slf4j. Not part of assemble/publishing.
-// relocatedBindingJar: main classes and resources (including native_libs/) plus slf4j-api.
-tasks.register('relocatedBindingJar', ShadowJar) {
-    description = 'Builds the binding and slf4j-api with org.slf4j relocated to datadog.slf4j'
-    group = 'verification'
-    archiveClassifier = 'relocated-binding'
+// shades this binding (org.slf4j relocated to datadog.slf4j), plus one arbitrary prefix. Not part of
+// assemble/publishing.
+// Main classes and resources (including native_libs/) plus slf4j-api, org.slf4j relocated to prefix.
+def configureRelocatedBindingJar = { ShadowJar jar, String classifier, String prefix ->
+    jar.description = "Builds the binding and slf4j-api with org.slf4j relocated to ${prefix}"
+    jar.group = 'verification'
+    jar.archiveClassifier = classifier
     // Outside build/libs: the release packaging step copies build/libs/libsqreen-*.jar
-    destinationDirectory = layout.buildDirectory.dir('relocation-test-libs')
-    from sourceSets.main.output
-    configurations = [project.configurations.runtimeClasspath]
-    dependencies {
+    jar.destinationDirectory = layout.buildDirectory.dir('relocation-test-libs')
+    jar.from sourceSets.main.output
+    jar.configurations = [project.configurations.runtimeClasspath]
+    jar.dependencies {
         include(dependency("org.slf4j:slf4j-api:${SLF4J_VERSION}"))
     }
-    relocate 'org.slf4j', 'datadog.slf4j'
-    exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
-    dependsOn copyNativeLibs
+    jar.relocate 'org.slf4j', prefix
+    jar.exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    jar.dependsOn copyNativeLibs
+}
+
+// relocatedBindingJar: the prefix used by dd-java-agent.
+tasks.register('relocatedBindingJar', ShadowJar) {
+    configureRelocatedBindingJar(it, 'relocated-binding', 'datadog.slf4j')
+}
+
+// relocatedBindingArbitraryPrefixJar: any other prefix must work too (no slf4j name in native code).
+tasks.register('relocatedBindingArbitraryPrefixJar', ShadowJar) {
+    configureRelocatedBindingJar(it, 'relocated-binding-shaded', 'shaded.org.slf4j')
 }
 
 // relocatedSlf4jJar: slf4j-api only, with org.slf4j relocated to datadog.slf4j.
@@ -551,14 +562,17 @@ tasks.register('testSlf4jRelocation', Test) {
     jacoco.enabled = false
 
     def bindingJar = tasks.named('relocatedBindingJar').flatMap { it.archiveFile }
+    def arbitraryPrefixBindingJar = tasks.named('relocatedBindingArbitraryPrefixJar').flatMap { it.archiveFile }
     def slf4jJar = tasks.named('relocatedSlf4jJar').flatMap { it.archiveFile }
     def mainOutput = sourceSets.main.output
     inputs.file(bindingJar).withPropertyName('relocatedBindingJar').withNormalizer(ClasspathNormalizer)
+    inputs.file(arbitraryPrefixBindingJar).withPropertyName('relocatedBindingArbitraryPrefixJar').withNormalizer(ClasspathNormalizer)
     inputs.file(slf4jJar).withPropertyName('relocatedSlf4jJar').withNormalizer(ClasspathNormalizer)
     inputs.files(mainOutput).withPropertyName('mainOutput').withNormalizer(ClasspathNormalizer)
     jvmArgumentProviders.add({
         [
             "-DrelocatedBindingJar=${bindingJar.get().asFile.absolutePath}",
+            "-DrelocatedBindingArbitraryPrefixJar=${arbitraryPrefixBindingJar.get().asFile.absolutePath}",
             "-DrelocatedSlf4jJar=${slf4jJar.get().asFile.absolutePath}",
             "-DmainClassesDirs=${mainOutput.classesDirs.files*.absolutePath.join(File.pathSeparator)}",
             "-DmainResourcesDir=${mainOutput.resourcesDir.absolutePath}",
