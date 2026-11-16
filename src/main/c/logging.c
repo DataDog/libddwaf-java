@@ -27,7 +27,6 @@
 
 #define LOGGER_NAME "ddwaf_native"
 #define LOGGING_PATTERN "%s (%s on %s:%s)"
-static jobject _trace, _debug, _info, _warn, _error;
 static jobject _logger;
 static jstring _log_pattern; // LOGGING_PATTERN
 static struct j_method _log_meth;
@@ -50,76 +49,13 @@ static const char *_remove_path(const char *path);
 static JNIEnv *_attach_vm(bool *attached);
 static void _detach_vm(void);
 
-struct slf4j_strings {
-    const char *level, *level_descr, *logger_factory, *get_logger_descr,
-            *info_to_dbg_descr, *log_descr, *is_loggable_descr;
-};
-static const struct slf4j_strings slf4j_strings_org = {
-        .level = "org/slf4j/event/Level",
-        .level_descr = "Lorg/slf4j/event/Level;",
-        .logger_factory = "org/slf4j/LoggerFactory",
-        .get_logger_descr = "(Ljava/lang/String;)Lorg/slf4j/Logger;",
-        .info_to_dbg_descr = "(Lorg/slf4j/Logger;)V",
-        .log_descr = "(Lorg/slf4j/event/Level;Ljava/lang/Throwable;"
-                     "Ljava/lang/String;[Ljava/lang/Object;)V",
-        .is_loggable_descr = "(Lorg/slf4j/event/Level;)Z",
-};
-static const struct slf4j_strings slf4j_strings_ddog = {
-        .level = "datadog/slf4j/event/Level",
-        .level_descr = "Ldatadog/slf4j/event/Level;",
-        .logger_factory = "datadog/slf4j/LoggerFactory",
-        .get_logger_descr = "(Ljava/lang/String;)Ldatadog/slf4j/Logger;",
-        .info_to_dbg_descr = "(Ldatadog/slf4j/Logger;)V",
-        .log_descr = "(Ldatadog/slf4j/event/Level;Ljava/lang/Throwable;"
-                     "Ljava/lang/String;[Ljava/lang/Object;)V",
-        .is_loggable_descr = "(Ldatadog/slf4j/event/Level;)Z",
-};
-static const struct slf4j_strings *slf4j_active = &slf4j_strings_org;
-
 DDWAF_LOG_LEVEL min_level;
 extern inline bool log_level_enabled(DDWAF_LOG_LEVEL);
 
 #define INFO_TO_DEBUG_LOGGER_CLASS "com/datadog/ddwaf/logging/InfoToDebugLogger"
-
-// Returns NULL with a pending exception if no candidate matches
-static const struct slf4j_strings *_detect_slf4j_strings(JNIEnv *env)
-{
-    const struct slf4j_strings *candidates[] = {&slf4j_strings_ddog,
-                                                &slf4j_strings_org};
-    const size_t num_candidates = sizeof(candidates) / sizeof(candidates[0]);
-    const struct slf4j_strings *found = NULL;
-
-    jclass wrapper_cls = JNI(FindClass, INFO_TO_DEBUG_LOGGER_CLASS);
-    if (!wrapper_cls) {
-        java_wrap_exc("Could not find class %s", INFO_TO_DEBUG_LOGGER_CLASS);
-        return NULL;
-    }
-
-    for (size_t i = 0; i < num_candidates; i++) {
-        jmethodID ctor = JNI(GetMethodID, wrapper_cls, "<init>",
-                             candidates[i]->info_to_dbg_descr);
-        if (ctor) {
-            found = candidates[i];
-            break;
-        }
-        // GetMethodID failed (typically NoSuchMethodError). Clear whatever is
-        // pending before the next candidate, but keep the last failure
-        // pending: java_wrap_exc only wraps a pending exception.
-        if (i + 1 < num_candidates) {
-            JNI(ExceptionClear);
-        }
-    }
-
-    if (!found) {
-        java_wrap_exc("Could not find a constructor %s.<init> taking either "
-                      "%s or %s",
-                      INFO_TO_DEBUG_LOGGER_CLASS,
-                      slf4j_strings_ddog.info_to_dbg_descr,
-                      slf4j_strings_org.info_to_dbg_descr);
-    }
-    JNI(DeleteLocalRef, wrapper_cls);
-    return found;
-}
+#define CREATE_DESCR "(Ljava/lang/String;)L" INFO_TO_DEBUG_LOGGER_CLASS ";"
+#define LOG_DESCR                                                              \
+    "(ILjava/lang/Throwable;Ljava/lang/String;[Ljava/lang/Object;)V"
 
 bool java_log_init(JavaVM *vm, JNIEnv *env)
 {
@@ -127,35 +63,13 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     file_strip_idx = loc ? (int) (loc - __FILE__ + 1) : 0;
 
     bool retval = false;
-    struct j_method fact_get = {0};
-    struct j_method wrapper_log_init = {0};
+    struct j_method wrapper_create = {0};
     jstring logger_name = NULL;
     jstring str_pattern_local = NULL;
-    jobject logger_local = NULL;
     jobject wrapper_local = NULL;
-    jclass level_cls = NULL;
     jclass object_cls_local = NULL;
-    const struct slf4j_strings *detected = NULL;
 
     _vm = vm;
-
-    /* Choose the slf4j package from the signature InfoToDebugLogger was
-     * compiled (or relocated) against, not from which slf4j happens to be
-     * visible: when the binding is relocated to datadog/slf4j, an unrelated
-     * org/slf4j can still be reachable from this class loader (e.g. slf4j as
-     * a named module in the JPMS boot layer, which the JDK builtin loaders
-     * delegate to across loaders). */
-    detected = _detect_slf4j_strings(env);
-    if (!detected) {
-        goto error;
-    }
-    slf4j_active = detected;
-
-    level_cls = JNI(FindClass, slf4j_active->level);
-    if (!level_cls) {
-        java_wrap_exc("Could not find slf4j Level at %s", slf4j_active->level);
-        goto error;
-    }
 
     object_cls_local = JNI(FindClass, "java/lang/Object");
     if (!object_cls_local) {
@@ -166,31 +80,13 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-#define FETCH_FIELD(var, name)                                                 \
-    do {                                                                       \
-        var = java_static_field_checked(env, level_cls, name,                  \
-                                        slf4j_active->level_descr);            \
-        if (!var) {                                                            \
-            goto error;                                                        \
-        }                                                                      \
-    } while (0)
-
-    FETCH_FIELD(_trace, "TRACE");
-    FETCH_FIELD(_debug, "DEBUG");
-    FETCH_FIELD(_info, "INFO");
-    FETCH_FIELD(_warn, "WARN");
-    FETCH_FIELD(_error, "ERROR");
-
-    if (!java_meth_init_checked(env, &fact_get, slf4j_active->logger_factory,
-                                "getLogger", slf4j_active->get_logger_descr,
-                                JMETHOD_STATIC)) {
-        goto error;
-    }
-
-    if (!java_meth_init_checked(env, &wrapper_log_init,
-                                "com/datadog/ddwaf/logging/InfoToDebugLogger",
-                                "<init>", slf4j_active->info_to_dbg_descr,
-                                JMETHOD_CONSTRUCTOR)) {
+    /* Only InfoToDebugLogger entry points whose signatures use JDK types are
+     * looked up here, so native code names no logging library class: those
+     * references live in Java bytecode, which shading tools relocate with any
+     * prefix, whatever other copy of the library is visible. */
+    if (!java_meth_init_checked(env, &wrapper_create,
+                                INFO_TO_DEBUG_LOGGER_CLASS, "create",
+                                CREATE_DESCR, JMETHOD_STATIC)) {
         goto error;
     }
 
@@ -198,12 +94,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     if (!logger_name) {
         goto error;
     }
-    logger_local = java_meth_call(env, &fact_get, NULL, logger_name);
-    if (JNI(ExceptionCheck)) {
-        goto error;
-    }
-
-    wrapper_local = java_meth_call(env, &wrapper_log_init, NULL, logger_local);
+    wrapper_local = java_meth_call(env, &wrapper_create, NULL, logger_name);
     if (JNI(ExceptionCheck)) {
         goto error;
     }
@@ -226,16 +117,13 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
         goto error;
     }
 
-    if (!java_meth_init_checked(
-                env, &_log_meth, "com/datadog/ddwaf/logging/InfoToDebugLogger",
-                "log", slf4j_active->log_descr, JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &_log_meth, INFO_TO_DEBUG_LOGGER_CLASS,
+                                "log", LOG_DESCR, JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
-    if (!java_meth_init_checked(env, &_is_loggable,
-                                "com/datadog/ddwaf/logging/InfoToDebugLogger",
-                                "isLoggable", slf4j_active->is_loggable_descr,
-                                JMETHOD_NON_VIRTUAL)) {
+    if (!java_meth_init_checked(env, &_is_loggable, INFO_TO_DEBUG_LOGGER_CLASS,
+                                "isLoggable", "(I)Z", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
@@ -249,9 +137,6 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     retval = true;
 
 error:
-    if (level_cls) {
-        JNI(DeleteLocalRef, level_cls);
-    }
     if (object_cls_local) {
         JNI(DeleteLocalRef, object_cls_local);
     }
@@ -261,14 +146,10 @@ error:
     if (str_pattern_local) {
         JNI(DeleteLocalRef, str_pattern_local);
     }
-    if (logger_local) {
-        JNI(DeleteLocalRef, logger_local);
-    }
     if (wrapper_local) {
         JNI(DeleteLocalRef, wrapper_local);
     }
-    java_meth_destroy(env, &fact_get);
-    java_meth_destroy(env, &wrapper_log_init);
+    java_meth_destroy(env, &wrapper_create);
     if (!retval) {
         java_log_shutdown(env);
     }
@@ -279,21 +160,6 @@ void java_log_shutdown(JNIEnv *env)
 {
     if (_object_jcls) {
         JNI(DeleteGlobalRef, _object_jcls);
-    }
-    if (_trace) {
-        JNI(DeleteWeakGlobalRef, _trace);
-    }
-    if (_debug) {
-        JNI(DeleteWeakGlobalRef, _debug);
-    }
-    if (_info) {
-        JNI(DeleteWeakGlobalRef, _info);
-    }
-    if (_warn) {
-        JNI(DeleteWeakGlobalRef, _warn);
-    }
-    if (_error) {
-        JNI(DeleteWeakGlobalRef, _error);
     }
     if (_logger) {
         JNI(DeleteGlobalRef, _logger);
@@ -331,9 +197,10 @@ void java_log(DDWAF_LOG_LEVEL level, const char *function, const char *file,
 
 static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level)
 {
-#define TEST_LEVEL(jobj, pwl_level)                                            \
+#define TEST_LEVEL(pwl_level)                                                  \
     do {                                                                       \
-        if (JNI(CallBooleanMethod, _logger, _is_loggable.meth_id, jobj)) {     \
+        if (JNI(CallBooleanMethod, _logger, _is_loggable.meth_id,              \
+                (jint) pwl_level)) {                                           \
             *level = pwl_level;                                                \
             return true;                                                       \
         }                                                                      \
@@ -342,29 +209,12 @@ static bool _get_min_log_level(JNIEnv *env, DDWAF_LOG_LEVEL *level)
         }                                                                      \
     } while (0)
 
-    TEST_LEVEL(_trace, DDWAF_LOG_TRACE);
-    TEST_LEVEL(_debug, DDWAF_LOG_DEBUG);
-    TEST_LEVEL(_info, DDWAF_LOG_INFO);
-    TEST_LEVEL(_warn, DDWAF_LOG_WARN);
+    TEST_LEVEL(DDWAF_LOG_TRACE);
+    TEST_LEVEL(DDWAF_LOG_DEBUG);
+    TEST_LEVEL(DDWAF_LOG_INFO);
+    TEST_LEVEL(DDWAF_LOG_WARN);
     *level = DDWAF_LOG_ERROR;
     return true;
-}
-static jobject _lvl_api_to_java(DDWAF_LOG_LEVEL api_lvl)
-{
-    switch (api_lvl) {
-    case DDWAF_LOG_TRACE:
-        return _trace;
-    case DDWAF_LOG_DEBUG:
-        return _debug;
-    case DDWAF_LOG_INFO:
-        return _info;
-    case DDWAF_LOG_WARN:
-        return _warn;
-    case DDWAF_LOG_ERROR:
-        return _error;
-    }
-    // should not be reached
-    return _debug;
 }
 static void _waf_logging_c(DDWAF_LOG_LEVEL level, const char *function,
                            const char *file, unsigned line, const char *message,
@@ -435,8 +285,7 @@ static void _waf_logging_c_throwable(DDWAF_LOG_LEVEL level,
     ADD_ARR_ELEM(2, file_jstr);
     ADD_ARR_ELEM(3, line_jstr);
 
-    jobject java_level = _lvl_api_to_java(level);
-    JNI(CallVoidMethod, _logger, _log_meth.meth_id, java_level, throwable,
+    JNI(CallVoidMethod, _logger, _log_meth.meth_id, (jint) level, throwable,
         _log_pattern, args_arr);
 
 error:

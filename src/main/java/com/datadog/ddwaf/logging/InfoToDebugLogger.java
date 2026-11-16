@@ -9,12 +9,53 @@
 package com.datadog.ddwaf.logging;
 
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 import org.slf4j.event.Level;
 
 public class InfoToDebugLogger extends ForwardLogger {
+  // Mirror DDWAF_LOG_LEVEL in libddwaf's ddwaf.h
+  private static final int DDWAF_LOG_TRACE = 0;
+  private static final int DDWAF_LOG_DEBUG = 1;
+  private static final int DDWAF_LOG_INFO = 2;
+  private static final int DDWAF_LOG_WARN = 3;
+  private static final int DDWAF_LOG_ERROR = 4;
+
   public InfoToDebugLogger(Logger delegate) {
     super(delegate);
+  }
+
+  // The next three methods are called from JNI. Their signatures must not
+  // mention slf4j types: the native side then needs no slf4j names, and
+  // shading relocates every slf4j reference in this class with any prefix.
+  static InfoToDebugLogger create(String name) {
+    return new InfoToDebugLogger(LoggerFactory.getLogger(name));
+  }
+
+  void log(int level, Throwable t, String fmt, Object[] args) {
+    log(toLevel(level), t, fmt, args);
+  }
+
+  boolean isLoggable(int level) {
+    return isLoggable(toLevel(level));
+  }
+
+  private static Level toLevel(int ddwafLevel) {
+    switch (ddwafLevel) {
+      case DDWAF_LOG_TRACE:
+        return Level.TRACE;
+      case DDWAF_LOG_DEBUG:
+        return Level.DEBUG;
+      case DDWAF_LOG_INFO:
+        return Level.INFO;
+      case DDWAF_LOG_WARN:
+        return Level.WARN;
+      case DDWAF_LOG_ERROR:
+        return Level.ERROR;
+      default:
+        // unknown levels were logged as DEBUG by the native side; keep that
+        return Level.DEBUG;
+    }
   }
 
   // these simplify calls from JNI
