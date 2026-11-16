@@ -85,7 +85,7 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
      * references live in Java bytecode, which shading tools relocate with any
      * prefix, whatever other copy of the library is visible. */
     if (!java_meth_init_checked(env, &wrapper_create,
-                                INFO_TO_DEBUG_LOGGER_CLASS, "create",
+                                INFO_TO_DEBUG_LOGGER_CLASS, "jniCreate",
                                 CREATE_DESCR, JMETHOD_STATIC)) {
         goto error;
     }
@@ -118,12 +118,12 @@ bool java_log_init(JavaVM *vm, JNIEnv *env)
     }
 
     if (!java_meth_init_checked(env, &_log_meth, INFO_TO_DEBUG_LOGGER_CLASS,
-                                "log", LOG_DESCR, JMETHOD_NON_VIRTUAL)) {
+                                "jniLog", LOG_DESCR, JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 
     if (!java_meth_init_checked(env, &_is_loggable, INFO_TO_DEBUG_LOGGER_CLASS,
-                                "isLoggable", "(I)Z", JMETHOD_NON_VIRTUAL)) {
+                                "jniIsLoggable", "(I)Z", JMETHOD_NON_VIRTUAL)) {
         goto error;
     }
 

@@ -28,15 +28,15 @@ public class InfoToDebugLogger extends ForwardLogger {
   // The next three methods are called from JNI. Their signatures must not
   // mention slf4j types: the native side then needs no slf4j names, and
   // shading relocates every slf4j reference in this class with any prefix.
-  static InfoToDebugLogger create(String name) {
+  static InfoToDebugLogger jniCreate(String name) {
     return new InfoToDebugLogger(LoggerFactory.getLogger(name));
   }
 
-  void log(int level, Throwable t, String fmt, Object[] args) {
+  void jniLog(int level, Throwable t, String fmt, Object[] args) {
     log(toLevel(level), t, fmt, args);
   }
 
-  boolean isLoggable(int level) {
+  boolean jniIsLoggable(int level) {
     return isLoggable(toLevel(level));
   }
 
