@@ -13,6 +13,15 @@ import org.slf4j.Marker;
 import org.slf4j.event.Level;
 
 public class InfoToDebugLogger extends ForwardLogger {
+  // Read by the native logging init to build the slf4j signatures, e.g. "org/slf4j/". Derived
+  // from a class literal so that relocating org.slf4j (as dd-java-agent does) updates it.
+  static final String SLF4J_PACKAGE_PREFIX = slf4jPackagePrefix();
+
+  private static String slf4jPackagePrefix() {
+    String name = Logger.class.getName();
+    return name.substring(0, name.lastIndexOf('.') + 1).replace('.', '/');
+  }
+
   public InfoToDebugLogger(Logger delegate) {
     super(delegate);
   }
