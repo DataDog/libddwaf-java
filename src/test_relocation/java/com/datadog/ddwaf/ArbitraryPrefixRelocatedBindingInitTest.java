@@ -26,7 +26,8 @@ import org.junit.Test;
  * Initializes the binding relocated to shaded.org.slf4j, a prefix other than the datadog.slf4j used
  * by dd-java-agent, from a loader that can also see an unrelated org.slf4j (APPSEC-71631). Any
  * relocation prefix must work: the native init names no slf4j class, so every slf4j reference lives
- * in bytecode that the shading tool relocates.
+ * in bytecode that the shading tool relocates. Native logs must reach the slf4j-simple shaded into
+ * the jar.
  */
 public class ArbitraryPrefixRelocatedBindingInitTest {
 
@@ -58,21 +59,27 @@ public class ArbitraryPrefixRelocatedBindingInitTest {
     assertNoConstructorTaking(infoToDebug, "org.slf4j.Logger", cl);
     assertNoConstructorTaking(infoToDebug, "datadog.slf4j.Logger", cl);
 
-    Class<?> waf = Class.forName("com.datadog.ddwaf.Waf", true, cl);
-    try {
-      waf.getMethod("initialize", boolean.class).invoke(null, false);
-    } catch (InvocationTargetException e) {
-      throw new AssertionError(
-          "Waf.initialize failed with the binding relocated to shaded.org.slf4j", e.getCause());
-    }
+    try (RelocatedSimpleLoggerCapture log = new RelocatedSimpleLoggerCapture("shaded.org.slf4j")) {
+      log.assertRelocatedLoggerIsSimpleLogger(cl);
 
-    // Same semantics as BasicTests: Waf.version =~ Waf.LIB_VERSION (regex find).
-    String libVersion = (String) waf.getField("LIB_VERSION").get(null);
-    Method getVersion = waf.getMethod("getVersion");
-    String version = (String) getVersion.invoke(null);
-    assertTrue(
-        "version " + version + " does not match " + libVersion,
-        Pattern.compile(libVersion).matcher(version).find());
+      Class<?> waf = Class.forName("com.datadog.ddwaf.Waf", true, cl);
+      try {
+        waf.getMethod("initialize", boolean.class).invoke(null, false);
+      } catch (InvocationTargetException e) {
+        throw new AssertionError(
+            "Waf.initialize failed with the binding relocated to shaded.org.slf4j", e.getCause());
+      }
+
+      // Same semantics as BasicTests: Waf.version =~ Waf.LIB_VERSION (regex find).
+      String libVersion = (String) waf.getField("LIB_VERSION").get(null);
+      Method getVersion = waf.getMethod("getVersion");
+      String version = (String) getVersion.invoke(null);
+      assertTrue(
+          "version " + version + " does not match " + libVersion,
+          Pattern.compile(libVersion).matcher(version).find());
+
+      log.assertDeinitializeLogIsForwarded(waf);
+    }
   }
 
   // A parameter type that is not loadable from cl counts as absent.
