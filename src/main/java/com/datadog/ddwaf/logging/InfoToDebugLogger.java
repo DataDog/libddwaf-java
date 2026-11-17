@@ -14,7 +14,8 @@ import org.slf4j.Marker;
 import org.slf4j.event.Level;
 
 public class InfoToDebugLogger extends ForwardLogger {
-  // Mirror DDWAF_LOG_LEVEL in libddwaf's ddwaf.h
+  // Mirror DDWAF_LOG_LEVEL in libddwaf's ddwaf.h; a _Static_assert in src/main/c/logging.c
+  // fails the native build if the values change.
   private static final int DDWAF_LOG_TRACE = 0;
   private static final int DDWAF_LOG_DEBUG = 1;
   private static final int DDWAF_LOG_INFO = 2;

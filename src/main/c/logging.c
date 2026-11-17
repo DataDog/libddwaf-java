@@ -52,6 +52,13 @@ static void _detach_vm(void);
 DDWAF_LOG_LEVEL min_level;
 extern inline bool log_level_enabled(DDWAF_LOG_LEVEL);
 
+/* jniLog and jniIsLoggable receive the DDWAF_LOG_LEVEL value as a jint;
+ * InfoToDebugLogger mirrors these values in its DDWAF_LOG_* constants. */
+_Static_assert(DDWAF_LOG_TRACE == 0 && DDWAF_LOG_DEBUG == 1 &&
+                       DDWAF_LOG_INFO == 2 && DDWAF_LOG_WARN == 3 &&
+                       DDWAF_LOG_ERROR == 4,
+               "InfoToDebugLogger level constants must match DDWAF_LOG_LEVEL");
+
 #define INFO_TO_DEBUG_LOGGER_CLASS "com/datadog/ddwaf/logging/InfoToDebugLogger"
 #define CREATE_DESCR "(Ljava/lang/String;)L" INFO_TO_DEBUG_LOGGER_CLASS ";"
 #define LOG_DESCR                                                              \
