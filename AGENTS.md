@@ -38,6 +38,15 @@ JDK 21/25 matrix entries exercise. If your change touches `WafContext` or
 arena/native-memory lifetime, run `./gradlew check -PuseZGC` — plain `check`
 passing is not sufficient evidence of correctness for that kind of change.
 
+`check` also runs `testSlf4jRelocation`: it builds relocated copies of the
+binding and of slf4j-api (`org.slf4j` -> `datadog.slf4j`, as dd-java-agent
+shades it, and -> `shaded.org.slf4j`) and runs each test class in its own JVM,
+because the native logging init in `JNI_OnLoad` is per process. The native
+code must not name any slf4j class: it only calls `InfoToDebugLogger` entry
+points whose signatures use JDK types, so shading relocates every slf4j
+reference with any prefix. Its classpath must never include the main output:
+the tests assert the binding is not visible from the parent.
+
 To build the native JNI lib against a separately-built libddwaf without
 touching the submodule checkout, use
 `./gradlew buildNativeLibDebug -PlibddwafConfig=/path/to/libddwaf/out/share/cmake/libddwaf`
